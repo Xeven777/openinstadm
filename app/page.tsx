@@ -1,12 +1,5 @@
-import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import Link from "next/link";
-
-export const metadata: Metadata = {
-  title: "OpenInstaDM - Open source Instagram comment-to-DM automation",
-  description:
-    "A free, self-hosted ManyChat alternative. Turn Instagram keyword comments into automatic private replies using the official Meta API.",
-};
 
 const GITHUB_URL = "https://github.com/xeven777/OpenInstaDM";
 
@@ -62,7 +55,13 @@ const features = [
 /* Static, faithful copies of the real Overview and Dashboard screens, built in
    the app's own design tokens so what visitors see is what the app looks like. */
 
-function AppWindow({ label, children }: { label: string; children: ReactNode }) {
+function AppWindow({
+  label,
+  children,
+}: {
+  label: string;
+  children: ReactNode;
+}) {
   return (
     <div className="overflow-hidden rounded-lg border border-border bg-background shadow-2xl shadow-black/50">
       <div className="flex items-center gap-2 border-b border-border bg-surface px-4 py-3">
@@ -224,7 +223,9 @@ function DashboardPreview() {
   return (
     <AppWindow label="app / dashboard">
       <h3 className="text-base font-semibold text-foreground">Hello, Maya!</h3>
-      <p className="mt-1 text-xs text-muted">2 connected accounts · 340 contacts</p>
+      <p className="mt-1 text-xs text-muted">
+        2 connected accounts · 340 contacts
+      </p>
 
       <div className="mt-4 grid grid-cols-3 gap-3">
         {dashboardStats.map(([label, value]) => (
@@ -233,7 +234,9 @@ function DashboardPreview() {
       </div>
 
       <div className="mt-4 rounded border border-border bg-surface p-4">
-        <p className="text-sm font-semibold text-foreground">DMs — Last 7 Days</p>
+        <p className="text-sm font-semibold text-foreground">
+          DMs — Last 7 Days
+        </p>
         <div className="mt-4 flex h-32 items-end gap-2">
           {dashboardChart.map(([day, n]) => (
             <div key={day} className="flex flex-1 flex-col items-center gap-2">
@@ -269,13 +272,18 @@ function DashboardPreview() {
 
 async function getGitHubStars(): Promise<number | null> {
   try {
-    const res = await fetch("https://api.github.com/repos/xeven777/OpenInstaDM", {
-      headers: { Accept: "application/vnd.github+json" },
-      next: { revalidate: 3600 },
-    });
+    const res = await fetch(
+      "https://api.github.com/repos/xeven777/OpenInstaDM",
+      {
+        headers: { Accept: "application/vnd.github+json" },
+        next: { revalidate: 3600 },
+      },
+    );
     if (!res.ok) return null;
     const data = (await res.json()) as { stargazers_count?: number };
-    return typeof data.stargazers_count === "number" ? data.stargazers_count : null;
+    return typeof data.stargazers_count === "number"
+      ? data.stargazers_count
+      : null;
   } catch {
     return null;
   }
@@ -286,8 +294,12 @@ export default async function Home() {
   return (
     <main className="min-h-screen bg-white text-zinc-900">
       <header className="sticky top-0 z-40 border-b border-zinc-200 bg-white">
-        <div className="mx-auto flex h-16 w-full max-w-6xl items-center justify-between px-5 sm:px-6 lg:px-8">
-          <Link href="/" className="flex items-center gap-3" aria-label="OpenInstaDM home">
+        <div className="mx-auto flex h-16 w-full max-w-7xl items-center justify-between px-5 sm:px-6 lg:px-8">
+          <Link
+            href="/"
+            className="flex items-center gap-3"
+            aria-label="OpenInstaDM home"
+          >
             <span className="text-lg font-bold text-zinc-900">OpenInstaDM</span>
           </Link>
 
@@ -299,7 +311,11 @@ export default async function Home() {
               className="inline-flex items-center gap-2 text-sm font-semibold text-zinc-600 transition hover:text-zinc-900"
               aria-label="View OpenInstaDM on GitHub"
             >
-              <svg viewBox="0 0 16 16" aria-hidden="true" className="h-4 w-4 fill-current">
+              <svg
+                viewBox="0 0 16 16"
+                aria-hidden="true"
+                className="h-4 w-4 fill-current"
+              >
                 <path d={githubIconPath} />
               </svg>
               {stars !== null && <span>{formatStars(stars)}</span>}
@@ -314,7 +330,7 @@ export default async function Home() {
         </div>
       </header>
 
-      <section className="mx-auto grid w-full max-w-6xl items-center gap-10 px-5 pb-16 pt-12 sm:px-6 sm:pt-18 lg:grid-cols-[0.95fr_1.05fr] lg:px-8 lg:pb-24">
+      <section className="mx-auto grid w-full max-w-7xl items-center gap-10 px-5 pb-16 pt-12 sm:px-6 sm:pt-18 lg:grid-cols-[0.95fr_1.05fr] lg:px-8 lg:pb-24">
         <div className="max-w-3xl">
           <div className="inline-flex items-center gap-2 border border-zinc-200 bg-white px-3 py-2 text-sm font-semibold text-zinc-600">
             Open source · Official Meta API
@@ -347,9 +363,16 @@ export default async function Home() {
 
           <dl className="mt-10 grid max-w-xl grid-cols-3 gap-3">
             {heroStats.map((stat) => (
-              <div key={stat.label} className="border border-zinc-200 bg-zinc-50 p-4">
-                <dt className="text-2xl font-black text-zinc-900">{stat.value}</dt>
-                <dd className="mt-1 text-xs leading-5 text-zinc-500">{stat.label}</dd>
+              <div
+                key={stat.label}
+                className="border border-zinc-200 bg-zinc-50 p-4"
+              >
+                <dt className="text-2xl font-black text-zinc-900">
+                  {stat.value}
+                </dt>
+                <dd className="mt-1 text-xs leading-5 text-zinc-500">
+                  {stat.label}
+                </dd>
               </div>
             ))}
           </dl>
@@ -363,10 +386,15 @@ export default async function Home() {
         </div>
       </section>
 
-      <section id="how" className="mx-auto w-full max-w-6xl px-5 py-20 sm:px-6 lg:px-8">
+      <section
+        id="how"
+        className="mx-auto w-full max-w-7xl px-5 py-20 sm:px-6 lg:px-8"
+      >
         <div className="grid gap-10 lg:grid-cols-[0.82fr_1.18fr] lg:items-center">
           <div>
-            <p className="text-sm font-bold uppercase text-orange-600">How it works</p>
+            <p className="text-sm font-bold uppercase text-orange-600">
+              How it works
+            </p>
             <h2 className="mt-3 text-4xl font-black leading-tight text-zinc-900 sm:text-5xl">
               A comment in, a DM out
             </h2>
@@ -383,10 +411,16 @@ export default async function Home() {
                 key={step.title}
                 className="grid gap-4 border border-zinc-200 bg-zinc-50 p-5 sm:grid-cols-[120px_1fr]"
               >
-                <p className="text-sm font-bold text-orange-600">{step.eyebrow}</p>
+                <p className="text-sm font-bold text-orange-600">
+                  {step.eyebrow}
+                </p>
                 <div>
-                  <h3 className="text-xl font-bold text-zinc-900">{step.title}</h3>
-                  <p className="mt-2 text-sm leading-6 text-zinc-600">{step.description}</p>
+                  <h3 className="text-xl font-bold text-zinc-900">
+                    {step.title}
+                  </h3>
+                  <p className="mt-2 text-sm leading-6 text-zinc-600">
+                    {step.description}
+                  </p>
                 </div>
               </article>
             ))}
@@ -395,11 +429,13 @@ export default async function Home() {
       </section>
 
       <section className="border-y border-zinc-200 bg-zinc-50 py-20">
-        <div className="mx-auto grid w-full max-w-6xl gap-10 px-5 sm:px-6 lg:grid-cols-[1.08fr_0.92fr] lg:px-8 lg:items-center">
+        <div className="mx-auto grid w-full max-w-7xl gap-10 px-5 sm:px-6 lg:grid-cols-[1.08fr_0.92fr] lg:px-8 lg:items-center">
           <DashboardPreview />
 
           <div>
-            <p className="text-sm font-bold uppercase text-orange-600">The dashboard</p>
+            <p className="text-sm font-bold uppercase text-orange-600">
+              The dashboard
+            </p>
             <h2 className="mt-3 text-4xl font-black leading-tight text-zinc-900 sm:text-5xl">
               See exactly what happened
             </h2>
@@ -411,15 +447,20 @@ export default async function Home() {
         </div>
       </section>
 
-      <section id="features" className="mx-auto w-full max-w-6xl px-5 py-20 sm:px-6 lg:px-8">
+      <section
+        id="features"
+        className="mx-auto w-full max-w-7xl px-5 py-20 sm:px-6 lg:px-8"
+      >
         <div className="max-w-2xl">
-          <p className="text-sm font-bold uppercase text-orange-600">What&rsquo;s included</p>
+          <p className="text-sm font-bold uppercase text-orange-600">
+            What&rsquo;s included
+          </p>
           <h2 className="mt-3 text-4xl font-black leading-tight text-zinc-900 sm:text-5xl">
             Everything, no tiers
           </h2>
           <p className="mt-5 text-base leading-8 text-zinc-600">
-            It is self-hosted and open source, so there is nothing to unlock. You
-            run it, you own it.
+            It is self-hosted and open source, so there is nothing to unlock.
+            You run it, you own it.
           </p>
         </div>
 
@@ -435,7 +476,7 @@ export default async function Home() {
         </div>
       </section>
 
-      <section className="mx-auto w-full max-w-6xl px-5 pb-20 sm:px-6 lg:px-8">
+      <section className="mx-auto w-full max-w-7xl px-5 pb-20 sm:px-6 lg:px-8">
         <div className="grid gap-8 border border-orange-200 bg-orange-50 p-6 sm:p-10 lg:grid-cols-[1fr_auto] lg:items-center">
           <div>
             <h2 className="max-w-3xl text-4xl font-black leading-tight text-zinc-900 sm:text-5xl">

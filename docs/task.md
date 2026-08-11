@@ -2,19 +2,6 @@
 
 This checklist tracks all ongoing bugs, optimizations, setup items, and new feature roadmap items for **OpenInstaDM**.
 
----
-
-## 🚀 1. Setup & Environment Verification
-
-- [x] Create comprehensive setup documentation ([`SETUP.md`](file:///home/anish/Documents/github/openinstadm-main/SETUP.md))
-- [ ] Configure environment variables in `.env` (generated secrets, Resend key, Meta app secrets)
-- [ ] Start local PostgreSQL & Redis instances (`docker-compose up -d`)
-- [ ] Run Prisma client generation and DB migrations (`npm run db:generate && npm run db:migrate`)
-- [ ] Set up ngrok / public tunnel for Meta webhook delivery (`ngrok http 3000`)
-- [ ] Verify health check endpoint (`/api/health` returns `status: ok` & `worker.healthy: true`)
-
----
-
 ## 🐛 2. Bugs & Edge Case Fixes
 
 - [ ] **Sanitize Destination URLs in Link Tracker**: Fix unhandled URL scheme crash in [`app/r/[slug]/route.ts`](file:///home/anish/Documents/github/openinstadm-main/app/r/%5Bslug%5D/route.ts#L42) when URLs lack `http://` / `https://`.

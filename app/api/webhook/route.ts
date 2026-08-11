@@ -84,12 +84,22 @@ export async function POST(request: NextRequest) {
     );
     const queue = getDMQueue();
 
-    for (const event of commentEvents) {
-      const account = await prisma.instagramAccount.findUnique({
-        where: { instagramId: event.instagramAccountId },
-        select: { workspaceId: true },
-      });
+    const commentAccountIds = [
+      ...new Set(commentEvents.map((e) => e.instagramAccountId)),
+    ];
+    const commentAccounts =
+      commentAccountIds.length > 0
+        ? await prisma.instagramAccount.findMany({
+            where: { instagramId: { in: commentAccountIds } },
+            select: { instagramId: true, workspaceId: true },
+          })
+        : [];
+    const commentAccountMap = new Map(
+      commentAccounts.map((a) => [a.instagramId, a.workspaceId])
+    );
 
+    let firstCommentWorkspaceId: string | null = null;
+    for (const event of commentEvents) {
       await queue.add(
         "process-comment",
         {
@@ -106,12 +116,17 @@ export async function POST(request: NextRequest) {
         }
       );
 
-      if (account) {
-        await prisma.webhookEvent.update({
-          where: { id: webhookEvent.id },
-          data: { workspaceId: account.workspaceId },
-        });
+      const wsId = commentAccountMap.get(event.instagramAccountId);
+      if (wsId && !firstCommentWorkspaceId) {
+        firstCommentWorkspaceId = wsId;
       }
+    }
+
+    if (firstCommentWorkspaceId) {
+      await prisma.webhookEvent.update({
+        where: { id: webhookEvent.id },
+        data: { workspaceId: firstCommentWorkspaceId },
+      });
     }
 
     // Button taps from opening DMs → deliver the reveal message.
@@ -143,12 +158,22 @@ export async function POST(request: NextRequest) {
       payload as Parameters<typeof parseMessageEvents>[0]
     );
 
-    for (const event of messageEvents) {
-      const account = await prisma.instagramAccount.findUnique({
-        where: { instagramId: event.instagramAccountId },
-        select: { workspaceId: true },
-      });
+    const messageAccountIds = [
+      ...new Set(messageEvents.map((e) => e.instagramAccountId)),
+    ];
+    const messageAccounts =
+      messageAccountIds.length > 0
+        ? await prisma.instagramAccount.findMany({
+            where: { instagramId: { in: messageAccountIds } },
+            select: { instagramId: true, workspaceId: true },
+          })
+        : [];
+    const messageAccountMap = new Map(
+      messageAccounts.map((a) => [a.instagramId, a.workspaceId])
+    );
 
+    let firstMessageWorkspaceId: string | null = null;
+    for (const event of messageEvents) {
       await queue.add(
         MESSAGE_JOB_NAME,
         {
@@ -168,12 +193,17 @@ export async function POST(request: NextRequest) {
         }
       );
 
-      if (account) {
-        await prisma.webhookEvent.update({
-          where: { id: webhookEvent.id },
-          data: { workspaceId: account.workspaceId },
-        });
+      const wsId = messageAccountMap.get(event.instagramAccountId);
+      if (wsId && !firstMessageWorkspaceId) {
+        firstMessageWorkspaceId = wsId;
       }
+    }
+
+    if (firstMessageWorkspaceId) {
+      await prisma.webhookEvent.update({
+        where: { id: webhookEvent.id },
+        data: { workspaceId: firstMessageWorkspaceId },
+      });
     }
 
     // If a user reads the opening DM and never taps the button, deliver the
@@ -183,20 +213,39 @@ export async function POST(request: NextRequest) {
       payload as Parameters<typeof parseReadEvents>[0]
     );
 
+    // Batch: group read events by instagramAccountId to avoid N+1 queries.
+    const readEventsByAccount = new Map<
+      string,
+      { userId: string; dedupeKey: string }[]
+    >();
     for (const event of readEvents) {
+      const key = event.instagramAccountId;
+      const list = readEventsByAccount.get(key) ?? [];
+      list.push({
+        userId: event.userId,
+        dedupeKey: `${event.userId}:${event.instagramAccountId}`,
+      });
+      readEventsByAccount.set(key, list);
+    }
+
+    // One query per distinct instagramAccountId (typically 1) instead of one
+    // per read event.
+    for (const [igAccountId, events] of readEventsByAccount) {
+      const userIds = [...new Set(events.map((e) => e.userId))];
       const openingLogs = await prisma.dmLog.findMany({
         where: {
-          commenterId: event.userId,
+          commenterId: { in: userIds },
           status: "SENT",
           automation: {
             isActive: true,
             openingDmEnabled: true,
             instagramAccount: {
-              instagramId: event.instagramAccountId,
+              instagramId: igAccountId,
             },
           },
         },
         select: {
+          commenterId: true,
           automation: {
             select: {
               id: true,
@@ -205,25 +254,34 @@ export async function POST(request: NextRequest) {
         },
       });
 
-      const scheduledAutomationIds = new Set<string>();
+      // Build a map of userId → Set<automationId> for dedup.
+      const scheduledByUser = new Map<string, Set<string>>();
       for (const log of openingLogs) {
-        const automation = log.automation;
-        if (scheduledAutomationIds.has(automation.id)) continue;
-        scheduledAutomationIds.add(automation.id);
+        const userId = log.commenterId;
+        const automationId = log.automation.id;
+        const set = scheduledByUser.get(userId) ?? new Set();
+        set.add(automationId);
+        scheduledByUser.set(userId, set);
+      }
 
-        await queue.add(
-          POSTBACK_JOB_NAME,
-          {
-            instagramAccountId: event.instagramAccountId,
-            userId: event.userId,
-            payload: `reveal:${automation.id}`,
-            fallback: true,
-          },
-          {
-            delay: OPENING_DM_READ_FALLBACK_DELAY_MS,
-            jobId: `read_fallback_${event.instagramAccountId}_${event.userId}_${automation.id}`,
-          }
-        );
+      // Schedule fallback jobs only for automations not already scheduled.
+      for (const event of events) {
+        const scheduled = scheduledByUser.get(event.userId) ?? new Set();
+        for (const automationId of scheduled) {
+          await queue.add(
+            POSTBACK_JOB_NAME,
+            {
+              instagramAccountId: igAccountId,
+              userId: event.userId,
+              payload: `reveal:${automationId}`,
+              fallback: true,
+            },
+            {
+              delay: OPENING_DM_READ_FALLBACK_DELAY_MS,
+              jobId: `read_fallback_${igAccountId}_${event.userId}_${automationId}`,
+            }
+          );
+        }
       }
     }
 

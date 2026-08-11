@@ -39,5 +39,16 @@ export async function GET(request: NextRequest, { params }: RedirectRouteProps) 
     },
   });
 
-  return NextResponse.redirect(trackedLink.destinationUrl, { status: 302 });
+  const destination = trackedLink.destinationUrl;
+  let safeUrl: URL;
+  try {
+    safeUrl = new URL(destination);
+  } catch {
+    return NextResponse.redirect(new URL("/", request.url), { status: 302 });
+  }
+  if (safeUrl.protocol !== "http:" && safeUrl.protocol !== "https:") {
+    return NextResponse.redirect(new URL("/", request.url), { status: 302 });
+  }
+
+  return NextResponse.redirect(safeUrl, { status: 302 });
 }

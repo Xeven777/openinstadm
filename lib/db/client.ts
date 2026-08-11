@@ -12,7 +12,12 @@ function createPrismaClient() {
   }
 
   return new PrismaClient({
-    adapter: new PrismaPg(databaseUrl),
+    adapter: new PrismaPg({
+      connectionString: databaseUrl,
+      connectionTimeoutMillis: 10_000,
+      idleTimeoutMillis: 30_000,
+      max: 5,
+    }),
   });
 }
 

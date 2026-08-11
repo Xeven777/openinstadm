@@ -74,7 +74,7 @@ export default async function ReportPage({ params }: ReportPageProps) {
   return (
     <main className="min-h-screen bg-background text-foreground">
       <section className="border-b border-white/10 bg-zinc-950/70">
-        <div className="mx-auto w-full max-w-6xl px-5 py-10 sm:px-6 lg:px-8">
+        <div className="mx-auto w-full max-w-7xl px-5 py-10 sm:px-6 lg:px-8">
           <div className="flex flex-col gap-6 md:flex-row md:items-start md:justify-between">
             <div>
               <p className="text-sm font-bold uppercase tracking-wide text-cyan-200">
@@ -93,7 +93,9 @@ export default async function ReportPage({ params }: ReportPageProps) {
                 )}
                 <span>·</span>
                 <span>
-                  {report.campaign.isActive ? "Active campaign" : "Paused campaign"}
+                  {report.campaign.isActive
+                    ? "Active campaign"
+                    : "Paused campaign"}
                 </span>
               </div>
             </div>
@@ -102,7 +104,9 @@ export default async function ReportPage({ params }: ReportPageProps) {
               <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
                 Workspace
               </p>
-              <p className="mt-2 font-bold text-white">{report.workspace.name}</p>
+              <p className="mt-2 font-bold text-white">
+                {report.workspace.name}
+              </p>
               <p className="mt-4 text-xs text-zinc-500">
                 Generated {formatDate(report.generatedAt)}
               </p>
@@ -119,7 +123,7 @@ export default async function ReportPage({ params }: ReportPageProps) {
         </div>
       </section>
 
-      <section className="mx-auto w-full max-w-6xl px-5 py-10 sm:px-6 lg:px-8">
+      <section className="mx-auto w-full max-w-7xl px-5 py-10 sm:px-6 lg:px-8">
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
           <MetricCard
             label="DMs sent"
@@ -152,9 +156,7 @@ export default async function ReportPage({ params }: ReportPageProps) {
           <section className="border border-white/10 bg-white/[0.035] p-4 sm:p-6">
             <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
               <div>
-                <h2 className="text-xl font-black text-white">
-                  Last 7 Days
-                </h2>
+                <h2 className="text-xl font-black text-white">Last 7 Days</h2>
                 <p className="mt-2 text-sm text-zinc-400">
                   Sent replies and tracked clicks by day.
                 </p>
@@ -165,7 +167,10 @@ export default async function ReportPage({ params }: ReportPageProps) {
             </div>
             <div className="mt-8 grid h-56 grid-cols-7 items-end gap-1.5 sm:gap-3">
               {report.daily.map((day) => (
-                <div key={day.date} className="flex h-full flex-col justify-end gap-2">
+                <div
+                  key={day.date}
+                  className="flex h-full flex-col justify-end gap-2"
+                >
                   <div className="flex min-h-0 flex-1 items-end gap-1">
                     <div
                       className="w-full bg-cyan-300/75"

@@ -33,23 +33,33 @@ async function heartbeat() {
 void heartbeat();
 const heartbeatTimer = setInterval(() => void heartbeat(), HEARTBEAT_INTERVAL_MS);
 
+let pollRunning = false;
+let pollTimer: ReturnType<typeof setTimeout> | null = null;
+
 async function poll() {
+  if (pollRunning) {
+    console.log("[DM Worker] Previous sweep still running, skipping");
+    return;
+  }
+  pollRunning = true;
   try {
     await reconcileComments();
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown error";
     console.error("[DM Worker] Comment reconciliation failed:", message);
+  } finally {
+    pollRunning = false;
+    pollTimer = setTimeout(() => void poll(), POLL_INTERVAL_MS);
   }
 }
 
-// Kick off one sweep shortly after boot, then on a fixed interval.
+// Kick off one sweep shortly after boot.
 setTimeout(() => void poll(), 10_000);
-const pollTimer = setInterval(() => void poll(), POLL_INTERVAL_MS);
 
 async function shutdown(signal: string) {
   console.log(`[DM Worker] ${signal} received, closing worker`);
   clearInterval(heartbeatTimer);
-  clearInterval(pollTimer);
+  if (pollTimer) clearTimeout(pollTimer);
   await worker.close();
   process.exit(0);
 }
