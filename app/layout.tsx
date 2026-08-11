@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
-import { Analytics } from "@vercel/analytics/next";
 import "./globals.css";
+import { Inter_Tight } from "next/font/google";
 
 export const metadata: Metadata = {
   title: "OpenInstaDM - Open source Instagram comment-to-DM automation",
@@ -15,6 +15,8 @@ export const metadata: Metadata = {
   ],
 };
 
+const inter = Inter_Tight({ subsets: ["latin"], variable: "--font-sans" });
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -22,9 +24,13 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className="h-full dark">
-      <body className="min-h-full bg-background text-foreground font-sans antialiased">
+      <body
+        className={
+          "min-h-full bg-background text-foreground font-sans antialiased " +
+          inter.className
+        }
+      >
         {children}
-        <Analytics />
       </body>
     </html>
   );

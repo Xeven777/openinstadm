@@ -16,7 +16,7 @@ Before we start, you will need:
 1. **An Instagram Business or Creator Account**: Personal accounts do not support the API. You can switch for free in Instagram's settings under **Settings** → **Account type**.
 2. **A Facebook Account**: Meta's developer platform requires a Facebook account.
 3. **A Resend Account**: Go to [Resend.com](https://resend.com) to create a free account. This is required to send login emails (magic links).
-4. **Docker Desktop** (For local setup only): Download and install it from [Docker's website](https://www.docker.com/products/docker-desktop/).
+4. **PostgreSQL & Redis** (one of): Docker Desktop, a local install, or a free cloud account (Neon/Supabase + Upstash). Docker is **optional** — see Step 2.
 5. **Node.js** (v18 or higher) installed on your machine.
 
 ---
@@ -60,19 +60,94 @@ openssl rand -hex 16
    Open the `.env` file in your text editor and fill in the values generated in Step 1.
 
 3. **Start PostgreSQL & Redis (Datastores)**:
-   Make sure Docker Desktop is running, then run:
+
+   Docker is not required. Pick **one** option per datastore — either run Postgres/Redis **locally**, or use a **free cloud** service.
+
+   ### Option A — Local install (no Docker)
+
+   Install PostgreSQL and Redis directly on your machine:
+
+   - **macOS**: `brew install postgresql@16 redis`
+   - **Ubuntu/Debian**: `sudo apt install postgresql redis-server`
+   - **Windows**: Installers from [postgresql.org](https://www.postgresql.org/download/) and [redis.io](https://redis.io/docs/latest/operate/oss_and_stack/install/install-redis/).
+
+   Then start them:
 
    ```bash
-   docker-compose up -d
+   # Postgres (macOS via brew)
+   brew services start postgresql@16
+   # Postgres (Debian/Ubuntu)
+   sudo systemctl start postgresql
+
+   # Redis (either platform)
+   redis-server --daemonize yes
    ```
 
-   This downloads and starts PostgreSQL (database) and Redis (queue manager) in the background.
+   Create the database and a user matching `.env.example`:
+
+   ```bash
+   createdb openinstadm
+   psql -c "ALTER USER postgres PASSWORD 'postgres';"
+   ```
+
+   Your `.env` stays as shipped:
+
+   ```env
+   DATABASE_URL=postgresql://postgres:postgres@localhost:5432/openinstadm
+   REDIS_URL=redis://localhost:6379
+   ```
+
+   > On Debian/Ubuntu the default Postgres user is `postgres`, but `pg_isready`/`psql` need `sudo -u postgres`. If the password fails, run `sudo -u postgres psql -c "ALTER USER postgres PASSWORD 'postgres';"`.
+
+   ### Option B — Free cloud Postgres + Redis (no local setup, no Docker)
+
+   The free tiers below are plenty for local development:
+
+   | Service | What it gives you | Free tier | 
+   | ------- | ----------------- | --------- |
+   | [Neon](https://neon.tech) | Serverless Postgres | 0.5 GB storage, branch-based DB |
+   | [Supabase](https://supabase.com) | Postgres + connection pooling | 500 MB, always free |
+   | [Aiven](https://aiven.io) | Postgres or Redis | Small free nodes per service |
+   | [Upstash](https://upstash.com) | Redis (serverless) | 10k commands/day, always free |
+
+   1. Sign up, create an instance, and copy the connection string for each.
+   - **Neon/Supabase**: gives a `postgresql://...` URL → paste into `DATABASE_URL`.
+   - **Upstash/Aiven Redis**: gives a `rediss://...` URL → paste into `REDIS_URL`.
+
+   2. Update `.env`:
+
+   ```env
+   DATABASE_URL=postgresql://user:password@your-neon-host/dbname?sslmode=require
+   REDIS_URL=rediss://user:password@your-upstash-host:6379
+   ```
+
+   > **Tip**: Prefer the pooler/connection-URL, not the direct one, on Supabase/Neon — Prisma handles pooled connections much better. Make sure the `sslmode=require` (or `?ssl=true` for Supabase) param is present, or Prisma will refuse to connect.
+
+   Docker alternative (if you ever want it): `docker-compose.yml` in the project root provides the exact same Postgres (port `5432`) and Redis (port `6379`) for consistent local dev. See the "To reset everything" snippet below.
 
 4. **Initialize the Database**:
    Run the following commands to create the tables in your database:
    ```bash
    npm run db:generate
    npm run db:migrate
+   ```
+
+   - `db:generate` generates the Prisma client from `prisma/schema.prisma`.
+   - `db:migrate` applies the migration files in `prisma/migrations/` to the database (the `openinstadm` database created by the container).
+
+   **To reset everything later** (stop containers, delete all DB/queue data, start fresh):
+
+   ```bash
+   docker-compose down -v
+   docker-compose up -d
+   npm run db:generate && npm run db:migrate
+   ```
+
+   No Docker? Reset your local Postgres/Redis by dropping the database and re-creating it:
+
+   ```bash
+   dropdb openinstadm && createdb openinstadm
+   npm run db:generate && npm run db:migrate
    ```
 
 ---
