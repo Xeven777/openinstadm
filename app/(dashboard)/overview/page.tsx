@@ -8,11 +8,21 @@
  * the insights permission); likes and comments are always available.
  */
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import dynamic from "next/dynamic";
 import AccountSelect from "@/components/account-select";
 import StatCard from "@/components/stat-card";
-import FollowerChart from "@/components/follower-chart";
+import { useCachedFetch } from "@/lib/client-cache";
 import type { OverviewResponse } from "@/app/api/instagram/overview/route";
+
+// recharts is heavy (~100KB+ gzip); keep it out of the initial bundle and
+// load it only once the overview has data to draw.
+const FollowerChart = dynamic(() => import("@/components/follower-chart"), {
+  ssr: false,
+  loading: () => (
+    <div className="panel rounded p-4 sm:p-6 h-56 sm:h-64 animate-pulse bg-surface-hover/40" />
+  ),
+});
 
 function formatNumber(n: number | null): string {
   if (n === null) return "—";
@@ -34,44 +44,42 @@ const COUNT_OPTIONS = [
 ];
 
 export default function OverviewPage() {
-  const [data, setData] = useState<OverviewResponse | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [selectedAccountId, setSelectedAccountId] = useState("all");
   const [count, setCount] = useState("50");
 
-  useEffect(() => {
-    const params = new URLSearchParams();
-    if (selectedAccountId !== "all") {
-      params.set("instagramAccountId", selectedAccountId);
-    }
-    params.set("count", count);
+  // The overview is backed by the Meta Graph API, so it is the slowest page.
+  // Cached copies paint instantly on return visits and background refetches
+  // (max age 60s — Instagram insights don't move faster than that).
+  const overviewFetch = useCachedFetch<OverviewResponse>(
+    `dash:overview:${selectedAccountId}:${count}`,
+    async () => {
+      const params = new URLSearchParams();
+      if (selectedAccountId !== "all") {
+        params.set("instagramAccountId", selectedAccountId);
+      }
+      params.set("count", count);
 
-    fetch(`/api/instagram/overview?${params}`)
-      .then((r) => r.json())
-      .then((res) => {
-        if (res.success) {
-          setData(res.data);
-          setError(null);
-        } else {
-          setError(res.error ?? "Failed to load overview");
-        }
-      })
-      .catch(() => setError("Failed to load overview"))
-      .finally(() => setLoading(false));
-  }, [selectedAccountId, count]);
+      const res = await fetch(`/api/instagram/overview?${params}`);
+      const payload = await res.json();
+      if (!payload.success) {
+        throw new Error(payload.error ?? "Failed to load overview");
+      }
+      return payload.data as OverviewResponse;
+    },
+    { maxAgeMs: 60_000 }
+  );
+  const data = overviewFetch.data;
+  const error = overviewFetch.error;
 
   function handleAccountChange(accountId: string) {
-    setLoading(true);
     setSelectedAccountId(accountId);
   }
 
   function handleCountChange(next: string) {
-    setLoading(true);
     setCount(next);
   }
 
-  if (loading) {
+  if (overviewFetch.loading && !data) {
     return (
       <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3 sm:gap-4">
         {[...Array(6)].map((_, i) => (
@@ -84,7 +92,8 @@ export default function OverviewPage() {
     );
   }
 
-  if (error) {
+  // Only surface the error state when there is nothing cached to show.
+  if (!data && error) {
     return (
       <div className="panel rounded p-8 text-center">
         <p className="text-sm text-error">{error}</p>

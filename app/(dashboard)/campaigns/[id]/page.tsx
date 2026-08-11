@@ -8,10 +8,11 @@
  * live in the top bar.
  */
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import CampaignPreview, { type PreviewTab } from "@/components/campaign-preview";
+import { readCache, useCachedFetch, writeCache } from "@/lib/client-cache";
 
 interface Campaign {
   id: string;
@@ -60,27 +61,49 @@ export default function CampaignDetailPage() {
   const router = useRouter();
   const { id } = useParams<{ id: string }>();
 
-  const [campaign, setCampaign] = useState<Campaign | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [notFound, setNotFound] = useState(false);
+  const cacheKey = id ? `dash:campaign-detail:${id}` : null;
+
+  // Seed from cache on first mount so a return visit renders instantly and
+  // never flashes a "not found" state before the revalidation lands.
+  const [seedCampaign] = useState<Campaign | null>(() => {
+    if (!cacheKey) return null;
+    const cached = readCache<Campaign[]>(cacheKey, 0);
+    return cached.data?.find((c) => c.id === id) ?? null;
+  });
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [postThumb, setPostThumb] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>("insights");
   const [previewTab, setPreviewTab] = useState<PreviewTab>("dm");
   const [busy, setBusy] = useState(false);
+  // Optimistic toggle, applied on top of fetched data so a stale in-flight
+  // fetch can never revert it.
+  const [toggledActive, setToggledActive] = useState<boolean | null>(null);
 
-  useEffect(() => {
-    fetch("/api/automations", { cache: "no-store" })
-      .then((r) => r.json())
-      .then((payload) => {
-        if (!payload.success) return setNotFound(true);
-        const found = (payload.data as Campaign[]).find((c) => c.id === id);
-        if (!found) return setNotFound(true);
-        setCampaign(found);
-      })
-      .catch(() => setNotFound(true))
-      .finally(() => setLoading(false));
-  }, [id]);
+  const campaignsFetch = useCachedFetch<Campaign[]>(
+    cacheKey,
+    async () => {
+      const res = await fetch("/api/automations", { cache: "no-store" });
+      const payload = await res.json();
+      if (!payload.success) {
+        throw new Error("Failed to load campaigns");
+      }
+      return payload.data as Campaign[];
+    },
+    { maxAgeMs: 30_000 }
+  );
+
+  // While the fetch is loading, fall back to the cache seed; once data lands
+  // it is authoritative (a missing campaign means "not found").
+  const campaign = useMemo(() => {
+    const base = campaignsFetch.data;
+    const found = base
+      ? (base.find((c) => c.id === id) ?? null)
+      : seedCampaign;
+    if (!found) return null;
+    return toggledActive === null
+      ? found
+      : { ...found, isActive: toggledActive };
+  }, [campaignsFetch.data, id, seedCampaign, toggledActive]);
 
   useEffect(() => {
     if (!campaign) return;
@@ -119,16 +142,27 @@ export default function CampaignDetailPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ isActive: !campaign.isActive }),
       });
-      setCampaign({ ...campaign, isActive: !campaign.isActive });
+      const next = { ...campaign, isActive: !campaign.isActive };
+      setToggledActive(next.isActive);
+      // Write-through so the cached list stays in sync for the next visit.
+      if (cacheKey) {
+        const cached = readCache<Campaign[]>(cacheKey, 0);
+        if (cached.data) {
+          writeCache(
+            cacheKey,
+            cached.data.map((c) => (c.id === campaign.id ? next : c))
+          );
+        }
+      }
     } finally {
       setBusy(false);
     }
   }
 
-  if (loading) {
+  if (campaignsFetch.loading && !campaign) {
     return <div className="panel h-64 rounded" />;
   }
-  if (notFound || !campaign) {
+  if (!campaign) {
     return (
       <div className="panel rounded p-8 text-center">
         <p className="text-sm text-muted">Campaign not found.</p>

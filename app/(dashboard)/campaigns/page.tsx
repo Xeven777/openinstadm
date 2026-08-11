@@ -6,11 +6,11 @@
  * Shows all campaigns as cards with toggle and delete.
  */
 
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import AccountSelect, { type AccountOption } from "@/components/account-select";
-import { readCache, writeCache } from "@/lib/client-cache";
+import { readCache, useCachedFetch, writeCache } from "@/lib/client-cache";
 
 interface Campaign {
   id: string;
@@ -64,10 +64,12 @@ interface Campaign {
 
 export default function CampaignsPage() {
   const router = useRouter();
-  const [automations, setAutomations] = useState<Campaign[]>([]);
   const [accounts, setAccounts] = useState<AccountOption[]>([]);
   const [selectedAccountId, setSelectedAccountId] = useState("all");
-  const [loading, setLoading] = useState(true);
+  // Optimistic mutation state, applied as an overlay on top of fetched data so
+  // an in-flight stale fetch can never revert a toggle/delete.
+  const [overrides, setOverrides] = useState<Record<string, Campaign>>({});
+  const [removedIds, setRemovedIds] = useState<ReadonlySet<string>>(new Set());
   // postId -> current thumbnail URL, fetched live (Instagram URLs expire, so
   // they are never stored on the campaign).
   const [thumbnails, setThumbnails] = useState<Record<string, string>>({});
@@ -85,8 +87,12 @@ export default function CampaignsPage() {
     "all"
   );
 
-  const fetchAutomations = useCallback(async () => {
-    try {
+  // Account filter lives in the cache key: return visits paint instantly from
+  // the cached list and revalidate in the background (mutations write through).
+  const cacheKey = `dash:campaigns:${selectedAccountId}`;
+  const campaignsFetch = useCachedFetch<Campaign[]>(
+    cacheKey,
+    async () => {
       const params = new URLSearchParams();
       if (selectedAccountId !== "all") {
         params.set("instagramAccountId", selectedAccountId);
@@ -96,13 +102,23 @@ export default function CampaignsPage() {
         { cache: "no-store" }
       );
       const data = await res.json();
-      if (data.success) setAutomations(data.data);
-    } catch (err) {
-      console.error("Failed to fetch campaigns:", err);
-    } finally {
-      setLoading(false);
+      if (!data.success) {
+        throw new Error(data.error ?? "Failed to fetch campaigns");
+      }
+      return data.data as Campaign[];
+    },
+    { maxAgeMs: 30_000 }
+  );
+
+  const automations = useMemo(() => {
+    const base = campaignsFetch.data ?? [];
+    const next: Campaign[] = [];
+    for (const campaign of base) {
+      if (removedIds.has(campaign.id)) continue;
+      next.push(overrides[campaign.id] ?? campaign);
     }
-  }, [selectedAccountId]);
+    return next;
+  }, [campaignsFetch.data, overrides, removedIds]);
 
   useEffect(() => {
     fetch("/api/dashboard/stats")
@@ -112,13 +128,6 @@ export default function CampaignsPage() {
       })
       .catch(console.error);
   }, []);
-
-  useEffect(() => {
-    const timer = window.setTimeout(() => {
-      void fetchAutomations();
-    }, 0);
-    return () => window.clearTimeout(timer);
-  }, [fetchAutomations]);
 
   // Fetch fresh post thumbnails (and reel video URLs) for the accounts in view
   // and map them by postId. Cache-first so they show instantly on a return
@@ -193,7 +202,6 @@ export default function CampaignsPage() {
   }, [playingVideo]);
 
   function handleAccountChange(accountId: string) {
-    setLoading(true);
     setSelectedAccountId(accountId);
   }
 
@@ -204,8 +212,13 @@ export default function CampaignsPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ isActive: !isActive }),
       });
-      setAutomations((prev) =>
-        prev.map((a) => (a.id === id ? { ...a, isActive: !isActive } : a))
+      const current = automations.find((a) => a.id === id);
+      if (!current) return;
+      const next = { ...current, isActive: !isActive };
+      setOverrides((prev) => ({ ...prev, [id]: next }));
+      writeCache(
+        cacheKey,
+        automations.map((a) => (a.id === id ? next : a))
       );
     } catch (err) {
       console.error("Failed to toggle:", err);
@@ -231,7 +244,8 @@ export default function CampaignsPage() {
     if (!confirm("Delete this campaign? This cannot be undone.")) return;
     try {
       await fetch(`/api/automations?id=${id}`, { method: "DELETE" });
-      setAutomations((prev) => prev.filter((a) => a.id !== id));
+      setRemovedIds((prev) => new Set(prev).add(id));
+      writeCache(cacheKey, automations.filter((a) => a.id !== id));
     } catch (err) {
       console.error("Failed to delete:", err);
     }
@@ -270,14 +284,14 @@ export default function CampaignsPage() {
         }),
       });
       const data = await res.json();
-      if (data.success) void fetchAutomations();
+      if (data.success) campaignsFetch.refresh();
       else console.error("Duplicate failed:", data.error);
     } catch (err) {
       console.error("Failed to duplicate:", err);
     }
   }
 
-  if (loading) {
+  if (campaignsFetch.loading && !campaignsFetch.data) {
     return (
       <div className="space-y-4">
         {[...Array(3)].map((_, i) => (

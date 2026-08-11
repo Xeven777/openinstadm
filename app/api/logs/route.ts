@@ -48,16 +48,21 @@ export async function GET(request: NextRequest) {
     prisma.dmLog.count({ where }),
   ]);
 
-  return NextResponse.json({
-    success: true,
-    data: {
-      logs,
-      pagination: {
-        page,
-        limit,
-        total,
-        totalPages: Math.ceil(total / limit),
+  return NextResponse.json(
+    {
+      success: true,
+      data: {
+        logs,
+        pagination: {
+          page,
+          limit,
+          total,
+          totalPages: Math.ceil(total / limit),
+        },
       },
     },
-  });
+    // Short-lived browser cache: fresh enough for a logs view, and the client
+    // SWR cache already revalidates on every visit.
+    { headers: { "Cache-Control": "private, max-age=10" } }
+  );
 }

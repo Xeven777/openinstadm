@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import StatusBadge from "@/components/status-badge";
+import { useCachedFetch } from "@/lib/client-cache";
 
 interface DiagnosticsData {
   queueCounts: Record<string, number>;
@@ -76,41 +76,27 @@ function Section({
 }
 
 export default function DiagnosticsPage() {
-  const [data, setData] = useState<DiagnosticsData | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  async function refreshDiagnostics() {
-    setLoading(true);
-    const response = await fetch("/api/admin/diagnostics");
-    const payload = await response.json();
-    if (payload.success) {
-      setData(payload.data);
-    }
-    setLoading(false);
-  }
-
-  useEffect(() => {
-    let active = true;
-
-    async function loadInitialDiagnostics() {
+  // Cached copy paints instantly on return; Refresh revalidates in the
+  // background without blanking the page.
+  const diagnosticsFetch = useCachedFetch<DiagnosticsData>(
+    "dash:diagnostics",
+    async () => {
       const response = await fetch("/api/admin/diagnostics");
       const payload = await response.json();
-      if (active && payload.success) {
-        setData(payload.data);
+      if (!payload.success) {
+        throw new Error("Failed to load diagnostics");
       }
-      if (active) {
-        setLoading(false);
-      }
-    }
+      return payload.data as DiagnosticsData;
+    },
+    { maxAgeMs: 30_000 }
+  );
+  const data = diagnosticsFetch.data;
 
-    void loadInitialDiagnostics();
+  function refreshDiagnostics() {
+    diagnosticsFetch.refresh();
+  }
 
-    return () => {
-      active = false;
-    };
-  }, []);
-
-  if (loading && !data) {
+  if (diagnosticsFetch.loading && !data) {
     return <div className="panel rounded p-8 h-64" />;
   }
 

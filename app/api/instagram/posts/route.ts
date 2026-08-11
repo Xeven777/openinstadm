@@ -46,7 +46,12 @@ export async function GET(request: NextRequest) {
       posts = await getUserMedia(accessToken, limit);
     }
 
-    return NextResponse.json({ success: true, data: posts });
+    return NextResponse.json(
+      { success: true, data: posts },
+      // Meta-backed: cached briefly so the campaigns page and post picker
+      // don't hit the Graph API on every mount.
+      { headers: { "Cache-Control": "private, max-age=60" } }
+    );
   } catch (err) {
     console.error("[Instagram Posts] Error:", err);
     return NextResponse.json(

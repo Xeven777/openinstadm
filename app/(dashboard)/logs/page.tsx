@@ -6,9 +6,10 @@
  * Filterable, paginated table of DM logs.
  */
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState } from "react";
 import AccountSelect, { type AccountOption } from "@/components/account-select";
 import StatusBadge from "@/components/status-badge";
+import { useCachedFetch } from "@/lib/client-cache";
 
 interface DmLog {
   id: string;
@@ -40,16 +41,16 @@ const STATUS_FILTERS = [
 ];
 
 export default function LogsPage() {
-  const [logs, setLogs] = useState<DmLog[]>([]);
-  const [pagination, setPagination] = useState<Pagination | null>(null);
-  const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState("ALL");
   const [accounts, setAccounts] = useState<AccountOption[]>([]);
   const [selectedAccountId, setSelectedAccountId] = useState("all");
   const [page, setPage] = useState(1);
 
-  const fetchLogs = useCallback(async () => {
-    try {
+  // Filters and page live in the cache key, so each combination paints
+  // instantly on return and refetches in the background.
+  const logsFetch = useCachedFetch<{ logs: DmLog[]; pagination: Pagination }>(
+    `dash:logs:${page}:${statusFilter}:${selectedAccountId}`,
+    async () => {
       const params = new URLSearchParams({ page: String(page), limit: "20" });
       if (statusFilter !== "ALL") params.set("status", statusFilter);
       if (selectedAccountId !== "all") {
@@ -58,16 +59,19 @@ export default function LogsPage() {
 
       const res = await fetch(`/api/logs?${params}`);
       const data = await res.json();
-      if (data.success) {
-        setLogs(data.data.logs);
-        setPagination(data.data.pagination);
+      if (!data.success) {
+        throw new Error("Failed to fetch logs");
       }
-    } catch (err) {
-      console.error("Failed to fetch logs:", err);
-    } finally {
-      setLoading(false);
-    }
-  }, [page, statusFilter, selectedAccountId]);
+      return {
+        logs: data.data.logs as DmLog[],
+        pagination: data.data.pagination as Pagination,
+      };
+    },
+    { maxAgeMs: 30_000 }
+  );
+  const logs = logsFetch.data?.logs ?? [];
+  const pagination = logsFetch.data?.pagination ?? null;
+  const loading = logsFetch.loading;
 
   useEffect(() => {
     fetch("/api/dashboard/stats")
@@ -78,21 +82,12 @@ export default function LogsPage() {
       .catch(console.error);
   }, []);
 
-  useEffect(() => {
-    const timer = window.setTimeout(() => {
-      void fetchLogs();
-    }, 0);
-    return () => window.clearTimeout(timer);
-  }, [fetchLogs]);
-
   function handleFilterChange(status: string) {
-    setLoading(true);
     setStatusFilter(status);
     setPage(1);
   }
 
   function handleAccountChange(accountId: string) {
-    setLoading(true);
     setSelectedAccountId(accountId);
     setPage(1);
   }
@@ -208,10 +203,7 @@ export default function LogsPage() {
             <div className="flex items-center gap-2">
               <button
                 disabled={page <= 1}
-                onClick={() => {
-                  setLoading(true);
-                  setPage(page - 1);
-                }}
+                onClick={() => setPage(page - 1)}
                 className="px-3 py-1.5 rounded-lg text-xs font-medium text-muted border border-border hover:text-foreground hover:border-border-hover transition-all disabled:opacity-30 disabled:pointer-events-none"
               >
                 Previous
@@ -221,10 +213,7 @@ export default function LogsPage() {
               </span>
               <button
                 disabled={page >= pagination.totalPages}
-                onClick={() => {
-                  setLoading(true);
-                  setPage(page + 1);
-                }}
+                onClick={() => setPage(page + 1)}
                 className="px-3 py-1.5 rounded-lg text-xs font-medium text-muted border border-border hover:text-foreground hover:border-border-hover transition-all disabled:opacity-30 disabled:pointer-events-none"
               >
                 Next

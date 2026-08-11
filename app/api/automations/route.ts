@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse, after } from "next/server";
 import { z } from "zod";
 import { getCurrentWorkspaceId } from "@/lib/auth";
 import { prisma } from "@/lib/db/client";
@@ -159,22 +159,28 @@ export async function GET(request: NextRequest) {
     orderBy: { createdAt: "desc" },
   });
 
-  const automationsWithReports = await Promise.all(
-    automations.map(async (automation) => {
-      if (automation.reportShareSlug) return automation;
-
-      const updated = await prisma.automation.update({
-        where: { id: automation.id },
-        data: { reportShareSlug: generateReportShareSlug() },
-        select: { reportShareSlug: true },
-      });
-
-      return {
-        ...automation,
-        reportShareSlug: updated.reportShareSlug,
-      };
-    })
-  );
+  // Legacy rows (created before share slugs existed) get a slug backfilled off
+  // the critical path: the writes run after the response is sent, so this GET
+  // stays fast instead of doing one update per campaign. Rows that lack a slug
+  // simply return `reportUrl: null` until the backfill lands.
+  const missingSlugs = automations.filter((automation) => !automation.reportShareSlug);
+  if (missingSlugs.length > 0) {
+    after(async () => {
+      try {
+        await prisma.$transaction(
+          missingSlugs.map((automation) =>
+            prisma.automation.update({
+              where: { id: automation.id },
+              data: { reportShareSlug: generateReportShareSlug() },
+              select: { id: true, reportShareSlug: true },
+            })
+          )
+        );
+      } catch (err) {
+        console.error("[Automations] Share slug backfill failed:", err);
+      }
+    });
+  }
 
   const [statusCounts, clickCounts, keywordCounts] = await Promise.all([
     prisma.dmLog.groupBy({
@@ -205,7 +211,7 @@ export async function GET(request: NextRequest) {
     }
   >();
 
-  for (const automation of automationsWithReports) {
+  for (const automation of automations) {
     analytics.set(automation.id, {
       sent: 0,
       skipped: 0,
@@ -229,7 +235,7 @@ export async function GET(request: NextRequest) {
     if (item) item.clicks = row._count._all;
   }
 
-  for (const automation of automationsWithReports) {
+  for (const automation of automations) {
     const item = analytics.get(automation.id);
     if (!item) continue;
     item.topKeywords = normalizeTopKeywords(
@@ -246,7 +252,7 @@ export async function GET(request: NextRequest) {
   return NextResponse.json(
     {
     success: true,
-    data: automationsWithReports.map((automation) => {
+    data: automations.map((automation) => {
       const item = analytics.get(automation.id) ?? {
         sent: 0,
         skipped: 0,

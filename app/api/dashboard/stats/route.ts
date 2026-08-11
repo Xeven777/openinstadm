@@ -33,9 +33,10 @@ export async function GET(request: NextRequest) {
     ? { instagramAccountId: selectedAccountId }
     : {};
 
+  // The most recently connected account is the first element of the ordered
+  // list below — no need for a separate findFirst query.
   const [
     workspace,
-    instagramAccount,
     instagramAccounts,
     totalAutomations,
     activeAutomations,
@@ -56,17 +57,6 @@ export async function GET(request: NextRequest) {
       select: {
         name: true,
         dmsSentThisPeriod: true,
-      },
-    }),
-    prisma.instagramAccount.findFirst({
-      where: { workspaceId },
-      orderBy: { connectedAt: "desc" },
-      select: {
-        id: true,
-        username: true,
-        instagramId: true,
-        tokenExpiresAt: true,
-        webhookSubscribed: true,
       },
     }),
     prisma.instagramAccount.findMany({
@@ -141,33 +131,43 @@ export async function GET(request: NextRequest) {
           select: { name: true, email: true },
         })
       : Promise.resolve(null),
-    // Distinct people who have interacted, counted as "contacts".
-    prisma.dmLog.findMany({
+    // Distinct people who have interacted, counted as "contacts". Aggregated
+    // in SQL (one row per commenter) instead of streaming every DmLog row.
+    prisma.dmLog.groupBy({
+      by: ["commenterId"],
       where: { workspaceId, ...accountFilter },
-      distinct: ["commenterId"],
-      select: { commenterId: true },
+      _count: { _all: true },
     }),
   ]);
+
+  // The 7-day series used to be 7 sequential count queries; now it's a single
+  // lean select of just the timestamps, bucketed per day in JS. Bucketing in
+  // JS (rather than SQL date_trunc) keeps the exact app-local day boundaries
+  // the chart always used, regardless of the database session timezone. Only
+  // createdAt crosses the wire, so the payload stays small.
+  const weekLogs = await prisma.dmLog.findMany({
+    where: {
+      workspaceId,
+      status: "SENT",
+      createdAt: { gte: weekStart },
+      ...accountFilter,
+    },
+    select: { createdAt: true },
+  });
+
+  const countsByDay = new Map<string, number>();
+  for (const log of weekLogs) {
+    const key = log.createdAt.toDateString();
+    countsByDay.set(key, (countsByDay.get(key) ?? 0) + 1);
+  }
 
   const dailyDMs: { date: string; count: number }[] = [];
   for (let i = 6; i >= 0; i--) {
     const dayStart = new Date(todayStart);
     dayStart.setDate(dayStart.getDate() - i);
-    const dayEnd = new Date(dayStart);
-    dayEnd.setDate(dayEnd.getDate() + 1);
-
-    const count = await prisma.dmLog.count({
-      where: {
-        workspaceId,
-        status: "SENT",
-        createdAt: { gte: dayStart, lt: dayEnd },
-        ...accountFilter,
-      },
-    });
-
     dailyDMs.push({
       date: dayStart.toLocaleDateString("en-US", { weekday: "short" }),
-      count,
+      count: countsByDay.get(dayStart.toDateString()) ?? 0,
     });
   }
 
@@ -195,7 +195,7 @@ export async function GET(request: NextRequest) {
       userName: firstName,
       contactsCount: contactRows.length,
       workspace,
-      instagramAccount,
+      instagramAccount: instagramAccounts[0] ?? null,
       instagramAccounts,
       selectedInstagramAccountId: selectedAccountId,
       totalAutomations,
@@ -213,5 +213,9 @@ export async function GET(request: NextRequest) {
       dailyDMs,
       recentLogs,
     },
+  }, {
+    // Dashboard tiles are fine 30s stale; the client-side SWR cache already
+    // refreshes them on every visit.
+    headers: { "Cache-Control": "private, max-age=30" },
   });
 }

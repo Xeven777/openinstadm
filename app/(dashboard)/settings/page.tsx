@@ -1,8 +1,9 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useState } from "react";
 import type { AccountOption } from "@/components/account-select";
 import { InstagramConnectNotice } from "@/components/instagram-connect-notice";
+import { useCachedFetch } from "@/lib/client-cache";
 
 interface SettingsData {
   workspace: {
@@ -46,32 +47,40 @@ interface WorkspaceMembersData {
 }
 
 export default function SettingsPage() {
-  const [data, setData] = useState<SettingsData | null>(null);
-  const [membersData, setMembersData] = useState<WorkspaceMembersData | null>(
-    null
-  );
-  const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState<"ADMIN" | "MEMBER">("MEMBER");
   const [memberError, setMemberError] = useState<string | null>(null);
 
-  useEffect(() => {
-    Promise.all([
-      fetch("/api/dashboard/stats").then((res) => res.json()),
-      fetch("/api/workspace/members").then((res) => res.json()),
-    ])
-      .then(([statsPayload, membersPayload]) => {
-        if (statsPayload.success) setData(statsPayload.data);
-        if (membersPayload.success) setMembersData(membersPayload.data);
-      })
-      .finally(() => setLoading(false));
-  }, []);
+  // Both data sources load together and paint instantly from cache on return
+  // visits, then revalidate in the background.
+  const settingsFetch = useCachedFetch<{
+    data: SettingsData | null;
+    members: WorkspaceMembersData | null;
+  }>(
+    "dash:settings",
+    async () => {
+      const [statsPayload, membersPayload] = await Promise.all([
+        fetch("/api/dashboard/stats").then((res) => res.json()),
+        fetch("/api/workspace/members").then((res) => res.json()),
+      ]);
+      return {
+        data: statsPayload.success
+          ? (statsPayload.data as SettingsData)
+          : null,
+        members: membersPayload.success
+          ? (membersPayload.data as WorkspaceMembersData)
+          : null,
+      };
+    },
+    { maxAgeMs: 30_000 }
+  );
+  const data = settingsFetch.data?.data ?? null;
+  const membersData = settingsFetch.data?.members ?? null;
+  const loading = settingsFetch.loading;
 
-  async function refreshMembers() {
-    const res = await fetch("/api/workspace/members");
-    const payload = await res.json();
-    if (payload.success) setMembersData(payload.data);
+  function refreshMembers() {
+    settingsFetch.refresh();
   }
 
   async function disconnectInstagram(instagramAccountId: string) {
@@ -99,7 +108,7 @@ export default function SettingsPage() {
     });
     const payload = await res.json();
     if (payload.success) {
-      setMembersData(payload.data);
+      refreshMembers();
       setInviteEmail("");
     } else {
       setMemberError(payload.error ?? "Could not invite member");
@@ -114,7 +123,7 @@ export default function SettingsPage() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ invitationId }),
     });
-    await refreshMembers();
+    refreshMembers();
     setBusy(null);
   }
 

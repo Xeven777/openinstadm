@@ -14,6 +14,7 @@ import {
   getFollowerHistory,
   type FollowerHistoryPoint,
 } from "@/lib/reports/follower-history";
+import { getCached, setCached } from "@/lib/server-cache";
 
 // Allow time for paginated media + per-post insight calls on larger accounts.
 export const maxDuration = 60;
@@ -126,6 +127,19 @@ export async function GET(request: NextRequest) {
 
     // `count` is either "all" or a positive integer (last N posts).
     const countParam = request.nextUrl.searchParams.get("count");
+
+    // The Meta API work below is the slowest thing in the app (paginated
+    // media + per-post insights). Instagram insights move in minutes, not
+    // seconds, so a 60s in-process cache turns return visits into a single
+    // Map lookup instead of dozens of Graph API calls.
+    const cacheKey = `overview:${account.id}:${countParam ?? "50"}`;
+    const cached = getCached<OverviewResponse>(cacheKey);
+    if (cached) {
+      return NextResponse.json(
+        { success: true, data: cached },
+        { headers: { "Cache-Control": "private, max-age=60" } }
+      );
+    }
     const isAll = countParam === "all";
     const parsedCount = countParam ? Number.parseInt(countParam, 10) : NaN;
     const requestedCount: "all" | number = isAll
@@ -246,7 +260,11 @@ export async function GET(request: NextRequest) {
       posts,
     };
 
-    return NextResponse.json({ success: true, data });
+    setCached(cacheKey, data, 60_000);
+    return NextResponse.json(
+      { success: true, data },
+      { headers: { "Cache-Control": "private, max-age=60" } }
+    );
   } catch (err) {
     console.error("[Instagram Overview] Error:", err);
     return NextResponse.json(

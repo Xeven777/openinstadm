@@ -6,10 +6,11 @@
  * Overview cards, 7-day chart, and recent activity feed.
  */
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import AccountSelect, { type AccountOption } from "@/components/account-select";
 import StatCard from "@/components/stat-card";
 import StatusBadge from "@/components/status-badge";
+import { useCachedFetch } from "@/lib/client-cache";
 
 interface DashboardStats {
   userName: string | null;
@@ -41,31 +42,36 @@ interface DashboardStats {
 }
 
 export default function DashboardPage() {
-  const [stats, setStats] = useState<DashboardStats | null>(null);
-  const [loading, setLoading] = useState(true);
   const [selectedAccountId, setSelectedAccountId] = useState("all");
 
-  useEffect(() => {
-    const params = new URLSearchParams();
-    if (selectedAccountId !== "all") {
-      params.set("instagramAccountId", selectedAccountId);
-    }
+  // Cached copy paints instantly on return visits; a background fetch keeps it
+  // fresh. 30s max age is plenty for dashboard tiles.
+  const statsFetch = useCachedFetch<DashboardStats>(
+    `dash:stats:${selectedAccountId}`,
+    async () => {
+      const params = new URLSearchParams();
+      if (selectedAccountId !== "all") {
+        params.set("instagramAccountId", selectedAccountId);
+      }
 
-    fetch(`/api/dashboard/stats${params.size ? `?${params}` : ""}`)
-      .then((r) => r.json())
-      .then((data) => {
-        if (data.success) setStats(data.data);
-      })
-      .catch(console.error)
-      .finally(() => setLoading(false));
-  }, [selectedAccountId]);
+      const res = await fetch(
+        `/api/dashboard/stats${params.size ? `?${params}` : ""}`
+      );
+      const data = await res.json();
+      if (!data.success) {
+        throw new Error(data.error ?? "Failed to load stats");
+      }
+      return data.data as DashboardStats;
+    },
+    { maxAgeMs: 30_000 }
+  );
+  const stats = statsFetch.data;
 
   function handleAccountChange(accountId: string) {
-    setLoading(true);
     setSelectedAccountId(accountId);
   }
 
-  if (loading) {
+  if (statsFetch.loading && !stats) {
     return (
       <div className="space-y-6">
         <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3 sm:gap-4">
@@ -137,7 +143,7 @@ export default function DashboardPage() {
               <div key={day.date} className="min-w-0 flex-1 flex flex-col items-center gap-2">
                 <span className="text-xs text-muted font-medium">{day.count}</span>
                 <div
-                  className="w-full rounded-sm bg-accent min-h-[4px]"
+                  className="w-full rounded-sm bg-accent min-h-1"
                   style={{ height: `${Math.max((day.count / maxDM) * 100, 4)}%` }}
                 />
                 {/* Seven labels share a phone's width, so they must not wrap. */}
