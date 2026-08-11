@@ -1,8 +1,8 @@
-# 🚀 OpenReply Setup Guide
+# 🚀 OpenInstaDM Setup Guide
 
-Welcome to OpenReply! This guide is designed for absolute beginners to help you set up and run OpenReply locally and in production.
+Welcome to OpenInstaDM! This guide is designed for absolute beginners to help you set up and run OpenInstaDM locally and in production.
 
-OpenReply consists of **two parts** that must run at the same time:
+OpenInstaDM consists of **two parts** that must run at the same time:
 
 1. **The Web App** (Next.js): Renders the dashboard, takes care of logins, and receives webhooks from Instagram.
 2. **The Worker** (BullMQ): A background process that listens to incoming comments/DMs, checks rate limits, and sends the replies.
@@ -46,8 +46,8 @@ openssl rand -hex 16
 1. **Clone the repository and install dependencies**:
 
    ```bash
-   git clone https://github.com/diwenne/openreply.git
-   cd openreply
+   git clone https://github.com/xeven777/openinstadm.git
+   cd openinstadm
    npm install
    ```
 
@@ -135,7 +135,7 @@ Requires a free Cloudflare account. Gives you a **stable, named domain** (`*.try
 2. **Create the tunnel** (only once):
 
    ```bash
-   cloudflared tunnel create openreply-dev
+   cloudflared tunnel create opendm-dev
    ```
 
    Note the **Tunnel ID** printed in the output.
@@ -143,13 +143,13 @@ Requires a free Cloudflare account. Gives you a **stable, named domain** (`*.try
 3. **Create a DNS record** (only once):
 
    ```bash
-   cloudflared tunnel route dns openreply-dev dev.yourdomain.com
+   cloudflared tunnel route dns opendm-dev dev.yourdomain.com
    ```
 
 4. **Create a config file** at `~/.cloudflared/config.yml`:
 
    ```yaml
-   tunnel: openreply-dev
+   tunnel: opendm-dev
    credentials-file: /home/<your-user>/.cloudflared/<tunnel-id>.json
 
    ingress:
@@ -161,7 +161,7 @@ Requires a free Cloudflare account. Gives you a **stable, named domain** (`*.try
 5. **Start the tunnel**:
 
    ```bash
-   cloudflared tunnel run openreply-dev
+   cloudflared tunnel run opendm-dev
    ```
 
 6. **Update `.env`**:
@@ -304,7 +304,7 @@ Meta apps in Development mode only allow authorized test accounts to connect.
 
 ---
 
-## 🏃‍♂️ Step 5: Start OpenReply
+## 🏃‍♂️ Step 5: Start OpenInstaDM
 
 You must start two processes in separate terminal windows:
 
