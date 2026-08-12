@@ -1,95 +1,44 @@
-"use client";
-
-/**
- * Dashboard Home Page
- *
- * Overview cards, 7-day chart, and recent activity feed.
- */
-
-import { useState } from "react";
-import AccountSelect, { type AccountOption } from "@/components/account-select";
+import Link from "next/link";
+import { redirect } from "next/navigation";
+import AccountUrlFilter from "@/components/account-url-filter";
 import StatCard from "@/components/stat-card";
 import StatusBadge from "@/components/status-badge";
-import { useCachedFetch } from "@/lib/client-cache";
+import { getDashboardStats } from "@/lib/server/stats";
+import { getCurrentWorkspaceContext } from "@/lib/workspace-access";
 
-interface DashboardStats {
-  userName: string | null;
-  contactsCount: number;
-  totalAutomations: number;
-  activeAutomations: number;
-  dmsSentToday: number;
-  dmsSentWeek: number;
-  dmsSentMonth: number;
-  dmsSkippedMonth: number;
-  dmsFailedMonth: number;
-  totalDMs: number;
-  clicksThisMonth: number;
-  totalClicks: number;
-  ctrThisMonth: number;
-  instagramAccounts: AccountOption[];
-  selectedInstagramAccountId: string | null;
-  topKeywords: { keyword: string; count: number }[];
-  dailyDMs: { date: string; count: number }[];
-  recentLogs: Array<{
-    id: string;
-    commenterName: string | null;
-    commentText: string;
-    status: string;
-    createdAt: string;
-    automation: { name: string };
-    instagramAccount?: { username: string };
-  }>;
-}
+/**
+ * Dashboard Home Page (Server Component)
+ *
+ * Renders the stats tiles, 7-day chart, keywords, and recent activity directly
+ * from the database — no client fetch, no JSON round-trip. The account filter
+ * lives in the URL (`?instagramAccountId=`), so switching accounts is a plain
+ * navigation that re-renders this component; the only client island is the
+ * account `<select>`.
+ */
 
-export default function DashboardPage() {
-  const [selectedAccountId, setSelectedAccountId] = useState("all");
+export const dynamic = "force-dynamic";
 
-  // Cached copy paints instantly on return visits; a background fetch keeps it
-  // fresh. 30s max age is plenty for dashboard tiles.
-  const statsFetch = useCachedFetch<DashboardStats>(
-    `dash:stats:${selectedAccountId}`,
-    async () => {
-      const params = new URLSearchParams();
-      if (selectedAccountId !== "all") {
-        params.set("instagramAccountId", selectedAccountId);
-      }
+export default async function DashboardPage(props: PageProps<"/dashboard">) {
+  // One auth() session lookup + one membership query covers both the
+  // workspace and the user — the previous code did two separate auth()
+  // round trips (getCurrentWorkspaceId + getCurrentUserId).
+  const context = await getCurrentWorkspaceContext();
+  if (!context) redirect("/login");
 
-      const res = await fetch(
-        `/api/dashboard/stats${params.size ? `?${params}` : ""}`
-      );
-      const data = await res.json();
-      if (!data.success) {
-        throw new Error(data.error ?? "Failed to load stats");
-      }
-      return data.data as DashboardStats;
-    },
-    { maxAgeMs: 30_000 }
+  const searchParams = await props.searchParams;
+  const selectedAccountId =
+    typeof searchParams.instagramAccountId === "string"
+      ? searchParams.instagramAccountId
+      : "all";
+
+  const stats = await getDashboardStats(
+    context.workspaceId,
+    context.userId,
+    selectedAccountId === "all" ? null : selectedAccountId
   );
-  const stats = statsFetch.data;
 
-  function handleAccountChange(accountId: string) {
-    setSelectedAccountId(accountId);
-  }
-
-  if (statsFetch.loading && !stats) {
-    return (
-      <div className="space-y-6">
-        <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3 sm:gap-4">
-          {[...Array(6)].map((_, i) => (
-            <div key={i} className="panel rounded p-5 h-32">
-              <div className="w-10 h-10 rounded bg-surface-hover" />
-              <div className="mt-4 h-6 w-16 bg-surface-hover rounded" />
-              <div className="mt-2 h-4 w-24 bg-surface-hover/60 rounded" />
-            </div>
-          ))}
-        </div>
-      </div>
-    );
-  }
-
-  const maxDM = Math.max(...(stats?.dailyDMs.map((d) => d.count) ?? [1]), 1);
-
-  const connectedCount = stats?.instagramAccounts.length ?? 0;
+  const maxDM = Math.max(...stats.dailyDMs.map((d) => d.count), 1);
+  const connectedCount = stats.instagramAccounts.length;
 
   return (
     <div className="space-y-8">
@@ -97,40 +46,36 @@ export default function DashboardPage() {
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold text-foreground sm:text-3xl">
-            Hello, {stats?.userName ?? "there"}!
+            Hello, {stats.userName ?? "there"}!
           </h1>
           <p className="mt-1 text-sm text-muted">
             {connectedCount} connected{" "}
             {connectedCount === 1 ? "account" : "accounts"}
             {" · "}
-            {stats?.contactsCount ?? 0}{" "}
-            {stats?.contactsCount === 1 ? "contact" : "contacts"}
+            {stats.contactsCount}{" "}
+            {stats.contactsCount === 1 ? "contact" : "contacts"}
             {" · "}
-            <a href="/logs" className="text-accent hover:underline">
+            <Link href="/logs" className="text-accent hover:underline">
               See activity
-            </a>
+            </Link>
           </p>
         </div>
-        {stats && stats.instagramAccounts.length > 1 && (
-          <AccountSelect
+        {stats.instagramAccounts.length > 1 && (
+          <AccountUrlFilter
             accounts={stats.instagramAccounts}
             value={selectedAccountId}
-            onChange={handleAccountChange}
           />
         )}
       </div>
 
       {/* Stat Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3 sm:gap-4">
-        <StatCard
-          label="Active Campaigns"
-          value={stats?.activeAutomations ?? 0}
-        />
-        <StatCard label="DMs Sent" value={stats?.dmsSentMonth ?? 0} />
-        <StatCard label="Skipped" value={stats?.dmsSkippedMonth ?? 0} />
-        <StatCard label="Failed" value={stats?.dmsFailedMonth ?? 0} />
-        <StatCard label="Clicks" value={stats?.clicksThisMonth ?? 0} />
-        <StatCard label="CTR" value={`${stats?.ctrThisMonth ?? 0}%`} />
+        <StatCard label="Active Campaigns" value={stats.activeAutomations} />
+        <StatCard label="DMs Sent" value={stats.dmsSentMonth} />
+        <StatCard label="Skipped" value={stats.dmsSkippedMonth} />
+        <StatCard label="Failed" value={stats.dmsFailedMonth} />
+        <StatCard label="Clicks" value={stats.clicksThisMonth} />
+        <StatCard label="CTR" value={`${stats.ctrThisMonth}%`} />
       </div>
 
       {/* Chart + Recent Activity */}
@@ -139,7 +84,7 @@ export default function DashboardPage() {
         <div className="lg:col-span-3 panel rounded p-4 sm:p-6">
           <h2 className="text-sm font-semibold text-foreground mb-6">DMs — Last 7 Days</h2>
           <div className="flex items-end gap-1.5 h-40 sm:gap-2">
-            {stats?.dailyDMs.map((day) => (
+            {stats.dailyDMs.map((day) => (
               <div key={day.date} className="min-w-0 flex-1 flex flex-col items-center gap-2">
                 <span className="text-xs text-muted font-medium">{day.count}</span>
                 <div
@@ -159,10 +104,10 @@ export default function DashboardPage() {
         <div className="lg:col-span-1 panel rounded p-4 sm:p-6">
           <h2 className="text-sm font-semibold text-foreground mb-4">Top Keywords</h2>
           <div className="space-y-3">
-            {stats?.topKeywords.length === 0 && (
+            {stats.topKeywords.length === 0 && (
               <p className="text-sm text-muted py-8">No keyword matches yet</p>
             )}
-            {stats?.topKeywords.map((keyword) => (
+            {stats.topKeywords.map((keyword) => (
               <div key={keyword.keyword} className="flex items-center justify-between gap-3">
                 <span className="truncate text-sm font-medium text-foreground">
                   {keyword.keyword}
@@ -177,10 +122,10 @@ export default function DashboardPage() {
         <div className="lg:col-span-2 panel rounded p-4 sm:p-6">
           <h2 className="text-sm font-semibold text-foreground mb-4">Recent Activity</h2>
           <div className="space-y-3 max-h-60 overflow-y-auto">
-            {stats?.recentLogs.length === 0 && (
+            {stats.recentLogs.length === 0 && (
               <p className="text-sm text-muted text-center py-8">No activity yet</p>
             )}
-            {stats?.recentLogs.map((log) => (
+            {stats.recentLogs.map((log) => (
               <div
                 key={log.id}
                 className="flex items-center justify-between gap-3 py-2 border-b border-border last:border-0"

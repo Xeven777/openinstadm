@@ -3,12 +3,11 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/db/client";
 import { getBaseUrl } from "@/lib/env";
 import { canConnectInstagramAccount } from "@/lib/instagram-accounts";
-import { getLongLivedToken, getUserInfo, subscribeInstagramAccountToWebhooks } from "@/lib/meta/client";
-import {
-  encryptToken,
+import { getLongLivedToken, getUserInfo, subscribeInstagramAccountToWebhooks } from "@/lib/meta/client";import { encryptToken,
   exchangeCodeForToken,
   verifyOAuthState,
 } from "@/lib/meta/oauth";
+import { invalidateWorkspaceStats } from "@/lib/server/stats";
 import { canManageWorkspace } from "@/lib/workspace-access";
 
 export async function GET(request: NextRequest) {
@@ -103,6 +102,10 @@ export async function GET(request: NextRequest) {
         webhookSubscribed,
       },
     });
+
+    // New/updated account — drop the dashboard's cached stats so the account
+    // list and counts refresh on the landing redirect.
+    invalidateWorkspaceStats(state.workspaceId);
 
     return NextResponse.redirect(`${baseUrl}/dashboard?connected=true`);
   } catch (err) {

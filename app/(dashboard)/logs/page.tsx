@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import LogsAccountFilter from "@/components/logs-account-filter";
+import AccountUrlFilter from "@/components/account-url-filter";
 import StatusBadge from "@/components/status-badge";
 import { getCurrentWorkspaceId } from "@/lib/auth";
 import { prisma } from "@/lib/db/client";
@@ -98,7 +98,7 @@ export default async function LogsPage(props: PageProps<"/logs">) {
           ))}
         </div>
         {accounts.length > 1 && (
-          <LogsAccountFilter
+          <AccountUrlFilter
             accounts={accounts.map((account) => ({
               id: account.id,
               username: account.username,

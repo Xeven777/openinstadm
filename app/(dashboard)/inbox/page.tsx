@@ -57,6 +57,25 @@ export default function InboxPage() {
   const [sendError, setSendError] = useState<string | null>(null);
 
   const scrollRef = useRef<HTMLDivElement>(null);
+  // Always-latest selection/thread, so async completions can tell whether the
+  // response they belong to is still the active one (mirrors the requestKeyRef
+  // pattern on the overview page).
+  const selectedAccountRef = useRef("");
+  useEffect(() => {
+    selectedAccountRef.current = selectedAccountId;
+  });
+  const activeIdRef = useRef<string | null>(null);
+  useEffect(() => {
+    activeIdRef.current = activeId;
+  });
+
+  // Which request is currently in flight, keyed by selection so switching
+  // accounts/threads mid-flight can never block the new selection's load or
+  // let a stale response land. A poll tick skips while its key is taken (the
+  // Instagram Conversations API can take several seconds, longer than the
+  // poll interval).
+  const convInFlightRef = useRef<string | null>(null);
+  const msgInFlightRef = useRef<string | null>(null);
 
   const active = conversations.find((c) => c.id === activeId) ?? null;
 
@@ -90,24 +109,35 @@ export default function InboxPage() {
 
   const loadConversations = useCallback(
     async (silent: boolean) => {
-      if (!selectedAccountId) return;
+      const accountId = selectedAccountId;
+      if (!accountId) return;
+      // Skip only if this exact account's request is already in flight, so a
+      // stale poll for a previous account can never block the current one.
+      if (convInFlightRef.current === accountId) return;
+      convInFlightRef.current = accountId;
       if (!silent) setConvLoading(true);
       try {
         const res = await fetch(
-          `/api/instagram/conversations?instagramAccountId=${selectedAccountId}`,
+          `/api/instagram/conversations?instagramAccountId=${accountId}`,
           { cache: "no-store" }
         );
         const data = await res.json();
+        // The user may have switched accounts while this request was in
+        // flight — discard the stale response instead of showing it.
+        if (selectedAccountRef.current !== accountId) return;
         if (data.success) {
           setConversations(data.data.conversations);
-          writeCache(convCacheKey(selectedAccountId), data.data.conversations);
+          writeCache(convCacheKey(accountId), data.data.conversations);
           setConvError(null);
         } else if (!silent) {
           setConvError(data.error ?? "Failed to load conversations");
         }
       } catch {
-        if (!silent) setConvError("Failed to load conversations");
+        if (!silent && selectedAccountRef.current === accountId) {
+          setConvError("Failed to load conversations");
+        }
       } finally {
+        if (convInFlightRef.current === accountId) convInFlightRef.current = null;
         if (!silent) setConvLoading(false);
       }
     },
@@ -116,6 +146,9 @@ export default function InboxPage() {
 
   // Load + poll conversations for the selected account. A cached list is shown
   // immediately (so revisits are instant) while a fresh copy loads silently.
+  // Polling is visibility-aware (skips while the tab is hidden) and skips a
+  // tick when a request is already in flight; coming back to the tab polls
+  // immediately so the list catches up without waiting for the next tick.
   useEffect(() => {
     if (!selectedAccountId) return;
     // Reset the open thread when switching accounts. This is an intentional
@@ -135,20 +168,49 @@ export default function InboxPage() {
       setConvLoading(true);
     }
     void loadConversations(Boolean(cached.data));
-    const timer = window.setInterval(() => void loadConversations(true), POLL_MS);
-    return () => window.clearInterval(timer);
+
+    const tick = () => {
+      // Skip work entirely while the tab is hidden; the visibility listener
+      // below catches up the moment it becomes visible again.
+      if (document.visibilityState === "hidden") return;
+      void loadConversations(true);
+    };
+    const timer = window.setInterval(tick, POLL_MS);
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") {
+        void loadConversations(true);
+      }
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
   }, [selectedAccountId, loadConversations]);
 
   const loadMessages = useCallback(
     async (conversationId: string, silent: boolean) => {
-      if (!selectedAccountId) return;
+      const accountId = selectedAccountId;
+      if (!accountId) return;
+      const requestKey = `${accountId}:${conversationId}`;
+      // Keyed by account + thread so switching either mid-flight can't block
+      // or clobber the new selection.
+      if (msgInFlightRef.current === requestKey) return;
+      msgInFlightRef.current = requestKey;
       if (!silent) setThreadLoading(true);
       try {
         const res = await fetch(
-          `/api/instagram/conversations/${conversationId}?instagramAccountId=${selectedAccountId}`,
+          `/api/instagram/conversations/${conversationId}?instagramAccountId=${accountId}`,
           { cache: "no-store" }
         );
         const data = await res.json();
+        // Discard responses for a selection/thread that is no longer active.
+        if (
+          selectedAccountRef.current !== accountId ||
+          activeIdRef.current !== conversationId
+        ) {
+          return;
+        }
         if (data.success) {
           setMessages(data.data.messages);
           writeCache(msgCacheKey(conversationId), data.data.messages);
@@ -156,6 +218,7 @@ export default function InboxPage() {
       } catch {
         // keep whatever is shown
       } finally {
+        if (msgInFlightRef.current === requestKey) msgInFlightRef.current = null;
         if (!silent) setThreadLoading(false);
       }
     },
@@ -164,6 +227,7 @@ export default function InboxPage() {
 
   // Load + poll the open thread. Cached messages render instantly while a fresh
   // copy loads silently; opening a thread never shows a blank pane on revisit.
+  // Same visibility-aware + in-flight-guarded polling as the conversation list.
   useEffect(() => {
     if (!activeId) return;
     const cached = readCache<ThreadMessage[]>(
@@ -180,11 +244,22 @@ export default function InboxPage() {
       setThreadLoading(true);
     }
     void loadMessages(activeId, Boolean(cached.data));
-    const timer = window.setInterval(
-      () => void loadMessages(activeId, true),
-      POLL_MS
-    );
-    return () => window.clearInterval(timer);
+
+    const tick = () => {
+      if (document.visibilityState === "hidden") return;
+      void loadMessages(activeId, true);
+    };
+    const timer = window.setInterval(tick, POLL_MS);
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") {
+        void loadMessages(activeId, true);
+      }
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
   }, [activeId, loadMessages]);
 
   // Keep the thread pinned to the latest message.

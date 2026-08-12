@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db/client";
 import { calculateCtr, normalizeTopKeywords } from "@/lib/tracking/analytics";
 import { buildTrackedUrl } from "@/lib/tracking/message";
 import { buildReportUrl, generateReportShareSlug } from "@/lib/reports/share";
+import type { AutomationGetPayload } from "@/app/generated/prisma/models";
 
 /**
  * Shared server-side query for the enriched campaign list.
@@ -68,89 +69,65 @@ export interface CampaignListItem {
   };
 }
 
-export async function getCampaignList(
-  workspaceId: string,
-  instagramAccountId?: string | null
-): Promise<CampaignListItem[]> {
-  const accountFilter =
-    instagramAccountId && instagramAccountId !== "all"
-      ? { instagramAccountId }
-      : {};
-
-  const automations = await prisma.automation.findMany({
-    where: { workspaceId, ...accountFilter },
-    include: {
-      instagramAccount: {
-        select: { username: true, instagramId: true },
-      },
-      _count: {
-        select: { dmLogs: true },
-      },
-      trackedLinks: {
-        select: {
-          id: true,
-          slug: true,
-          label: true,
-          destinationUrl: true,
-          _count: { select: { clicks: true } },
-        },
-        orderBy: { createdAt: "asc" },
-      },
+const CAMPAIGN_INCLUDE = {
+  instagramAccount: {
+    select: { username: true, instagramId: true },
+  },
+  _count: {
+    select: { dmLogs: true },
+  },
+  trackedLinks: {
+    select: {
+      id: true,
+      slug: true,
+      label: true,
+      destinationUrl: true,
+      _count: { select: { clicks: true } },
     },
-    orderBy: { createdAt: "desc" },
-  });
+    orderBy: { createdAt: "asc" },
+  },
+} as const;
 
-  // Legacy rows (created before share slugs existed) get a slug backfilled off
-  // the critical path: the writes run after the response is sent, so the query
-  // stays fast instead of doing one update per campaign here. Rows that lack a
-  // slug simply return `reportUrl: null` until the backfill lands.
+type CampaignWithRelations = AutomationGetPayload<{
+  include: typeof CAMPAIGN_INCLUDE;
+}>;
+
+interface CampaignAnalyticsItem {
+  sent: number;
+  skipped: number;
+  failed: number;
+  clicks: number;
+  topKeywords: { keyword: string; count: number }[];
+}
+
+/** Backfill missing share slugs off the critical path (after the response). */
+function backfillMissingShareSlugs(automations: { id: string; reportShareSlug: string | null }[]) {
   const missingSlugs = automations.filter((automation) => !automation.reportShareSlug);
-  if (missingSlugs.length > 0) {
-    after(async () => {
-      try {
-        await prisma.$transaction(
-          missingSlugs.map((automation) =>
-            prisma.automation.update({
-              where: { id: automation.id },
-              data: { reportShareSlug: generateReportShareSlug() },
-              select: { id: true, reportShareSlug: true },
-            })
-          )
-        );
-      } catch (err) {
-        console.error("[Automations] Share slug backfill failed:", err);
-      }
-    });
-  }
-
-  const [statusCounts, clickCounts, keywordCounts] = await Promise.all([
-    prisma.dmLog.groupBy({
-      by: ["automationId", "status"],
-      where: { workspaceId },
-      _count: { _all: true },
-    }),
-    prisma.linkClick.groupBy({
-      by: ["automationId"],
-      where: { workspaceId },
-      _count: { _all: true },
-    }),
-    prisma.dmLog.groupBy({
-      by: ["automationId", "matchedKeyword"],
-      where: { workspaceId, matchedKeyword: { not: null } },
-      _count: { _all: true },
-    }),
-  ]);
-
-  const analytics = new Map<
-    string,
-    {
-      sent: number;
-      skipped: number;
-      failed: number;
-      clicks: number;
-      topKeywords: { keyword: string; count: number }[];
+  if (missingSlugs.length === 0) return;
+  after(async () => {
+    try {
+      await prisma.$transaction(
+        missingSlugs.map((automation) =>
+          prisma.automation.update({
+            where: { id: automation.id },
+            data: { reportShareSlug: generateReportShareSlug() },
+            select: { id: true, reportShareSlug: true },
+          })
+        )
+      );
+    } catch (err) {
+      console.error("[Automations] Share slug backfill failed:", err);
     }
-  >();
+  });
+}
+
+function buildAnalyticsMap(
+  automations: { id: string }[],
+  statusCounts: { automationId: string; status: string; _count: { _all: number } }[],
+  clickCounts: { automationId: string; _count: { _all: number } }[],
+  keywordCounts: { automationId: string; matchedKeyword: string | null; _count: { _all: number } }[]
+): Map<string, CampaignAnalyticsItem> {
+  const analytics = new Map<string, CampaignAnalyticsItem>();
 
   for (const automation of automations) {
     analytics.set(automation.id, {
@@ -190,30 +167,139 @@ export async function getCampaignList(
     );
   }
 
-  return automations.map((automation) => {
-    const item = analytics.get(automation.id) ?? {
+  return analytics;
+}
+
+function serializeCampaign(
+  automation: CampaignWithRelations,
+  item: CampaignAnalyticsItem
+): CampaignListItem {
+  return {
+    ...automation,
+    createdAt: automation.createdAt.toISOString(),
+    updatedAt: automation.updatedAt.toISOString(),
+    trackedLinks: automation.trackedLinks.map((link) => ({
+      ...link,
+      trackedUrl: buildTrackedUrl(link.slug),
+    })),
+    reportUrl: automation.reportShareSlug
+      ? buildReportUrl(automation.reportShareSlug)
+      : null,
+    analytics: {
+      ...item,
+      ctr: calculateCtr(item.clicks, item.sent),
+    },
+  };
+}
+
+export async function getCampaignList(
+  workspaceId: string,
+  instagramAccountId?: string | null
+): Promise<CampaignListItem[]> {
+  const accountFilter =
+    instagramAccountId && instagramAccountId !== "all"
+      ? { instagramAccountId }
+      : {};
+
+  const automations = await prisma.automation.findMany({
+    where: { workspaceId, ...accountFilter },
+    include: CAMPAIGN_INCLUDE,
+    orderBy: { createdAt: "desc" },
+  });
+
+  backfillMissingShareSlugs(automations);
+
+  const [statusCounts, clickCounts, keywordCounts] = await Promise.all([
+    prisma.dmLog.groupBy({
+      by: ["automationId", "status"],
+      where: { workspaceId },
+      _count: { _all: true },
+    }),
+    prisma.linkClick.groupBy({
+      by: ["automationId"],
+      where: { workspaceId },
+      _count: { _all: true },
+    }),
+    prisma.dmLog.groupBy({
+      by: ["automationId", "matchedKeyword"],
+      where: { workspaceId, matchedKeyword: { not: null } },
+      _count: { _all: true },
+    }),
+  ]);
+
+  const analytics = buildAnalyticsMap(
+    automations,
+    statusCounts,
+    clickCounts,
+    keywordCounts
+  );
+
+  return automations.map((automation) =>
+    serializeCampaign(
+      automation,
+      analytics.get(automation.id) ?? {
+        sent: 0,
+        skipped: 0,
+        failed: 0,
+        clicks: 0,
+        topKeywords: [],
+      }
+    )
+  );
+}
+
+/**
+ * Single-campaign view for the detail page.
+ *
+ * Queries one automation (plus its own analytics) instead of fetching the whole
+ * campaign list and filtering client-side — the same shape as the list items,
+ * so the detail page renders the identical summary without the N× list fetch.
+ */
+export async function getCampaignDetail(
+  workspaceId: string,
+  id: string
+): Promise<CampaignListItem | null> {
+  const automation = await prisma.automation.findFirst({
+    where: { id, workspaceId },
+    include: CAMPAIGN_INCLUDE,
+  });
+  if (!automation) return null;
+
+  backfillMissingShareSlugs([automation]);
+
+  const [statusCounts, clickCounts, keywordCounts] = await Promise.all([
+    prisma.dmLog.groupBy({
+      by: ["automationId", "status"],
+      where: { workspaceId, automationId: id },
+      _count: { _all: true },
+    }),
+    prisma.linkClick.groupBy({
+      by: ["automationId"],
+      where: { workspaceId, automationId: id },
+      _count: { _all: true },
+    }),
+    prisma.dmLog.groupBy({
+      by: ["automationId", "matchedKeyword"],
+      where: { workspaceId, automationId: id, matchedKeyword: { not: null } },
+      _count: { _all: true },
+    }),
+  ]);
+
+  const analytics = buildAnalyticsMap(
+    [automation],
+    statusCounts,
+    clickCounts,
+    keywordCounts
+  );
+
+  return serializeCampaign(
+    automation,
+    analytics.get(automation.id) ?? {
       sent: 0,
       skipped: 0,
       failed: 0,
       clicks: 0,
       topKeywords: [],
-    };
-
-    return {
-      ...automation,
-      createdAt: automation.createdAt.toISOString(),
-      updatedAt: automation.updatedAt.toISOString(),
-      trackedLinks: automation.trackedLinks.map((link) => ({
-        ...link,
-        trackedUrl: buildTrackedUrl(link.slug),
-      })),
-      reportUrl: automation.reportShareSlug
-        ? buildReportUrl(automation.reportShareSlug)
-        : null,
-      analytics: {
-        ...item,
-        ctr: calculateCtr(item.clicks, item.sent),
-      },
-    };
-  });
+    }
+  );
 }

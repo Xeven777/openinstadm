@@ -35,3 +35,16 @@ export function setCached<T>(key: string, data: T, ttlMs: number): void {
   }
   store.set(key, { data, expiresAt: Date.now() + ttlMs });
 }
+
+/**
+ * Drop every entry whose key starts with `prefix`.
+ *
+ * For caches that back a mutation's read path (e.g. dashboard stats), callers
+ * must invalidate after a write so the next navigation doesn't serve stale
+ * data for the rest of the TTL window.
+ */
+export function clearCachedByPrefix(prefix: string): void {
+  for (const key of store.keys()) {
+    if (key.startsWith(prefix)) store.delete(key);
+  }
+}

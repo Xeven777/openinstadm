@@ -5,10 +5,16 @@ import { prisma } from "@/lib/db/client";
 import { generateTrackedLinkSlug } from "@/lib/tracking/server";
 import { generateReportShareSlug } from "@/lib/reports/share";
 import { getCampaignList } from "@/lib/server/automations";
+import { invalidateWorkspaceStats } from "@/lib/server/stats";
 import {
   canManageWorkspace,
   getCurrentWorkspaceContext,
 } from "@/lib/workspace-access";
+
+// The dashboard's server-side stats cache is keyed per workspace. Any write
+// that changes the campaign list or toggle state must drop those entries, or
+// the next navigation would serve counts up to 30s stale.
+// (invalidateWorkspaceStats lives next to the cache key in lib/server/stats.ts)
 
 // This list is read-your-writes (created/imported campaigns must show up
 // immediately), so never cache it at the route or CDN layer.
@@ -306,6 +312,8 @@ export async function POST(request: NextRequest) {
     },
   });
 
+  invalidateWorkspaceStats(workspaceId);
+
   return NextResponse.json(
     { success: true, data: automation },
     { status: 201 }
@@ -407,6 +415,8 @@ export async function PATCH(request: NextRequest) {
     where: { id: automationId },
     data: automationData,
   });
+
+  invalidateWorkspaceStats(workspaceId);
 
   // Update, create, or clear the campaign's primary tracked link when a
   // destination URL was supplied. `undefined` means "leave it alone".
@@ -512,6 +522,8 @@ export async function DELETE(request: NextRequest) {
   }
 
   await prisma.automation.delete({ where: { id: automationId } });
+
+  invalidateWorkspaceStats(workspaceId);
 
   return NextResponse.json({ success: true, data: { deleted: true } });
 }

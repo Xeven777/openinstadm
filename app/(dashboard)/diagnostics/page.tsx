@@ -1,56 +1,18 @@
-"use client";
-
+import { redirect } from "next/navigation";
+import DiagnosticsRefresh from "@/components/diagnostics-refresh";
 import StatusBadge from "@/components/status-badge";
-import { useCachedFetch } from "@/lib/client-cache";
+import { getCurrentWorkspaceId } from "@/lib/auth";
+import { getDiagnosticsData } from "@/lib/server/diagnostics";
 
-interface DiagnosticsData {
-  queueCounts: Record<string, number>;
-  workerHealth: {
-    healthy: boolean;
-    ageMs: number | null;
-    heartbeat: {
-      checkedAt: string;
-      hostname?: string;
-      pid: number;
-      startedAt?: string;
-    } | null;
-  };
-  workerAlerts: Array<{
-    level: string;
-    message: string;
-    jobId?: string;
-    commentId?: string;
-    createdAt: string;
-  }>;
-  webhookFailures: Array<{
-    id: string;
-    object: string | null;
-    errorMessage: string | null;
-    createdAt: string;
-  }>;
-  dmFailures: Array<{
-    id: string;
-    status: string;
-    commentId: string;
-    commentText: string;
-    errorMessage: string | null;
-    updatedAt: string;
-    automation: { name: string };
-  }>;
-  tokenRefreshFailures: Array<{
-    id: string;
-    message: string;
-    createdAt: string;
-  }>;
-  operationalEvents: Array<{
-    id: string;
-    source: string;
-    level: string;
-    message: string;
-    createdAt: string;
-    resolvedAt: string | null;
-  }>;
-}
+/**
+ * Diagnostics Page (Server Component)
+ *
+ * Queries Redis queue counts + Postgres failure tables directly on every render
+ * — no client fetch, no JSON round-trip. The only client island is the Refresh
+ * button, which re-runs this component server-side via router.refresh().
+ */
+
+export const dynamic = "force-dynamic";
 
 function formatDate(value: string) {
   return new Date(value).toLocaleString();
@@ -75,33 +37,14 @@ function Section({
   );
 }
 
-export default function DiagnosticsPage() {
-  // Cached copy paints instantly on return; Refresh revalidates in the
-  // background without blanking the page.
-  const diagnosticsFetch = useCachedFetch<DiagnosticsData>(
-    "dash:diagnostics",
-    async () => {
-      const response = await fetch("/api/admin/diagnostics");
-      const payload = await response.json();
-      if (!payload.success) {
-        throw new Error("Failed to load diagnostics");
-      }
-      return payload.data as DiagnosticsData;
-    },
-    { maxAgeMs: 30_000 }
-  );
-  const data = diagnosticsFetch.data;
+export default async function DiagnosticsPage() {
+  const workspaceId = await getCurrentWorkspaceId();
+  if (!workspaceId) redirect("/login");
 
-  function refreshDiagnostics() {
-    diagnosticsFetch.refresh();
-  }
-
-  if (diagnosticsFetch.loading && !data) {
-    return <div className="panel rounded p-8 h-64" />;
-  }
+  const data = await getDiagnosticsData(workspaceId);
 
   const workerAgeSeconds =
-    data?.workerHealth.ageMs == null
+    data.workerHealth.ageMs == null
       ? null
       : Math.round(data.workerHealth.ageMs / 1000);
 
@@ -116,12 +59,7 @@ export default function DiagnosticsPage() {
             Health, queues, webhook failures, billing events, and worker alerts.
           </p>
         </div>
-        <button
-          onClick={() => void refreshDiagnostics()}
-          className="rounded border border-border bg-surface px-4 py-2 text-sm font-semibold text-foreground transition hover:border-border-hover"
-        >
-          Refresh
-        </button>
+        <DiagnosticsRefresh />
       </div>
 
       <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3">
@@ -131,10 +69,10 @@ export default function DiagnosticsPage() {
           </p>
           <p
             className={`mt-3 text-2xl font-bold ${
-              data?.workerHealth.healthy ? "text-success" : "text-warning"
+              data.workerHealth.healthy ? "text-success" : "text-warning"
             }`}
           >
-            {data?.workerHealth.healthy ? "Healthy" : "Needs attention"}
+            {data.workerHealth.healthy ? "Healthy" : "Needs attention"}
           </p>
           <p className="mt-2 text-xs text-muted">
             {workerAgeSeconds == null
@@ -148,14 +86,14 @@ export default function DiagnosticsPage() {
               Queue {key}
             </p>
             <p className="mt-3 text-2xl font-bold text-foreground">
-              {data?.queueCounts[key] ?? 0}
+              {data.queueCounts[key] ?? 0}
             </p>
           </div>
         ))}
       </div>
 
       <Section title="Recent Worker Alerts">
-        {data?.workerAlerts.length ? (
+        {data.workerAlerts.length ? (
           <div className="space-y-3">
             {data.workerAlerts.map((alert) => (
               <div
@@ -184,7 +122,7 @@ export default function DiagnosticsPage() {
 
       <div className="grid gap-6 lg:grid-cols-2">
         <Section title="Campaign DM Failures And Skips">
-          {data?.dmFailures.length ? (
+          {data.dmFailures.length ? (
             <div className="space-y-3">
               {data.dmFailures.map((item) => (
                 <div key={item.id} className="border-b border-border pb-3 last:border-0">
@@ -209,7 +147,7 @@ export default function DiagnosticsPage() {
         </Section>
 
         <Section title="Webhook Failures">
-          {data?.webhookFailures.length ? (
+          {data.webhookFailures.length ? (
             <div className="space-y-3">
               {data.webhookFailures.map((event) => (
                 <div key={event.id} className="border-b border-border pb-3 last:border-0">
@@ -233,7 +171,7 @@ export default function DiagnosticsPage() {
 
       <div className="grid gap-6 lg:grid-cols-2">
         <Section title="Token Refresh Failures">
-          {data?.tokenRefreshFailures.length ? (
+          {data.tokenRefreshFailures.length ? (
             <div className="space-y-3">
               {data.tokenRefreshFailures.map((event) => (
                 <div key={event.id} className="border-b border-border pb-3 last:border-0">
@@ -254,7 +192,7 @@ export default function DiagnosticsPage() {
       </div>
 
       <Section title="Operational Event Timeline">
-        {data?.operationalEvents.length ? (
+        {data.operationalEvents.length ? (
           <div className="space-y-3">
             {data.operationalEvents.map((event) => (
               <div key={event.id} className="grid gap-2 border-b border-border pb-3 last:border-0 sm:grid-cols-[140px_1fr_auto]">

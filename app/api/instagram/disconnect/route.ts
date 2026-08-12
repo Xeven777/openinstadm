@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
+import { invalidateWorkspaceStats } from "@/lib/server/stats";
 import {
   canManageWorkspace,
   getCurrentWorkspaceContext,
@@ -31,6 +32,10 @@ export async function POST(request: NextRequest) {
       ...(instagramAccountId ? { id: instagramAccountId } : {}),
     },
   });
+
+  // The dashboard stats cache includes the account list — drop it so a
+  // disconnect shows up immediately instead of lingering for the TTL.
+  invalidateWorkspaceStats(context.workspaceId);
 
   return NextResponse.json({ success: true });
 }

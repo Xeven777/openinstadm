@@ -1,28 +1,28 @@
 "use client";
 
 /**
- * Logs Account Filter — interactive island
+ * Account URL Filter — interactive island
  *
- * The logs table is server-rendered and driven entirely by URL search params,
- * so the account `<select>` is the only client island: on change it rewrites
- * the URL (keeping the current status filter, resetting to page 1) which makes
- * Next.js re-render the Server Component against the database — no client
- * fetch, no JSON round-trip.
+ * For server-rendered pages driven entirely by URL search params (logs,
+ * dashboard, ...): the account `<select>` is the only client island. On change
+ * it rewrites the URL (preserving other params like the status filter, resetting
+ * pagination) which makes Next.js re-render the Server Component against the
+ * database — no client fetch, no JSON round-trip.
  */
 
 import { useCallback } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import AccountSelect, { type AccountOption } from "@/components/account-select";
 
-interface LogsAccountFilterProps {
+interface AccountUrlFilterProps {
   accounts: AccountOption[];
   value: string;
 }
 
-export default function LogsAccountFilter({
+export default function AccountUrlFilter({
   accounts,
   value,
-}: LogsAccountFilterProps) {
+}: AccountUrlFilterProps) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();

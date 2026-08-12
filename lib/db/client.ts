@@ -16,7 +16,11 @@ function createPrismaClient() {
       connectionString: databaseUrl,
       connectionTimeoutMillis: 10_000,
       idleTimeoutMillis: 30_000,
-      max: 5,
+      // The dashboard stats aggregation fires ~16 queries in a single
+      // Promise.all; a pool of 5 would queue them in 4 sequential waves and
+      // add hundreds of ms of latency on a remote Postgres. 10 keeps them all
+      // in flight while staying well within Neon's connection budget.
+      max: 10,
     }),
   });
 }

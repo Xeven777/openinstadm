@@ -1,9 +1,10 @@
 "use client";
 
 import { Suspense, useState } from "react";
+import { useRouter } from "next/navigation";
 import type { AccountOption } from "@/components/account-select";
 import { InstagramConnectNotice } from "@/components/instagram-connect-notice";
-import { useCachedFetch } from "@/lib/client-cache";
+import { clearCache, useCachedFetch } from "@/lib/client-cache";
 
 interface SettingsData {
   workspace: {
@@ -47,10 +48,12 @@ interface WorkspaceMembersData {
 }
 
 export default function SettingsPage() {
+  const router = useRouter();
   const [busy, setBusy] = useState<string | null>(null);
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState<"ADMIN" | "MEMBER">("MEMBER");
   const [memberError, setMemberError] = useState<string | null>(null);
+  const [accountError, setAccountError] = useState<string | null>(null);
 
   // Both data sources load together and paint instantly from cache on return
   // visits, then revalidate in the background.
@@ -89,12 +92,26 @@ export default function SettingsPage() {
     }
 
     setBusy(`disconnect:${instagramAccountId}`);
-    await fetch("/api/instagram/disconnect", {
+    const res = await fetch("/api/instagram/disconnect", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ instagramAccountId }),
     });
-    window.location.reload();
+    const payload = await res.json().catch(() => null);
+    setBusy(null);
+
+    if (!payload?.success) {
+      setAccountError(payload?.error ?? "Could not disconnect account");
+      return;
+    }
+
+    setAccountError(null);
+    // Drop the cached settings payload (it would otherwise paint the just-
+    // disconnected account on the next render), then revalidate in place and
+    // re-render the server shell (sidebar account list) — no full page reload.
+    clearCache("dash:settings");
+    settingsFetch.refresh();
+    router.refresh();
   }
 
   async function inviteMember(event: React.FormEvent) {
@@ -181,6 +198,9 @@ export default function SettingsPage() {
           </div>
 
           <div className="space-y-3 py-3">
+            {accountError && (
+              <p className="text-sm text-error">{accountError}</p>
+            )}
             {accounts.length === 0 && (
               <p className="text-sm text-muted">
                 Connect an Instagram professional account to launch campaigns.
