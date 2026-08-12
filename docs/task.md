@@ -63,6 +63,21 @@ This checklist tracks all ongoing bugs, optimizations, setup items, and new feat
 - [x] **Optional follow-up (bigger refactor — DONE)**: Converted list-style pages to React Server Components with client islands, eliminating client fetch entirely. `/campaigns` renders via async `CampaignsPage` querying Prisma directly through shared `getCampaignList` (`lib/server/automations.ts`) + island [`components/campaigns-list.tsx`](file:///home/anish/Documents/github/openinstadm-main/components/campaigns-list.tsx) (search/status/account filter client-side, optimistic toggle/delete, duplicate via POST + `router.refresh()`, copy URL, kebab, reel lightbox, sessionStorage-cached IG media). `/logs` is a Server Component driven by `searchParams` (page/status/account) with server `<Link>` status filters + pagination via shared `getLogsPage` (`lib/server/logs.ts`); the only island is [`components/logs-account-filter.tsx`](file:///home/anish/Documents/github/openinstadm-main/components/logs-account-filter.tsx) which pushes URL navigation on change. IG media thumbnails stay client-side (expiring URLs). ✅ typecheck clean, build clean, 132/132 tests pass.
 
 **Phase 1–4 status: DONE** (including the optional RSC refactor).
+
+### Audit follow-up — 2026-08-13
+
+The earlier checklist above reflected the intended end state. A fresh code audit shows the following items are still open or only partially addressed:
+
+- [ ] **Enable Next 16 cache components**: `next.config.ts` does not set `cacheComponents: true`, so the app is not using Next 16's cache-component/static-shell navigation model yet.
+- [ ] **Remove hard reloads in dashboard flows**: `app/(dashboard)/settings/page.tsx` still calls `window.location.reload()` after Instagram disconnect, which throws away client state and cache.
+- [ ] **Convert remaining client-fetch dashboard pages to RSC where practical**: `dashboard`, `overview`, `settings`, `diagnostics`, and `campaign detail` still depend on client fetches for their main data payloads.
+- [ ] **Replace in-memory server cache with durable cache for Meta-heavy reads**: `lib/server-cache.ts` is process-local `Map` storage, so it is not shared across serverless instances and does not behave like a production cache.
+- [ ] **Reduce dashboard stats query fan-out further**: `app/api/dashboard/stats/route.ts` still issues many independent queries and does some grouping/bucketing in Node.
+- [ ] **Add dedicated campaign detail endpoint**: `app/(dashboard)/campaigns/[id]/page.tsx` fetches the full automation list and filters client-side instead of loading one campaign directly.
+- [ ] **Add missing analytics indexes**: the current schema covers some hot paths, but campaign analytics and operational-event reads still need tighter composite indexes for the filters used in dashboard views.
+- [ ] **Remove non-navigation anchors from internal dashboard links**: there are still a few plain `<a>` tags for internal routes that should be `<Link>` for consistent client-side transitions.
+- [ ] **Rework inbox polling for production**: `app/(dashboard)/inbox/page.tsx` still polls on a fixed interval and can be tightened with visibility-aware polling and better request dedupe.
+- [ ] **Re-run production build verification**: `npm run build` did not complete during the audit window, so the build path still needs a clean run after the next set of changes.
 ---
 
 ## 🚀 4. New Feature Roadmap
@@ -74,4 +89,3 @@ This checklist tracks all ongoing bugs, optimizations, setup items, and new feat
 - [ ] **AI-Powered Intent Matching & Smart Replies**: Replace exact keyword matching with LLM intent classification for natural conversation.
 - [ ] **Outbound Webhook Integrations**: Forward leads and link clicks to external endpoints (Zapier, Make, HubSpot, Notion).
 - [ ] **Facebook Page Comment Support**: Add Facebook login OAuth permissions, database tables/columns for Facebook Pages, parse `object: "page"` webhook comment events, and integrate Facebook Page-scoped Messaging API (PSID replies).
-
