@@ -1,34 +1,22 @@
-"use client";
+import Link from "next/link";
+import { redirect } from "next/navigation";
+import LogsAccountFilter from "@/components/logs-account-filter";
+import StatusBadge from "@/components/status-badge";
+import { getCurrentWorkspaceId } from "@/lib/auth";
+import { prisma } from "@/lib/db/client";
+import { getLogsPage } from "@/lib/server/logs";
 
 /**
- * DM Logs Page
+ * DM Logs Page (Server Component)
  *
- * Filterable, paginated table of DM logs.
+ * The status filter, account filter, and pagination all live in the URL query
+ * string, so changing any of them is a plain navigation that re-renders this
+ * server component against the database — no client fetch, no JSON round-trip.
+ * The only client island is the account `<select>` (it must push navigation on
+ * change); everything else is server-rendered markup.
  */
 
-import { useEffect, useState } from "react";
-import AccountSelect, { type AccountOption } from "@/components/account-select";
-import StatusBadge from "@/components/status-badge";
-import { useCachedFetch } from "@/lib/client-cache";
-
-interface DmLog {
-  id: string;
-  commenterId: string;
-  commenterName: string | null;
-  commentText: string;
-  status: string;
-  errorMessage: string | null;
-  createdAt: string;
-  automation: { name: string; keywords: string[] };
-  instagramAccount: { username: string };
-}
-
-interface Pagination {
-  page: number;
-  limit: number;
-  total: number;
-  totalPages: number;
-}
+export const dynamic = "force-dynamic";
 
 const STATUS_FILTERS = [
   "ALL",
@@ -40,56 +28,51 @@ const STATUS_FILTERS = [
   "SKIPPED_DEDUP",
 ];
 
-export default function LogsPage() {
-  const [statusFilter, setStatusFilter] = useState("ALL");
-  const [accounts, setAccounts] = useState<AccountOption[]>([]);
-  const [selectedAccountId, setSelectedAccountId] = useState("all");
-  const [page, setPage] = useState(1);
+export default async function LogsPage(props: PageProps<"/logs">) {
+  const workspaceId = await getCurrentWorkspaceId();
+  if (!workspaceId) redirect("/login");
 
-  // Filters and page live in the cache key, so each combination paints
-  // instantly on return and refetches in the background.
-  const logsFetch = useCachedFetch<{ logs: DmLog[]; pagination: Pagination }>(
-    `dash:logs:${page}:${statusFilter}:${selectedAccountId}`,
-    async () => {
-      const params = new URLSearchParams({ page: String(page), limit: "20" });
-      if (statusFilter !== "ALL") params.set("status", statusFilter);
-      if (selectedAccountId !== "all") {
-        params.set("instagramAccountId", selectedAccountId);
-      }
+  const searchParams = await props.searchParams;
+  const rawPage = searchParams.page;
+  const page = Math.max(1, Number.parseInt(String(rawPage ?? "1"), 10) || 1);
+  const statusFilter =
+    typeof searchParams.status === "string" ? searchParams.status : "ALL";
+  const selectedAccountId =
+    typeof searchParams.instagramAccountId === "string"
+      ? searchParams.instagramAccountId
+      : "all";
 
-      const res = await fetch(`/api/logs?${params}`);
-      const data = await res.json();
-      if (!data.success) {
-        throw new Error("Failed to fetch logs");
-      }
-      return {
-        logs: data.data.logs as DmLog[],
-        pagination: data.data.pagination as Pagination,
-      };
-    },
-    { maxAgeMs: 30_000 }
-  );
-  const logs = logsFetch.data?.logs ?? [];
-  const pagination = logsFetch.data?.pagination ?? null;
-  const loading = logsFetch.loading;
+  const [accounts, result] = await Promise.all([
+    prisma.instagramAccount.findMany({
+      where: { workspaceId },
+      orderBy: { connectedAt: "desc" },
+      select: { id: true, username: true, instagramId: true, name: true },
+    }),
+    getLogsPage(workspaceId, {
+      page,
+      limit: 20,
+      status: statusFilter,
+      instagramAccountId: selectedAccountId,
+    }),
+  ]);
 
-  useEffect(() => {
-    fetch("/api/dashboard/stats")
-      .then((res) => res.json())
-      .then((payload) => {
-        if (payload.success) setAccounts(payload.data.instagramAccounts ?? []);
-      })
-      .catch(console.error);
-  }, []);
+  const { logs, pagination } = result;
 
-  function handleFilterChange(status: string) {
-    setStatusFilter(status);
-    setPage(1);
-  }
-
-  function handleAccountChange(accountId: string) {
-    setSelectedAccountId(accountId);
-    setPage(1);
+  function filterHref({
+    nextStatus = statusFilter,
+    nextAccount = selectedAccountId,
+    nextPage = 1,
+  }: {
+    nextStatus?: string;
+    nextAccount?: string;
+    nextPage?: number;
+  }) {
+    const params = new URLSearchParams();
+    if (nextStatus !== "ALL") params.set("status", nextStatus);
+    if (nextAccount !== "all") params.set("instagramAccountId", nextAccount);
+    if (nextPage > 1) params.set("page", String(nextPage));
+    const qs = params.toString();
+    return `/logs${qs ? `?${qs}` : ""}`;
   }
 
   return (
@@ -98,9 +81,9 @@ export default function LogsPage() {
       <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div className="flex flex-wrap gap-2">
           {STATUS_FILTERS.map((status) => (
-            <button
+            <Link
               key={status}
-              onClick={() => handleFilterChange(status)}
+              href={filterHref({ nextStatus: status })}
               className={`
                 px-3 py-1.5 rounded-lg text-xs font-medium transition-all
                 ${
@@ -111,14 +94,18 @@ export default function LogsPage() {
               `}
             >
               {status === "ALL" ? "All" : status.replace("SKIPPED_", "").replace("_", " ")}
-            </button>
+            </Link>
           ))}
         </div>
         {accounts.length > 1 && (
-          <AccountSelect
-            accounts={accounts}
+          <LogsAccountFilter
+            accounts={accounts.map((account) => ({
+              id: account.id,
+              username: account.username,
+              instagramId: account.instagramId,
+              name: account.name,
+            }))}
             value={selectedAccountId}
-            onChange={handleAccountChange}
           />
         )}
       </div>
@@ -140,60 +127,48 @@ export default function LogsPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
-              {loading && (
-                <>
-                  {[...Array(5)].map((_, i) => (
-                    <tr key={i}>
-                      <td colSpan={6} className="px-4 py-4 sm:px-6">
-                        <div className="h-4 bg-surface-hover rounded" />
-                      </td>
-                    </tr>
-                  ))}
-                </>
-              )}
-              {!loading && logs.length === 0 && (
+              {logs.length === 0 && (
                 <tr>
                   <td colSpan={6} className="px-4 py-12 text-center text-muted sm:px-6">
                     No logs found
                   </td>
                 </tr>
               )}
-              {!loading &&
-                logs.map((log) => (
-                  <tr key={log.id} className="hover:bg-surface-hover/50 transition-colors">
-                    <td className="px-4 py-4 sm:px-6">
-                      <span className="font-medium text-foreground">
-                        @{log.commenterName ?? log.commenterId.slice(0, 8)}
-                      </span>
-                    </td>
-                    <td className="px-4 py-4 max-w-[200px] sm:px-6">
-                      <span className="text-muted truncate block">{log.commentText}</span>
-                    </td>
-                    <td className="px-4 py-4 sm:px-6">
-                      <span className="text-muted">{log.automation.name}</span>
-                    </td>
-                    <td className="px-4 py-4 sm:px-6">
-                      <span className="text-muted">@{log.instagramAccount.username}</span>
-                    </td>
-                    <td className="px-4 py-4 sm:px-6">
-                      <StatusBadge status={log.status} />
-                    </td>
-                    <td className="px-4 py-4 text-muted whitespace-nowrap sm:px-6">
-                      {new Date(log.createdAt).toLocaleString("en-US", {
-                        month: "short",
-                        day: "numeric",
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      })}
-                    </td>
-                  </tr>
-                ))}
+              {logs.map((log) => (
+                <tr key={log.id} className="hover:bg-surface-hover/50 transition-colors">
+                  <td className="px-4 py-4 sm:px-6">
+                    <span className="font-medium text-foreground">
+                      @{log.commenterName ?? log.commenterId.slice(0, 8)}
+                    </span>
+                  </td>
+                  <td className="px-4 py-4 max-w-[200px] sm:px-6">
+                    <span className="text-muted truncate block">{log.commentText}</span>
+                  </td>
+                  <td className="px-4 py-4 sm:px-6">
+                    <span className="text-muted">{log.automation.name}</span>
+                  </td>
+                  <td className="px-4 py-4 sm:px-6">
+                    <span className="text-muted">@{log.instagramAccount.username}</span>
+                  </td>
+                  <td className="px-4 py-4 sm:px-6">
+                    <StatusBadge status={log.status} />
+                  </td>
+                  <td className="px-4 py-4 text-muted whitespace-nowrap sm:px-6">
+                    {new Date(log.createdAt).toLocaleString("en-US", {
+                      month: "short",
+                      day: "numeric",
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}
+                  </td>
+                </tr>
+              ))}
             </tbody>
           </table>
         </div>
 
         {/* Pagination */}
-        {pagination && pagination.totalPages > 1 && (
+        {pagination.totalPages > 1 && (
           <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-4 border-t border-border sm:px-6">
             <p className="text-xs text-muted">
               Showing {(pagination.page - 1) * pagination.limit + 1}–
@@ -201,23 +176,23 @@ export default function LogsPage() {
               {pagination.total}
             </p>
             <div className="flex items-center gap-2">
-              <button
-                disabled={page <= 1}
-                onClick={() => setPage(page - 1)}
-                className="px-3 py-1.5 rounded-lg text-xs font-medium text-muted border border-border hover:text-foreground hover:border-border-hover transition-all disabled:opacity-30 disabled:pointer-events-none"
+              <Link
+                aria-disabled={page <= 1}
+                href={filterHref({ nextPage: page - 1 })}
+                className="px-3 py-1.5 rounded-lg text-xs font-medium text-muted border border-border hover:text-foreground hover:border-border-hover transition-all aria-disabled:opacity-30 aria-disabled:pointer-events-none"
               >
                 Previous
-              </button>
+              </Link>
               <span className="text-xs text-muted px-2">
                 {page} / {pagination.totalPages}
               </span>
-              <button
-                disabled={page >= pagination.totalPages}
-                onClick={() => setPage(page + 1)}
-                className="px-3 py-1.5 rounded-lg text-xs font-medium text-muted border border-border hover:text-foreground hover:border-border-hover transition-all disabled:opacity-30 disabled:pointer-events-none"
+              <Link
+                aria-disabled={page >= pagination.totalPages}
+                href={filterHref({ nextPage: page + 1 })}
+                className="px-3 py-1.5 rounded-lg text-xs font-medium text-muted border border-border hover:text-foreground hover:border-border-hover transition-all aria-disabled:opacity-30 aria-disabled:pointer-events-none"
               >
                 Next
-              </button>
+              </Link>
             </div>
           </div>
         )}

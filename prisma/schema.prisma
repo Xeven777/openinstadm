@@ -248,6 +248,7 @@ model DmLog {
 
   @@unique([automationId, commentId])
   @@index([workspaceId])
+  @@index([workspaceId, status, createdAt])
   @@index([automationId])
   @@index([instagramAccountId])
   @@index([status])
