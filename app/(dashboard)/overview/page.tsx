@@ -8,11 +8,13 @@
  * the insights permission); likes and comments are always available.
  */
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import AccountSelect from "@/components/account-select";
+import RefreshIcon from "@/components/refresh-icon";
 import StatCard from "@/components/stat-card";
 import { useCachedFetch } from "@/lib/client-cache";
+import { formatTimeAgo } from "@/lib/utils/time";
 import type { OverviewResponse } from "@/app/api/instagram/overview/route";
 
 // recharts is heavy (~100KB+ gzip); keep it out of the initial bundle and
@@ -46,25 +48,56 @@ const COUNT_OPTIONS = [
 export default function OverviewPage() {
   const [selectedAccountId, setSelectedAccountId] = useState("all");
   const [count, setCount] = useState("50");
+  // Snapshot freshness reported by the API (snapshot.fetchedAt) — surfaces
+  // when the underlying Instagram data was last pulled from Meta.
+  const [lastFetchedAt, setLastFetchedAt] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
+
+  // Identifies the active account/range selection. Shared by the ref below and
+  // the fetcher so a response can tell whether it still belongs to the current
+  // selection (single source of truth — they can't drift apart).
+  const requestKey = `overview:${selectedAccountId}:${count}`;
+
+  // Always the latest selection, so async completions can tell whether the
+  // response they belong to is still the active one.
+  const requestKeyRef = useRef("");
+  useEffect(() => {
+    requestKeyRef.current = requestKey;
+  });
 
   // The overview is backed by the Meta Graph API, so it is the slowest page.
   // Cached copies paint instantly on return visits and background refetches
-  // (max age 60s — Instagram insights don't move faster than that).
+  // (max age 60s — Instagram insights don't move faster than that). Manual
+  // refresh passes `bypass=true`, which re-fetches straight from Meta.
   const overviewFetch = useCachedFetch<OverviewResponse>(
     `dash:overview:${selectedAccountId}:${count}`,
-    async () => {
+    async (bypass = false) => {
       const params = new URLSearchParams();
       if (selectedAccountId !== "all") {
         params.set("instagramAccountId", selectedAccountId);
       }
       params.set("count", count);
+      if (bypass) params.set("refresh", "true");
 
-      const res = await fetch(`/api/instagram/overview?${params}`);
-      const payload = await res.json();
-      if (!payload.success) {
-        throw new Error(payload.error ?? "Failed to load overview");
+      if (bypass) setRefreshing(true);
+      try {
+        const res = await fetch(`/api/instagram/overview?${params}`);
+        const payload = await res.json();
+        if (!payload.success) {
+          throw new Error(payload.error ?? "Failed to load overview");
+        }
+        if (
+          payload.snapshot?.fetchedAt &&
+          requestKey === requestKeyRef.current
+        ) {
+          setLastFetchedAt(payload.snapshot.fetchedAt as string);
+        }
+        return payload.data as OverviewResponse;
+      } finally {
+        // Transient UI flag — safe to clear even for a stale request, since a
+        // stale request means the current selection is no longer refreshing.
+        if (bypass) setRefreshing(false);
       }
-      return payload.data as OverviewResponse;
     },
     { maxAgeMs: 60_000 }
   );
@@ -73,10 +106,14 @@ export default function OverviewPage() {
 
   function handleAccountChange(accountId: string) {
     setSelectedAccountId(accountId);
+    // The old selection's freshness no longer applies; hide it until the new
+    // selection's fetch reports its snapshot time.
+    setLastFetchedAt(null);
   }
 
   function handleCountChange(next: string) {
     setCount(next);
+    setLastFetchedAt(null);
   }
 
   if (overviewFetch.loading && !data) {
@@ -132,8 +169,23 @@ export default function OverviewPage() {
               {followers.toLocaleString()} followers
             </p>
           )}
+          {lastFetchedAt && (
+            <p className="mt-1 text-xs text-muted/80">
+              Last refreshed {formatTimeAgo(lastFetchedAt)}
+            </p>
+          )}
         </div>
         <div className="flex flex-wrap items-end gap-x-4 gap-y-3">
+          <button
+            type="button"
+            onClick={() => overviewFetch.refresh(true)}
+            disabled={refreshing}
+            title="Refresh from Instagram"
+            aria-label="Refresh from Instagram"
+            className="flex h-9 w-9 items-center justify-center rounded-lg border border-border bg-surface text-muted transition hover:border-border-hover hover:text-foreground disabled:opacity-50"
+          >
+            <RefreshIcon className={refreshing ? "animate-spin" : ""} />
+          </button>
           <label className="flex flex-col gap-2 text-sm">
             <span className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
               Range

@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "predev": "prisma migrate deploy",
     "dev": "NODE_OPTIONS='--network-family-autoselection-attempt-timeout=2000' next dev --no-server-fast-refresh --turbopack",
     "build": "prisma generate && next build",
     "vercel-build": "prisma generate && prisma migrate deploy && next build",

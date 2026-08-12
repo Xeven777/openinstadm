@@ -11,6 +11,10 @@
     {
       "path": "/api/cron/snapshot-followers",
       "schedule": "0 7 * * *"
+    },
+    {
+      "path": "/api/cron/snapshot-cleanup",
+      "schedule": "0 8 * * *"
     }
   ]
 }

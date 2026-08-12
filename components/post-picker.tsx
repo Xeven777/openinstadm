@@ -9,8 +9,10 @@
  * Fetches from /api/instagram/posts.
  */
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import RefreshIcon from "@/components/refresh-icon";
 import { readCache, writeCache } from "@/lib/client-cache";
+import { formatTimeAgo } from "@/lib/utils/time";
 
 interface InstagramPost {
   id: string;
@@ -47,8 +49,17 @@ export default function PostPicker({
   const [query, setQuery] = useState("");
   // The post currently hovered — its video (if it's a reel) plays a preview.
   const [hoveredId, setHoveredId] = useState<string | null>(null);
+  // When the server-side post snapshot was written (snapshot.fetchedAt).
+  const [lastFetchedAt, setLastFetchedAt] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
+
+  // Bumped whenever the account changes; manual refreshes started for a
+  // previous account are dropped once their token no longer matches.
+  const refreshTokenRef = useRef(0);
 
   useEffect(() => {
+    // Invalidate any in-flight manual refresh for the previous account.
+    refreshTokenRef.current += 1;
     let cancelled = false;
     const params = new URLSearchParams();
     if (instagramAccountId) {
@@ -67,6 +78,9 @@ export default function PostPicker({
       setPosts(cached.data);
       setLoading(false);
     }
+    // The previous account's freshness no longer applies; hide it until the
+    // new account's fetch reports its snapshot time.
+    setLastFetchedAt(null);
     /* eslint-enable react-hooks/set-state-in-effect */
 
     fetch(`/api/instagram/posts${params.size ? `?${params}` : ""}`)
@@ -76,6 +90,9 @@ export default function PostPicker({
         if (data.success) {
           setPosts(data.data);
           writeCache(cacheKey, data.data);
+          if (data.snapshot?.fetchedAt) {
+            setLastFetchedAt(data.snapshot.fetchedAt as string);
+          }
         } else if (!cached.data) {
           setError(data.error ?? "Failed to load posts");
         }
@@ -91,6 +108,38 @@ export default function PostPicker({
       cancelled = true;
     };
   }, [instagramAccountId]);
+
+  // Manual refresh: bypass the Postgres snapshot (refresh=true) so a newly
+  // published post shows up immediately. The grid keeps showing the current
+  // library while the refetch is in flight. If the account changes mid-flight,
+  // the response is dropped so it can't clobber the new account's grid.
+  async function handleRefresh() {
+    setRefreshing(true);
+    const token = refreshTokenRef.current;
+    try {
+      const params = new URLSearchParams();
+      if (instagramAccountId) {
+        params.set("instagramAccountId", instagramAccountId);
+      }
+      params.set("all", "true");
+      params.set("refresh", "true");
+
+      const res = await fetch(`/api/instagram/posts?${params}`);
+      const data = await res.json();
+      if (data.success && token === refreshTokenRef.current) {
+        setPosts(data.data);
+        writeCache(`ig-posts:${instagramAccountId ?? "default"}`, data.data);
+        if (data.snapshot?.fetchedAt) {
+          setLastFetchedAt(data.snapshot.fetchedAt as string);
+        }
+      }
+    } catch {
+      // Best-effort — keep the current grid on failure.
+    } finally {
+      // Transient UI flag — always safe to clear, even for a stale request.
+      setRefreshing(false);
+    }
+  }
 
   if (loading) {
     return (
@@ -135,7 +184,22 @@ export default function PostPicker({
           className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground placeholder:text-zinc-500 focus:border-accent/40 focus:outline-none"
         />
         <span className="shrink-0 text-xs text-muted">{posts.length}</span>
+        <button
+          type="button"
+          onClick={() => void handleRefresh()}
+          disabled={refreshing}
+          title="Refresh from Instagram"
+          aria-label="Refresh from Instagram"
+          className="shrink-0 rounded-lg border border-border bg-surface p-1.5 text-muted transition hover:border-border-hover hover:text-foreground disabled:opacity-50"
+        >
+          <RefreshIcon className={refreshing ? "animate-spin" : ""} />
+        </button>
       </div>
+      {lastFetchedAt && (
+        <p className="px-1 text-[11px] text-muted">
+          Last refreshed {formatTimeAgo(lastFetchedAt)}
+        </p>
+      )}
       {visible.length === 0 ? (
         <p className="py-6 text-center text-sm text-muted">
           No posts match &ldquo;{query}&rdquo;

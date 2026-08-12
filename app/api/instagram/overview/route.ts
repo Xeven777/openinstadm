@@ -14,7 +14,12 @@ import {
   getFollowerHistory,
   type FollowerHistoryPoint,
 } from "@/lib/reports/follower-history";
-import { getCached, setCached } from "@/lib/server-cache";
+import {
+  buildApiSnapshotKey,
+  getApiSnapshot,
+  setApiSnapshot,
+  snapshotHeaders,
+} from "@/lib/server/api-snapshots";
 
 // Allow time for paginated media + per-post insight calls on larger accounts.
 export const maxDuration = 60;
@@ -25,6 +30,8 @@ const MAX_POSTS = 500;
 
 // How many insight requests to run at once.
 const INSIGHTS_CONCURRENCY = 8;
+const RECENT_OVERVIEW_TTL_SECONDS = 60 * 60;
+const ALL_OVERVIEW_TTL_SECONDS = 2 * 60 * 60;
 
 /** Map over items with a bounded number of in-flight async operations. */
 async function mapWithConcurrency<T, R>(
@@ -97,6 +104,14 @@ function isVideoLike(media: InstagramMedia): boolean {
   );
 }
 
+async function getWorkspaceAccountOptions(workspaceId: string) {
+  return prisma.instagramAccount.findMany({
+    where: { workspaceId },
+    orderBy: { connectedAt: "desc" },
+    select: { id: true, username: true },
+  });
+}
+
 export async function GET(request: NextRequest) {
   const workspaceId = await getCurrentWorkspaceId();
   if (!workspaceId) {
@@ -123,23 +138,8 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const accessToken = decryptToken(account.accessToken);
-
     // `count` is either "all" or a positive integer (last N posts).
     const countParam = request.nextUrl.searchParams.get("count");
-
-    // The Meta API work below is the slowest thing in the app (paginated
-    // media + per-post insights). Instagram insights move in minutes, not
-    // seconds, so a 60s in-process cache turns return visits into a single
-    // Map lookup instead of dozens of Graph API calls.
-    const cacheKey = `overview:${account.id}:${countParam ?? "50"}`;
-    const cached = getCached<OverviewResponse>(cacheKey);
-    if (cached) {
-      return NextResponse.json(
-        { success: true, data: cached },
-        { headers: { "Cache-Control": "private, max-age=60" } }
-      );
-    }
     const isAll = countParam === "all";
     const parsedCount = countParam ? Number.parseInt(countParam, 10) : NaN;
     const requestedCount: "all" | number = isAll
@@ -151,7 +151,34 @@ export async function GET(request: NextRequest) {
     const target = isAll
       ? MAX_POSTS
       : Math.min(requestedCount as number, MAX_POSTS);
+    const ttlSeconds = isAll ? ALL_OVERVIEW_TTL_SECONDS : RECENT_OVERVIEW_TTL_SECONDS;
+    const snapshotKey = buildApiSnapshotKey({
+      source: "ig:overview",
+      accountId: account.id,
+      params: { count: requestedCount },
+    });
+    const refresh = request.nextUrl.searchParams.get("refresh") === "true";
 
+    const cached = await getApiSnapshot<OverviewResponse>(snapshotKey, {
+      bypass: refresh,
+    });
+    if (cached) {
+      const accounts = await getWorkspaceAccountOptions(workspaceId);
+      return NextResponse.json(
+        {
+          success: true,
+          data: { ...cached.data, accounts },
+          snapshot: {
+            status: "HIT",
+            fetchedAt: cached.fetchedAt,
+            expiresAt: cached.expiresAt,
+          },
+        },
+        { headers: snapshotHeaders(ttlSeconds, "HIT") }
+      );
+    }
+
+    const accessToken = decryptToken(account.accessToken);
     const media = await getAllUserMedia(accessToken, target);
     const truncated = media.length >= MAX_POSTS;
 
@@ -224,11 +251,7 @@ export async function GET(request: NextRequest) {
       }
     );
 
-    const accounts = await prisma.instagramAccount.findMany({
-      where: { workspaceId },
-      orderBy: { connectedAt: "desc" },
-      select: { id: true, username: true },
-    });
+    const accounts = await getWorkspaceAccountOptions(workspaceId);
 
     // Followers is a point-in-time figure and deliberately not part of
     // `totals`, which sums over the selected posts. A failure here must not
@@ -260,10 +283,27 @@ export async function GET(request: NextRequest) {
       posts,
     };
 
-    setCached(cacheKey, data, 60_000);
+    const snapshot = await setApiSnapshot(
+      {
+        workspaceId,
+        instagramAccountId: account.id,
+        key: snapshotKey,
+        source: "ig:overview",
+      },
+      data,
+      ttlSeconds * 1000
+    );
     return NextResponse.json(
-      { success: true, data },
-      { headers: { "Cache-Control": "private, max-age=60" } }
+      {
+        success: true,
+        data,
+        snapshot: {
+          status: "MISS",
+          fetchedAt: snapshot.fetchedAt,
+          expiresAt: snapshot.expiresAt,
+        },
+      },
+      { headers: snapshotHeaders(ttlSeconds, "MISS") }
     );
   } catch (err) {
     console.error("[Instagram Overview] Error:", err);

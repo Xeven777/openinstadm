@@ -49,8 +49,12 @@ export interface CachedFetchState<T> {
   /** True only when there is nothing cached to show yet (first load). */
   loading: boolean;
   error: string | null;
-  /** Force a background refetch (e.g. after a mutation or a manual Refresh). */
-  refresh: () => void;
+  /**
+   * Force a background refetch (e.g. after a mutation or a manual Refresh).
+   * Pass `true` to bypass any server-side snapshot cache — the flag is passed
+   * through to the fetcher so it can request a fresh read from the source.
+   */
+  refresh: (bypass?: boolean) => void;
 }
 
 /**
@@ -63,11 +67,12 @@ export interface CachedFetchState<T> {
  *
  * `fetcher` is captured via a ref so pages can build it inline from filter
  * state without re-triggering the effect; changing filters should change
- * `cacheKey` instead (filters belong in the key).
+ * `cacheKey` instead (filters belong in the key). It receives a `bypass`
+ * flag (true only for manual refreshes that should skip server-side caches).
  */
 export function useCachedFetch<T>(
   cacheKey: string | null,
-  fetcher: () => Promise<T>,
+  fetcher: (bypass?: boolean) => Promise<T>,
   { maxAgeMs }: { maxAgeMs: number }
 ): CachedFetchState<T> {
   const [data, setData] = useState<T | null>(null);
@@ -87,7 +92,13 @@ export function useCachedFetch<T>(
   // filter's data for even one frame.
   const [loadedKey, setLoadedKey] = useState<string | null>(null);
 
-  const refresh = useCallback(() => setTick((t) => t + 1), []);
+  // Set when the caller asks for a bypassing refresh; consumed (and cleared)
+  // once by the next run so it stays a one-shot flag.
+  const bypassRef = useRef(false);
+  const refresh = useCallback((bypass = false) => {
+    bypassRef.current = bypass;
+    setTick((t) => t + 1);
+  }, []);
 
   /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
@@ -115,8 +126,10 @@ export function useCachedFetch<T>(
     }
 
     const run = async () => {
+      const bypass = bypassRef.current;
+      bypassRef.current = false;
       try {
-        const fresh = await fetcherRef.current();
+        const fresh = await fetcherRef.current(bypass);
         if (cancelled) return;
         setData(fresh);
         setError(null);

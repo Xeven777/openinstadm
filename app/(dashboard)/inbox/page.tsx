@@ -287,7 +287,9 @@ export default function InboxPage() {
             ) : convError ? (
               <p className="px-4 py-6 text-sm text-error">{convError}</p>
             ) : conversations.length === 0 ? (
-              <p className="px-4 py-6 text-sm text-muted">No conversations yet.</p>
+              <p className="px-4 py-6 text-sm text-muted">
+                No conversations yet.
+              </p>
             ) : (
               conversations.map((c) => {
                 const isActive = c.id === activeId;
@@ -324,7 +326,7 @@ export default function InboxPage() {
         {/* Thread. On mobile it is only shown once a conversation is open and
             fills the pane; on sm+ it always sits beside the list. */}
         <div
-          className={`min-h-0 flex-col ${active ? "flex" : "hidden sm:flex"}`}
+          className={`min-h-0 flex-col w-[70%] ${active ? "flex" : "hidden sm:flex"}`}
         >
           {!active ? (
             <div className="flex flex-1 items-center justify-center p-6 text-sm text-muted">
@@ -346,7 +348,10 @@ export default function InboxPage() {
                 </span>
               </div>
 
-              <div ref={scrollRef} className="min-h-0 flex-1 space-y-2 overflow-y-auto p-4">
+              <div
+                ref={scrollRef}
+                className="min-h-0 flex-1 space-y-2 overflow-y-auto p-4"
+              >
                 {threadLoading && messages.length === 0 ? (
                   <p className="text-sm text-muted">Loading…</p>
                 ) : messages.length === 0 ? (
@@ -364,7 +369,9 @@ export default function InboxPage() {
                             : "bg-surface text-foreground border border-border"
                         }`}
                       >
-                        <p className="whitespace-pre-wrap break-words">{m.text}</p>
+                        <p className="whitespace-pre-wrap wrap-break-word">
+                          {m.text}
+                        </p>
                         <p
                           className={`mt-1 text-[10px] ${
                             m.fromMe ? "text-white/70" : "text-zinc-500"
@@ -389,7 +396,7 @@ export default function InboxPage() {
                     onKeyDown={handleKeyDown}
                     rows={1}
                     placeholder="Write a reply…  (Enter to send, Shift+Enter for a new line)"
-                    className="max-h-32 min-h-[40px] flex-1 resize-none rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground placeholder:text-zinc-500 focus:border-accent/40 focus:outline-none"
+                    className="max-h-32 min-h-10 flex-1 resize-none rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground placeholder:text-zinc-500 focus:border-accent/40 focus:outline-none"
                   />
                   <button
                     type="button"
