@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import InvitationAcceptCard from "@/components/invitation-accept-card";
@@ -14,7 +15,16 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
-export default async function InvitePage({ params }: InvitePageProps) {
+export default function InvitePage({ params }: InvitePageProps) {
+  return (
+    // params + session + invitation lookup stream at request time.
+    <Suspense fallback={<div className="min-h-screen" />}>
+      <InviteContent params={params} />
+    </Suspense>
+  );
+}
+
+async function InviteContent({ params }: InvitePageProps) {
   const { token } = await params;
   const [session, invitation] = await Promise.all([
     auth(),

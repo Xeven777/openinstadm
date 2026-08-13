@@ -2,8 +2,6 @@ import { NextResponse } from "next/server";
 import { getCurrentWorkspaceId } from "@/lib/auth";
 import { getDiagnosticsData } from "@/lib/server/diagnostics";
 
-export const runtime = "nodejs";
-
 export async function GET() {
   const workspaceId = await getCurrentWorkspaceId();
   if (!workspaceId) {

@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { signIn } from "@/lib/auth";
 import { getCampaignTemplate } from "@/lib/templates/campaign-templates";
 
@@ -6,15 +7,23 @@ export const metadata = {
   description: "Sign in to manage Instagram comment-to-DM campaigns.",
 };
 
-export default async function LoginPage({
-  searchParams,
-}: {
-  searchParams: Promise<{
-    checkEmail?: string;
-    callbackUrl?: string;
-    template?: string;
-  }>;
-}) {
+type LoginSearchParams = Promise<{
+  checkEmail?: string;
+  callbackUrl?: string;
+  template?: string;
+}>;
+
+export default function LoginPage({ searchParams }: { searchParams: LoginSearchParams }) {
+  return (
+    // searchParams is only known at request time, so the login form streams
+    // inside a Suspense boundary under cacheComponents.
+    <Suspense fallback={<div className="min-h-screen" />}>
+      <LoginContent searchParams={searchParams} />
+    </Suspense>
+  );
+}
+
+async function LoginContent({ searchParams }: { searchParams: LoginSearchParams }) {
   const params = await searchParams;
   const checkEmail = params.checkEmail === "1";
   const selectedTemplate = getCampaignTemplate(params.template);

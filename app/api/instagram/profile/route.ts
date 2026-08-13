@@ -10,8 +10,6 @@ import {
   snapshotHeaders,
 } from "@/lib/server/api-snapshots";
 
-export const dynamic = "force-dynamic";
-
 const PROFILE_TTL_SECONDS = 24 * 60 * 60;
 
 interface InstagramProfileResponse {

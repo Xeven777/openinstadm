@@ -17,8 +17,9 @@ import {
 // (invalidateWorkspaceStats lives next to the cache key in lib/server/stats.ts)
 
 // This list is read-your-writes (created/imported campaigns must show up
-// immediately), so never cache it at the route or CDN layer.
-export const dynamic = "force-dynamic";
+// immediately), so never cache it at the route or CDN layer. The GET handler
+// stays request-time dynamic under cacheComponents: it reads auth cookies and
+// performs database queries, both of which terminate prerendering.
 
 const createAutomationSchema = z
   .object({

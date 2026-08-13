@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import CampaignDetail from "@/components/campaign-detail";
@@ -11,13 +12,23 @@ import { getCampaignDetail } from "@/lib/server/automations";
  * — no fetching the whole campaign list and filtering client-side. Interactivity
  * (tabs, toggle, live avatar/post thumbnails) lives in the `CampaignDetail`
  * client island, which receives the campaign as a prop.
+ *
+ * Under cacheComponents the `params` promise and session lookup are awaited
+ * inside a Suspense boundary so the shell can still prerender.
  */
+export default function CampaignDetailPage(props: PageProps<"/campaigns/[id]">) {
+  return (
+    <Suspense fallback={<div className="panel rounded p-8 h-64" />}>
+      <CampaignDetailContent params={props.params} />
+    </Suspense>
+  );
+}
 
-export const dynamic = "force-dynamic";
-
-export default async function CampaignDetailPage({
+async function CampaignDetailContent({
   params,
-}: PageProps<"/campaigns/[id]">) {
+}: {
+  params: PageProps<"/campaigns/[id]">["params"];
+}) {
   const workspaceId = await getCurrentWorkspaceId();
   if (!workspaceId) redirect("/login");
 

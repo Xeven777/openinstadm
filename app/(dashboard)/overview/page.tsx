@@ -1,30 +1,36 @@
-"use client";
-
 /**
- * Instagram Overview Page
+ * Instagram Overview Page (Server Component)
  *
  * Aggregate reach/engagement across your recent posts, plus a per-post table.
  * Views / reach / saved / shares come from Instagram media insights (requires
  * the insights permission); likes and comments are always available.
+ *
+ * The heavy lifting (Meta pagination + per-post insights + follower history) is
+ * done server-side by `loadOverviewData`, served from a Postgres snapshot on
+ * repeat visits. Account and range selectors live in the URL
+ * (`?instagramAccountId=` / `?count=`), so changing them is plain navigation;
+ * the only client islands are the range select, the refresh button, and the
+ * lazily-loaded follower chart.
  */
 
-import { useEffect, useRef, useState } from "react";
-import dynamic from "next/dynamic";
-import AccountSelect from "@/components/account-select";
-import RefreshIcon from "@/components/refresh-icon";
+import { Suspense } from "react";
+import { redirect } from "next/navigation";
+import AccountUrlFilter from "@/components/account-url-filter";
+import OverviewFollowerChart from "@/components/overview-follower-chart";
+import OverviewRangeSelect from "@/components/overview-range-select";
+import OverviewRefresh from "@/components/overview-refresh";
 import StatCard from "@/components/stat-card";
-import { useCachedFetch } from "@/lib/client-cache";
+import { getWorkspaceInstagramAccount } from "@/lib/instagram-accounts";
+import {
+  loadOverviewData,
+  parseOverviewCount,
+  type OverviewResponse,
+} from "@/lib/server/overview";
 import { formatTimeAgo } from "@/lib/utils/time";
-import type { OverviewResponse } from "@/app/api/instagram/overview/route";
+import { getCurrentWorkspaceContext } from "@/lib/workspace-access";
 
-// recharts is heavy (~100KB+ gzip); keep it out of the initial bundle and
-// load it only once the overview has data to draw.
-const FollowerChart = dynamic(() => import("@/components/follower-chart"), {
-  ssr: false,
-  loading: () => (
-    <div className="panel rounded p-4 sm:p-6 h-56 sm:h-64 animate-pulse bg-surface-hover/40" />
-  ),
-});
+// Allow time for paginated media + per-post insight calls on larger accounts.
+export const maxDuration = 60;
 
 function formatNumber(n: number | null): string {
   if (n === null) return "—";
@@ -38,116 +44,97 @@ function formatDate(iso: string): string {
   return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }
 
-const COUNT_OPTIONS = [
-  { value: "25", label: "Last 25" },
-  { value: "50", label: "Last 50" },
-  { value: "100", label: "Last 100" },
-  { value: "all", label: "All time" },
-];
-
-export default function OverviewPage() {
-  const [selectedAccountId, setSelectedAccountId] = useState("all");
-  const [count, setCount] = useState("50");
-  // Snapshot freshness reported by the API (snapshot.fetchedAt) — surfaces
-  // when the underlying Instagram data was last pulled from Meta.
-  const [lastFetchedAt, setLastFetchedAt] = useState<string | null>(null);
-  const [refreshing, setRefreshing] = useState(false);
-
-  // Identifies the active account/range selection. Shared by the ref below and
-  // the fetcher so a response can tell whether it still belongs to the current
-  // selection (single source of truth — they can't drift apart).
-  const requestKey = `overview:${selectedAccountId}:${count}`;
-
-  // Always the latest selection, so async completions can tell whether the
-  // response they belong to is still the active one.
-  const requestKeyRef = useRef("");
-  useEffect(() => {
-    requestKeyRef.current = requestKey;
-  });
-
-  // The overview is backed by the Meta Graph API, so it is the slowest page.
-  // Cached copies paint instantly on return visits and background refetches
-  // (max age 60s — Instagram insights don't move faster than that). Manual
-  // refresh passes `bypass=true`, which re-fetches straight from Meta.
-  const overviewFetch = useCachedFetch<OverviewResponse>(
-    `dash:overview:${selectedAccountId}:${count}`,
-    async (bypass = false) => {
-      const params = new URLSearchParams();
-      if (selectedAccountId !== "all") {
-        params.set("instagramAccountId", selectedAccountId);
-      }
-      params.set("count", count);
-      if (bypass) params.set("refresh", "true");
-
-      if (bypass) setRefreshing(true);
-      try {
-        const res = await fetch(`/api/instagram/overview?${params}`);
-        const payload = await res.json();
-        if (!payload.success) {
-          throw new Error(payload.error ?? "Failed to load overview");
-        }
-        if (
-          payload.snapshot?.fetchedAt &&
-          requestKey === requestKeyRef.current
-        ) {
-          setLastFetchedAt(payload.snapshot.fetchedAt as string);
-        }
-        return payload.data as OverviewResponse;
-      } finally {
-        // Transient UI flag — safe to clear even for a stale request, since a
-        // stale request means the current selection is no longer refreshing.
-        if (bypass) setRefreshing(false);
-      }
-    },
-    { maxAgeMs: 60_000 }
+function OverviewSkeleton() {
+  return (
+    <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3 sm:gap-4">
+      {[...Array(6)].map((_, i) => (
+        <div key={i} className="panel rounded p-4 h-24 sm:p-5">
+          <div className="h-4 w-16 bg-zinc-200 rounded" />
+          <div className="mt-3 h-6 w-20 bg-zinc-200/60 rounded" />
+        </div>
+      ))}
+    </div>
   );
-  const data = overviewFetch.data;
-  const error = overviewFetch.error;
+}
 
-  function handleAccountChange(accountId: string) {
-    setSelectedAccountId(accountId);
-    // The old selection's freshness no longer applies; hide it until the new
-    // selection's fetch reports its snapshot time.
-    setLastFetchedAt(null);
-  }
+export default async function OverviewPage(props: PageProps<"/overview">) {
+  return (
+    <div className="space-y-8">
+      {/* Stream the shell immediately; the data-dependent body (session lookup,
+          URL params, and possibly a slow Meta fetch for a cold snapshot)
+          renders inside this boundary at request time. */}
+      <Suspense fallback={<OverviewSkeleton />}>
+        <OverviewContent searchParams={props.searchParams} />
+      </Suspense>
+    </div>
+  );
+}
 
-  function handleCountChange(next: string) {
-    setCount(next);
-    setLastFetchedAt(null);
-  }
+async function OverviewContent({
+  searchParams,
+}: {
+  searchParams: PageProps<"/overview">["searchParams"];
+}) {
+  const context = await getCurrentWorkspaceContext();
+  if (!context) redirect("/login");
 
-  if (overviewFetch.loading && !data) {
-    return (
-      <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3 sm:gap-4">
-        {[...Array(6)].map((_, i) => (
-          <div key={i} className="panel rounded p-4 h-24 sm:p-5">
-            <div className="h-4 w-16 bg-zinc-200 rounded" />
-            <div className="mt-3 h-6 w-20 bg-zinc-200/60 rounded" />
-          </div>
-        ))}
-      </div>
-    );
-  }
+  const params = await searchParams;
+  const selectedAccountId =
+    typeof params.instagramAccountId === "string"
+      ? params.instagramAccountId
+      : "all";
+  const countParam =
+    typeof params.count === "string" ? params.count : undefined;
+  const count = parseOverviewCount(countParam);
 
-  // Only surface the error state when there is nothing cached to show.
-  if (!data && error) {
+  const account = await getWorkspaceInstagramAccount(
+    context.workspaceId,
+    selectedAccountId === "all" ? null : selectedAccountId
+  );
+
+  if (!account) {
     return (
       <div className="panel rounded p-8 text-center">
-        <p className="text-sm text-error">{error}</p>
-        {error.includes("connect") && (
-          <a
-            href="/api/instagram/connect"
-            className="mt-4 inline-block text-sm text-accent hover:underline"
-          >
-            Connect Instagram
-          </a>
-        )}
+        <p className="text-sm text-muted">
+          Instagram account not connected. Please connect your account first.
+        </p>
+        <a
+          href="/api/instagram/connect"
+          className="mt-4 inline-block text-sm text-accent hover:underline"
+        >
+          Connect Instagram
+        </a>
       </div>
     );
   }
 
-  if (!data) return null;
+  const { data, snapshot } = await loadOverviewData({
+    workspaceId: context.workspaceId,
+    account,
+    count,
+  });
 
+  return (
+    <OverviewView
+      data={data}
+      fetchedAt={snapshot.fetchedAt}
+      selectedAccountId={selectedAccountId}
+      countParam={countParam ?? "50"}
+    />
+  );
+}
+
+function OverviewView({
+  data,
+  fetchedAt,
+  selectedAccountId,
+  countParam,
+}: {
+  data: OverviewResponse;
+  fetchedAt: string;
+  selectedAccountId: string;
+  countParam: string;
+}) {
   const { totals, posts, accounts, insightsAvailable, followers, followerHistory } =
     data;
 
@@ -169,48 +156,17 @@ export default function OverviewPage() {
               {followers.toLocaleString()} followers
             </p>
           )}
-          {lastFetchedAt && (
-            <p className="mt-1 text-xs text-muted/80">
-              Last refreshed {formatTimeAgo(lastFetchedAt)}
-            </p>
-          )}
+          <p className="mt-1 text-xs text-muted/80">
+            Last refreshed {formatTimeAgo(fetchedAt)}
+          </p>
         </div>
         <div className="flex flex-wrap items-end gap-x-4 gap-y-3">
-          <button
-            type="button"
-            onClick={() => overviewFetch.refresh(true)}
-            disabled={refreshing}
-            title="Refresh from Instagram"
-            aria-label="Refresh from Instagram"
-            className="flex h-9 w-9 items-center justify-center rounded-lg border border-border bg-surface text-muted transition hover:border-border-hover hover:text-foreground disabled:opacity-50"
-          >
-            <RefreshIcon className={refreshing ? "animate-spin" : ""} />
-          </button>
-          <label className="flex flex-col gap-2 text-sm">
-            <span className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
-              Range
-            </span>
-            <select
-              value={count}
-              onChange={(e) => handleCountChange(e.target.value)}
-              className="border-0 bg-transparent py-2 pr-1 text-sm text-foreground outline-none"
-            >
-              {COUNT_OPTIONS.map((o) => (
-                <option key={o.value} value={o.value}>
-                  {o.label}
-                </option>
-              ))}
-            </select>
-          </label>
+          <OverviewRefresh selectedAccountId={selectedAccountId} count={data.requestedCount} />
+          <OverviewRangeSelect value={countParam} />
           {accounts.length > 1 && (
-            <AccountSelect
-              accounts={accounts.map((a) => ({
-                id: a.id,
-                username: a.username,
-                instagramId: a.id,
-              }))}
+            <AccountUrlFilter
+              accounts={accounts}
               value={selectedAccountId}
-              onChange={handleAccountChange}
             />
           )}
         </div>
@@ -245,7 +201,7 @@ export default function OverviewPage() {
       </div>
 
       {/* Follower trend — account-level, independent of the post range */}
-      <FollowerChart data={followerHistory} followers={followers} />
+      <OverviewFollowerChart data={followerHistory} followers={followers} />
 
       {/* Per-post table */}
       <div className="panel rounded p-4 sm:p-6">

@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { redirect } from "next/navigation";
 import CampaignsList from "@/components/campaigns-list";
 import { getCurrentWorkspaceId } from "@/lib/auth";
@@ -12,11 +13,19 @@ import type { AccountOption } from "@/components/account-select";
  * database on every render — no client fetch, no JSON round-trip. Interactivity
  * (filtering, toggles, delete, duplicate, reel lightbox) lives in the
  * `CampaignsList` client island, which receives this data as props.
+ *
+ * Under cacheComponents the session lookup + DB reads stream inside a Suspense
+ * boundary at request time.
  */
+export default function CampaignsPage() {
+  return (
+    <Suspense fallback={<div className="panel rounded p-8 h-64" />}>
+      <CampaignsContent />
+    </Suspense>
+  );
+}
 
-export const dynamic = "force-dynamic";
-
-export default async function CampaignsPage() {
+async function CampaignsContent() {
   const workspaceId = await getCurrentWorkspaceId();
   if (!workspaceId) {
     redirect("/login");

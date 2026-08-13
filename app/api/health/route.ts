@@ -3,10 +3,10 @@ import { prisma } from "@/lib/db/client";
 import { getDMQueue, getRedisConnection } from "@/lib/queue/client";
 import { getWorkerHealth } from "@/lib/ops/worker-health";
 
-export const runtime = "nodejs";
 // Health must reflect live state (worker heartbeat, queue depth), never a
-// cached response, or it reports stale worker start times.
-export const dynamic = "force-dynamic";
+// cached response, or it reports stale worker start times. Under cacheComponents
+// the handler stays request-time dynamic automatically: its database and Redis
+// checks are runtime data access, which terminates prerendering.
 
 type CheckStatus = "ok" | "error";
 

@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import AccountUrlFilter from "@/components/account-url-filter";
@@ -14,9 +15,11 @@ import { getLogsPage } from "@/lib/server/logs";
  * server component against the database — no client fetch, no JSON round-trip.
  * The only client island is the account `<select>` (it must push navigation on
  * change); everything else is server-rendered markup.
+ *
+ * Under cacheComponents the page's runtime work (session lookup, search params,
+ * DB reads) is wrapped in a Suspense boundary so the static shell can prerender
+ * and the content streams in at request time.
  */
-
-export const dynamic = "force-dynamic";
 
 const STATUS_FILTERS = [
   "ALL",
@@ -29,17 +32,31 @@ const STATUS_FILTERS = [
 ];
 
 export default async function LogsPage(props: PageProps<"/logs">) {
+  return (
+    <div className="space-y-6">
+      <Suspense fallback={<div className="panel rounded p-8 h-64" />}>
+        <LogsContent searchParams={props.searchParams} />
+      </Suspense>
+    </div>
+  );
+}
+
+async function LogsContent({
+  searchParams,
+}: {
+  searchParams: PageProps<"/logs">["searchParams"];
+}) {
   const workspaceId = await getCurrentWorkspaceId();
   if (!workspaceId) redirect("/login");
 
-  const searchParams = await props.searchParams;
-  const rawPage = searchParams.page;
+  const params = await searchParams;
+  const rawPage = params.page;
   const page = Math.max(1, Number.parseInt(String(rawPage ?? "1"), 10) || 1);
   const statusFilter =
-    typeof searchParams.status === "string" ? searchParams.status : "ALL";
+    typeof params.status === "string" ? params.status : "ALL";
   const selectedAccountId =
-    typeof searchParams.instagramAccountId === "string"
-      ? searchParams.instagramAccountId
+    typeof params.instagramAccountId === "string"
+      ? params.instagramAccountId
       : "all";
 
   const [accounts, result] = await Promise.all([
@@ -76,7 +93,7 @@ export default async function LogsPage(props: PageProps<"/logs">) {
   }
 
   return (
-    <div className="space-y-6">
+    <>
       {/* Filters */}
       <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div className="flex flex-wrap gap-2">
@@ -197,6 +214,6 @@ export default async function LogsPage(props: PageProps<"/logs">) {
           </div>
         )}
       </div>
-    </div>
+    </>
   );
 }

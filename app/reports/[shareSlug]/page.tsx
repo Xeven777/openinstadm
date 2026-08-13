@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getCampaignReportBySlug } from "@/lib/reports/data";
@@ -58,7 +59,16 @@ export async function generateMetadata({
   };
 }
 
-export default async function ReportPage({ params }: ReportPageProps) {
+export default function ReportPage({ params }: ReportPageProps) {
+  return (
+    // params + DB read stream at request time under cacheComponents.
+    <Suspense fallback={<div className="min-h-screen" />}>
+      <ReportContent params={params} />
+    </Suspense>
+  );
+}
+
+async function ReportContent({ params }: ReportPageProps) {
   const { shareSlug } = await params;
   const report = await getCampaignReportBySlug(shareSlug);
 

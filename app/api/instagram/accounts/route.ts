@@ -2,8 +2,6 @@ import { NextResponse } from "next/server";
 import { getCurrentWorkspaceId } from "@/lib/auth";
 import { prisma } from "@/lib/db/client";
 
-export const runtime = "nodejs";
-
 /**
  * The workspace's connected Instagram accounts — just enough for an account
  * selector. This is a single indexed query, unlike /api/dashboard/stats which

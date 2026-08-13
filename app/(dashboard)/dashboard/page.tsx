@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import AccountUrlFilter from "@/components/account-url-filter";
@@ -14,21 +15,51 @@ import { getCurrentWorkspaceContext } from "@/lib/workspace-access";
  * lives in the URL (`?instagramAccountId=`), so switching accounts is a plain
  * navigation that re-renders this component; the only client island is the
  * account `<select>`.
+ *
+ * Under cacheComponents the page's runtime work (session lookup, search params,
+ * DB reads) is wrapped in a Suspense boundary so the static shell can prerender
+ * and the content streams in at request time.
  */
 
-export const dynamic = "force-dynamic";
-
 export default async function DashboardPage(props: PageProps<"/dashboard">) {
+  return (
+    <div className="space-y-8">
+      <Suspense fallback={<DashboardSkeleton />}>
+        <DashboardContent searchParams={props.searchParams} />
+      </Suspense>
+    </div>
+  );
+}
+
+function DashboardSkeleton() {
+  return (
+    <div className="space-y-8 animate-pulse" aria-busy="true">
+      <div className="h-8 w-64 rounded bg-surface-hover/70" />
+      <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3 sm:gap-4">
+        {[...Array(6)].map((_, i) => (
+          <div key={i} className="panel rounded p-5 h-32" />
+        ))}
+      </div>
+      <div className="panel rounded p-6 h-64" />
+    </div>
+  );
+}
+
+async function DashboardContent({
+  searchParams,
+}: {
+  searchParams: PageProps<"/dashboard">["searchParams"];
+}) {
   // One auth() session lookup + one membership query covers both the
   // workspace and the user — the previous code did two separate auth()
   // round trips (getCurrentWorkspaceId + getCurrentUserId).
   const context = await getCurrentWorkspaceContext();
   if (!context) redirect("/login");
 
-  const searchParams = await props.searchParams;
+  const params = await searchParams;
   const selectedAccountId =
-    typeof searchParams.instagramAccountId === "string"
-      ? searchParams.instagramAccountId
+    typeof params.instagramAccountId === "string"
+      ? params.instagramAccountId
       : "all";
 
   const stats = await getDashboardStats(
@@ -41,7 +72,7 @@ export default async function DashboardPage(props: PageProps<"/dashboard">) {
   const connectedCount = stats.instagramAccounts.length;
 
   return (
-    <div className="space-y-8">
+    <>
       {/* Greeting header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
@@ -147,6 +178,6 @@ export default async function DashboardPage(props: PageProps<"/dashboard">) {
           </div>
         </div>
       </div>
-    </div>
+    </>
   );
 }

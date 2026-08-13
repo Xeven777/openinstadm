@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { redirect } from "next/navigation";
 import DiagnosticsRefresh from "@/components/diagnostics-refresh";
 import StatusBadge from "@/components/status-badge";
@@ -11,8 +12,6 @@ import { getDiagnosticsData } from "@/lib/server/diagnostics";
  * — no client fetch, no JSON round-trip. The only client island is the Refresh
  * button, which re-runs this component server-side via router.refresh().
  */
-
-export const dynamic = "force-dynamic";
 
 function formatDate(value: string) {
   return new Date(value).toLocaleString();
@@ -37,17 +36,7 @@ function Section({
   );
 }
 
-export default async function DiagnosticsPage() {
-  const workspaceId = await getCurrentWorkspaceId();
-  if (!workspaceId) redirect("/login");
-
-  const data = await getDiagnosticsData(workspaceId);
-
-  const workerAgeSeconds =
-    data.workerHealth.ageMs == null
-      ? null
-      : Math.round(data.workerHealth.ageMs / 1000);
-
+export default function DiagnosticsPage() {
   return (
     <div className="mx-auto max-w-5xl space-y-6">
       <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
@@ -61,7 +50,26 @@ export default async function DiagnosticsPage() {
         </div>
         <DiagnosticsRefresh />
       </div>
+      <Suspense fallback={<div className="panel rounded p-8 h-64" />}>
+        <DiagnosticsContent />
+      </Suspense>
+    </div>
+  );
+}
 
+async function DiagnosticsContent() {
+  const workspaceId = await getCurrentWorkspaceId();
+  if (!workspaceId) redirect("/login");
+
+  const data = await getDiagnosticsData(workspaceId);
+
+  const workerAgeSeconds =
+    data.workerHealth.ageMs == null
+      ? null
+      : Math.round(data.workerHealth.ageMs / 1000);
+
+  return (
+    <>
       <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3">
         <div className="panel rounded p-4 sm:p-5">
           <p className="text-xs font-semibold uppercase text-muted">
@@ -206,6 +214,6 @@ export default async function DiagnosticsPage() {
           <EmptyState label="No operational events recorded." />
         )}
       </Section>
-    </div>
+    </>
   );
 }
