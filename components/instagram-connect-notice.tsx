@@ -1,6 +1,7 @@
 "use client";
 
 import { useSearchParams } from "next/navigation";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 type Tone = "error" | "warning" | "success";
 
@@ -115,9 +116,9 @@ function Notice({
   children: React.ReactNode;
 }) {
   return (
-    <div className={`rounded border p-4 text-sm ${TONE_CLASSES[tone]}`}>
-      <p className="font-semibold">{title}</p>
-      <div className="mt-1 opacity-90">{children}</div>
-    </div>
+    <Alert className={TONE_CLASSES[tone]}>
+      <AlertTitle>{title}</AlertTitle>
+      <AlertDescription>{children}</AlertDescription>
+    </Alert>
   );
 }

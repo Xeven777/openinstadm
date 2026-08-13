@@ -11,6 +11,8 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { buttonVariants } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import type { InstagramAccountStat } from "@/lib/server/stats";
 
 export default function SettingsAccounts({
@@ -56,14 +58,14 @@ export default function SettingsAccounts({
   }
 
   return (
-    <section className="panel rounded p-4 sm:p-6">
+    <section className="bg-muted rounded p-4 sm:p-6">
       <h2 className="text-base font-semibold mb-6">Instagram Connection</h2>
 
       <div className="space-y-4">
         <div className="flex items-center justify-between gap-3 py-3 border-b border-border">
           <div>
             <p className="text-sm font-medium text-foreground">Status</p>
-            <p className="text-xs text-muted mt-0.5">
+            <p className="text-xs text-muted-foreground mt-0.5">
               Comment webhooks and private replies depend on this connection.
             </p>
           </div>
@@ -81,12 +83,12 @@ export default function SettingsAccounts({
         <div className="flex items-center justify-between gap-3 py-3 border-b border-border">
           <div>
             <p className="text-sm font-medium text-foreground">Accounts</p>
-            <p className="text-xs text-muted mt-0.5">
+            <p className="text-xs text-muted-foreground mt-0.5">
               {accounts.length} connected Instagram profile
               {accounts.length === 1 ? "" : "s"}
             </p>
           </div>
-          <span className="text-sm text-muted">
+          <span className="text-sm text-muted-foreground">
             {accounts.length > 0 ? `${accounts.length} connected` : "None"}
           </span>
         </div>
@@ -94,20 +96,20 @@ export default function SettingsAccounts({
         <div className="space-y-3 py-3">
           {error && <p className="text-sm text-error">{error}</p>}
           {accounts.length === 0 && (
-            <p className="text-sm text-muted">
+            <p className="text-sm text-muted-foreground">
               Connect an Instagram professional account to launch campaigns.
             </p>
           )}
           {accounts.map((account) => (
             <div
               key={account.id}
-              className="flex flex-col gap-3 rounded border border-border bg-surface/70 p-4 sm:flex-row sm:items-center sm:justify-between"
+              className="flex flex-col gap-3 rounded border border-border bg-muted/70 p-4 sm:flex-row sm:items-center sm:justify-between"
             >
               <div>
                 <p className="text-sm font-semibold text-foreground">
                   @{account.username}
                 </p>
-                <p className="mt-1 text-xs text-muted">
+                <p className="mt-1 text-xs text-muted-foreground">
                   Token expires{" "}
                   {account.tokenExpiresAt
                     ? new Date(account.tokenExpiresAt).toLocaleDateString()
@@ -135,9 +137,11 @@ export default function SettingsAccounts({
       <div className="mt-6 pt-4 border-t border-border flex gap-3">
         <a
           href="/api/instagram/connect"
-          className="px-4 py-2 rounded text-sm font-medium transition-colors bg-accent text-white hover:bg-accent-hover"
+          className={cn(buttonVariants({ variant: "default" }))}
         >
-          {accounts.length > 0 ? "Connect another account" : "Connect Instagram"}
+          {accounts.length > 0
+            ? "Connect another account"
+            : "Connect Instagram"}
         </a>
       </div>
     </section>

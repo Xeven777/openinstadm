@@ -1,6 +1,8 @@
 "use client";
 
 import { useState } from "react";
+import { Button, buttonVariants } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 interface InvitationAcceptCardProps {
   token: string;
@@ -37,7 +39,7 @@ export default function InvitationAcceptCard({
     return (
       <a
         href="/login"
-        className="inline-flex items-center justify-center rounded-xl bg-accent px-5 py-3 text-sm font-semibold text-white transition hover:bg-accent-hover"
+        className={cn(buttonVariants({ variant: "default", size: "lg" }), "w-fit")}
       >
         Sign in to accept
       </a>
@@ -46,19 +48,19 @@ export default function InvitationAcceptCard({
 
   return (
     <div className="space-y-3">
-      <button
+      <Button
         type="button"
         onClick={acceptInvite}
         disabled={busy}
-        className="inline-flex items-center justify-center rounded-xl bg-accent px-5 py-3 text-sm font-semibold text-white transition hover:bg-accent-hover disabled:opacity-50"
+        size="lg"
+        className="w-fit"
       >
         {busy ? "Accepting..." : "Accept invitation"}
-      </button>
+      </Button>
       {message && <p className="text-sm text-error">{message}</p>}
-      <p className="text-xs text-muted">
+      <p className="text-xs text-muted-foreground">
         Use the magic link account for {invitedEmail}.
       </p>
     </div>
   );
 }
-

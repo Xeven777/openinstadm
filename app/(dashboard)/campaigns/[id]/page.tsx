@@ -18,7 +18,7 @@ import { getCampaignDetail } from "@/lib/server/automations";
  */
 export default function CampaignDetailPage(props: PageProps<"/campaigns/[id]">) {
   return (
-    <Suspense fallback={<div className="panel rounded p-8 h-64" />}>
+    <Suspense fallback={<div className="bg-muted rounded p-8 h-64" />}>
       <CampaignDetailContent params={props.params} />
     </Suspense>
   );
@@ -37,11 +37,11 @@ async function CampaignDetailContent({
 
   if (!campaign) {
     return (
-      <div className="panel rounded p-8 text-center">
-        <p className="text-sm text-muted">Campaign not found.</p>
+      <div className="bg-muted rounded p-8 text-center">
+        <p className="text-sm text-muted-foreground">Campaign not found.</p>
         <Link
           href="/campaigns"
-          className="mt-4 inline-block rounded border border-border px-4 py-2 text-sm text-muted hover:text-foreground"
+          className="mt-4 inline-block rounded border border-border px-4 py-2 text-sm text-muted-foreground hover:text-foreground"
         >
           Back to campaigns
         </Link>

@@ -10,11 +10,17 @@
 
 import dynamic from "next/dynamic";
 import type { FollowerHistoryPoint } from "@/lib/reports/follower-history";
+import { Card, CardContent } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 
 const FollowerChart = dynamic(() => import("@/components/follower-chart"), {
   ssr: false,
   loading: () => (
-    <div className="panel rounded p-4 sm:p-6 h-56 sm:h-64 animate-pulse bg-surface-hover/40" />
+    <Card size="sm">
+      <CardContent className="h-56 sm:h-64">
+        <Skeleton className="h-full w-full" />
+      </CardContent>
+    </Card>
   ),
 });
 

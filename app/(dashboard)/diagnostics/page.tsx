@@ -18,7 +18,9 @@ function formatDate(value: string) {
 }
 
 function EmptyState({ label }: { label: string }) {
-  return <p className="py-5 text-center text-sm text-muted">{label}</p>;
+  return (
+    <p className="py-5 text-center text-sm text-muted-foreground">{label}</p>
+  );
 }
 
 function Section({
@@ -29,7 +31,7 @@ function Section({
   children: React.ReactNode;
 }) {
   return (
-    <section className="panel rounded p-4 sm:p-6">
+    <section className="bg-muted rounded p-4 sm:p-6">
       <h2 className="text-base font-semibold text-foreground">{title}</h2>
       <div className="mt-4">{children}</div>
     </section>
@@ -44,13 +46,13 @@ export default function DiagnosticsPage() {
           <h1 className="text-2xl font-bold text-foreground">
             Production Diagnostics
           </h1>
-          <p className="mt-1 text-sm text-muted">
+          <p className="mt-1 text-sm text-muted-foreground">
             Health, queues, webhook failures, billing events, and worker alerts.
           </p>
         </div>
         <DiagnosticsRefresh />
       </div>
-      <Suspense fallback={<div className="panel rounded p-8 h-64" />}>
+      <Suspense fallback={<div className="bg-muted rounded p-8 h-64" />}>
         <DiagnosticsContent />
       </Suspense>
     </div>
@@ -71,8 +73,8 @@ async function DiagnosticsContent() {
   return (
     <>
       <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3">
-        <div className="panel rounded p-4 sm:p-5">
-          <p className="text-xs font-semibold uppercase text-muted">
+        <div className="bg-muted rounded p-4 sm:p-5">
+          <p className="text-xs font-semibold uppercase text-muted-foreground">
             Worker health
           </p>
           <p
@@ -82,15 +84,15 @@ async function DiagnosticsContent() {
           >
             {data.workerHealth.healthy ? "Healthy" : "Needs attention"}
           </p>
-          <p className="mt-2 text-xs text-muted">
+          <p className="mt-2 text-xs text-muted-foreground">
             {workerAgeSeconds == null
               ? "No heartbeat found"
               : `Last heartbeat ${workerAgeSeconds}s ago`}
           </p>
         </div>
         {["waiting", "active", "delayed", "failed"].map((key) => (
-          <div key={key} className="panel rounded p-4 sm:p-5">
-            <p className="text-xs font-semibold uppercase text-muted">
+          <div key={key} className="bg-muted rounded p-4 sm:p-5">
+            <p className="text-xs font-semibold uppercase text-muted-foreground">
               Queue {key}
             </p>
             <p className="mt-3 text-2xl font-bold text-foreground">
@@ -106,7 +108,7 @@ async function DiagnosticsContent() {
             {data.workerAlerts.map((alert) => (
               <div
                 key={`${alert.createdAt}-${alert.jobId ?? alert.message}`}
-                className="rounded border border-border bg-surface/50 p-4"
+                className="rounded border border-border bg-muted/50 p-4"
               >
                 <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-1">
                   <p className="min-w-0 flex-1 break-words text-sm font-semibold text-foreground">
@@ -116,7 +118,7 @@ async function DiagnosticsContent() {
                     {alert.level}
                   </span>
                 </div>
-                <p className="mt-2 text-xs text-muted">
+                <p className="mt-2 text-xs text-muted-foreground">
                   {formatDate(alert.createdAt)}
                   {alert.commentId ? ` · ${alert.commentId}` : ""}
                 </p>
@@ -133,18 +135,23 @@ async function DiagnosticsContent() {
           {data.dmFailures.length ? (
             <div className="space-y-3">
               {data.dmFailures.map((item) => (
-                <div key={item.id} className="border-b border-border pb-3 last:border-0">
+                <div
+                  key={item.id}
+                  className="border-b border-border pb-3 last:border-0"
+                >
                   <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-1">
                     <p className="min-w-0 flex-1 truncate text-sm font-semibold text-foreground">
                       {item.automation.name}
                     </p>
                     <StatusBadge status={item.status} />
                   </div>
-                  <p className="mt-1 truncate text-xs text-muted">
+                  <p className="mt-1 truncate text-xs text-muted-foreground">
                     {item.commentText}
                   </p>
                   {item.errorMessage && (
-                    <p className="mt-1 text-xs text-error">{item.errorMessage}</p>
+                    <p className="mt-1 text-xs text-error">
+                      {item.errorMessage}
+                    </p>
                   )}
                 </div>
               ))}
@@ -158,14 +165,17 @@ async function DiagnosticsContent() {
           {data.webhookFailures.length ? (
             <div className="space-y-3">
               {data.webhookFailures.map((event) => (
-                <div key={event.id} className="border-b border-border pb-3 last:border-0">
+                <div
+                  key={event.id}
+                  className="border-b border-border pb-3 last:border-0"
+                >
                   <p className="text-sm font-semibold text-foreground">
                     {event.object ?? "Instagram webhook"}
                   </p>
                   <p className="mt-1 text-xs text-error">
                     {event.errorMessage ?? "Unknown error"}
                   </p>
-                  <p className="mt-1 text-xs text-muted">
+                  <p className="mt-1 text-xs text-muted-foreground">
                     {formatDate(event.createdAt)}
                   </p>
                 </div>
@@ -182,11 +192,14 @@ async function DiagnosticsContent() {
           {data.tokenRefreshFailures.length ? (
             <div className="space-y-3">
               {data.tokenRefreshFailures.map((event) => (
-                <div key={event.id} className="border-b border-border pb-3 last:border-0">
+                <div
+                  key={event.id}
+                  className="border-b border-border pb-3 last:border-0"
+                >
                   <p className="text-sm font-semibold text-foreground">
                     {event.message}
                   </p>
-                  <p className="mt-1 text-xs text-muted">
+                  <p className="mt-1 text-xs text-muted-foreground">
                     {formatDate(event.createdAt)}
                   </p>
                 </div>
@@ -196,17 +209,23 @@ async function DiagnosticsContent() {
             <EmptyState label="No token refresh failures." />
           )}
         </Section>
-
       </div>
 
       <Section title="Operational Event Timeline">
         {data.operationalEvents.length ? (
           <div className="space-y-3">
             {data.operationalEvents.map((event) => (
-              <div key={event.id} className="grid gap-2 border-b border-border pb-3 last:border-0 sm:grid-cols-[140px_1fr_auto]">
-                <p className="text-xs font-semibold text-muted">{event.source}</p>
+              <div
+                key={event.id}
+                className="grid gap-2 border-b border-border pb-3 last:border-0 sm:grid-cols-[140px_1fr_auto]"
+              >
+                <p className="text-xs font-semibold text-muted-foreground">
+                  {event.source}
+                </p>
                 <p className="text-sm text-foreground">{event.message}</p>
-                <p className="text-xs text-muted">{formatDate(event.createdAt)}</p>
+                <p className="text-xs text-muted-foreground">
+                  {formatDate(event.createdAt)}
+                </p>
               </div>
             ))}
           </div>

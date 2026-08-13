@@ -10,6 +10,13 @@
 
 import { useCallback } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 const COUNT_OPTIONS = [
   { value: "25", label: "Last 25" },
@@ -37,7 +44,8 @@ export default function OverviewRangeSelect({
     : "50";
 
   const handleChange = useCallback(
-    (next: string) => {
+    (next: string | null) => {
+      if (next == null) return;
       const params = new URLSearchParams(searchParams.toString());
       if (next === "50") {
         params.delete("count");
@@ -51,21 +59,22 @@ export default function OverviewRangeSelect({
   );
 
   return (
-    <label className="flex flex-col gap-2 text-sm">
+    <div className="flex flex-col gap-2 text-sm">
       <span className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
         Range
       </span>
-      <select
-        value={current}
-        onChange={(e) => handleChange(e.target.value)}
-        className="border-0 bg-transparent py-2 pr-1 text-sm text-foreground outline-none"
-      >
-        {COUNT_OPTIONS.map((o) => (
-          <option key={o.value} value={o.value}>
-            {o.label}
-          </option>
-        ))}
-      </select>
-    </label>
+      <Select value={current} onValueChange={handleChange}>
+        <SelectTrigger className="w-fit">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {COUNT_OPTIONS.map((o) => (
+            <SelectItem key={o.value} value={o.value}>
+              {o.label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </div>
   );
 }

@@ -15,9 +15,9 @@ export default function VerifyRequestPage() {
           </h1>
         </div>
 
-        <div className="panel rounded p-8 text-center">
+        <div className="bg-muted rounded p-8 text-center">
           <h2 className="text-lg font-semibold mb-2">Check your email</h2>
-          <p className="text-sm text-muted">
+          <p className="text-sm text-muted-foreground">
             We sent you a secure sign-in link. Open it on this device to
             continue.
           </p>

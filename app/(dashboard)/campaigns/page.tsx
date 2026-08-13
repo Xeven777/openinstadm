@@ -19,7 +19,7 @@ import type { AccountOption } from "@/components/account-select";
  */
 export default function CampaignsPage() {
   return (
-    <Suspense fallback={<div className="panel rounded p-8 h-64" />}>
+    <Suspense fallback={<div className="bg-muted rounded p-8 h-64" />}>
       <CampaignsContent />
     </Suspense>
   );

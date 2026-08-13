@@ -11,7 +11,8 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import RefreshIcon from "@/components/refresh-icon";
+import { ArrowsClockwise } from "@phosphor-icons/react";
+import { Button } from "@/components/ui/button";
 
 interface OverviewRefreshProps {
   selectedAccountId: string;
@@ -45,15 +46,19 @@ export default function OverviewRefresh({
   }
 
   return (
-    <button
+    <Button
       type="button"
+      variant="outline"
+      size="icon"
       onClick={() => void handleRefresh()}
       disabled={refreshing}
       title="Refresh from Instagram"
       aria-label="Refresh from Instagram"
-      className="flex h-9 w-9 items-center justify-center rounded-lg border border-border bg-surface text-muted transition hover:border-border-hover hover:text-foreground disabled:opacity-50"
     >
-      <RefreshIcon className={refreshing ? "animate-spin" : ""} />
-    </button>
+      <ArrowsClockwise
+        weight="bold"
+        className={refreshing ? "animate-spin" : ""}
+      />
+    </Button>
   );
 }

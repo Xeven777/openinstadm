@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { buttonVariants } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 interface PublicSiteHeaderProps {
   active?: "home" | "templates";
@@ -42,7 +44,10 @@ export default function PublicSiteHeader({ active }: PublicSiteHeaderProps) {
           </Link>
           <Link
             href="/login"
-            className="inline-flex items-center justify-center bg-cyan-300 px-4 py-2 text-sm font-bold text-zinc-950 transition hover:bg-cyan-200"
+            className={cn(
+              buttonVariants({ variant: "default", size: "sm" }),
+              "bg-cyan-300 text-zinc-950 hover:bg-cyan-200"
+            )}
           >
             Start free
           </Link>

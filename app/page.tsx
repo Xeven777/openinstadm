@@ -64,11 +64,11 @@ function AppWindow({
 }) {
   return (
     <div className="overflow-hidden rounded-lg border border-border bg-background shadow-2xl shadow-black/50">
-      <div className="flex items-center gap-2 border-b border-border bg-surface px-4 py-3">
+      <div className="flex items-center gap-2 border-b border-border bg-muted px-4 py-3">
         <span className="h-2.5 w-2.5 rounded-full bg-border" />
         <span className="h-2.5 w-2.5 rounded-full bg-border" />
         <span className="h-2.5 w-2.5 rounded-full bg-border" />
-        <span className="ml-2 text-xs text-muted">{label}</span>
+        <span className="ml-2 text-xs text-muted-foreground">{label}</span>
       </div>
       <div className="p-5">{children}</div>
     </div>
@@ -77,8 +77,8 @@ function AppWindow({
 
 function Stat({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded border border-border bg-surface p-4">
-      <p className="text-sm text-muted">{label}</p>
+    <div className="rounded border border-border bg-muted p-4">
+      <p className="text-sm text-muted-foreground">{label}</p>
       <p className="mt-1 text-2xl font-semibold text-foreground">{value}</p>
     </div>
   );
@@ -105,11 +105,11 @@ function OverviewPreview() {
       <div className="flex items-end justify-between">
         <div>
           <h3 className="text-base font-semibold text-foreground">Overview</h3>
-          <p className="mt-1 text-xs text-muted">
+          <p className="mt-1 text-xs text-muted-foreground">
             Recent — 24 posts from @studio.store
           </p>
         </div>
-        <span className="rounded border border-border px-2 py-1 text-xs text-muted">
+        <span className="rounded border border-border px-2 py-1 text-xs text-muted-foreground">
           Last 50
         </span>
       </div>
@@ -120,12 +120,12 @@ function OverviewPreview() {
         ))}
       </div>
 
-      <div className="mt-4 rounded border border-border bg-surface p-4">
+      <div className="mt-4 rounded border border-border bg-muted p-4">
         <div className="flex items-baseline justify-between">
           <p className="text-sm font-semibold text-foreground">
             Followers over time
           </p>
-          <p className="text-xs text-muted">
+          <p className="text-xs text-muted-foreground">
             48,210 <span className="text-success">+1,240</span> · 30d
           </p>
         </div>
@@ -148,7 +148,7 @@ function OverviewPreview() {
         </svg>
       </div>
 
-      <div className="mt-4 rounded border border-border bg-surface p-4">
+      <div className="mt-4 rounded border border-border bg-muted p-4">
         <p className="text-sm font-semibold text-foreground">Posts</p>
         <table className="mt-3 w-full text-sm">
           <thead>
@@ -163,8 +163,12 @@ function OverviewPreview() {
             {overviewPosts.map(([post, views, likes, date]) => (
               <tr key={post} className="border-b border-border last:border-0">
                 <td className="py-2 pr-3 text-foreground">{post}</td>
-                <td className="py-2 px-3 text-right text-muted">{views}</td>
-                <td className="py-2 px-3 text-right text-muted">{likes}</td>
+                <td className="py-2 px-3 text-right text-muted-foreground">
+                  {views}
+                </td>
+                <td className="py-2 px-3 text-right text-muted-foreground">
+                  {likes}
+                </td>
                 <td className="py-2 pl-3 text-right text-zinc-500">{date}</td>
               </tr>
             ))}
@@ -177,12 +181,12 @@ function OverviewPreview() {
 
 function MatchedCommentCard() {
   return (
-    <div className="w-64 rounded-lg border border-border bg-surface p-4 shadow-2xl shadow-black/50">
-      <p className="text-xs text-muted">New comment</p>
+    <div className="w-64 rounded-lg border border-border bg-muted p-4 shadow-2xl shadow-black/50">
+      <p className="text-xs text-muted-foreground">New comment</p>
       <p className="mt-1 text-sm font-semibold text-foreground">@maya.co</p>
-      <p className="mt-1 text-sm text-muted">LINK please</p>
+      <p className="mt-1 text-sm text-muted-foreground">LINK please</p>
       <div className="mt-3 border-t border-border pt-3">
-        <p className="text-xs text-muted">
+        <p className="text-xs text-muted-foreground">
           Matched <span className="text-accent">GUIDE</span>
         </p>
         <p className="mt-1 text-sm font-medium text-success">
@@ -223,7 +227,7 @@ function DashboardPreview() {
   return (
     <AppWindow label="app / dashboard">
       <h3 className="text-base font-semibold text-foreground">Hello, Maya!</h3>
-      <p className="mt-1 text-xs text-muted">
+      <p className="mt-1 text-xs text-muted-foreground">
         2 connected accounts · 340 contacts
       </p>
 
@@ -233,14 +237,14 @@ function DashboardPreview() {
         ))}
       </div>
 
-      <div className="mt-4 rounded border border-border bg-surface p-4">
+      <div className="mt-4 rounded border border-border bg-muted p-4">
         <p className="text-sm font-semibold text-foreground">
           DMs — Last 7 Days
         </p>
         <div className="mt-4 flex h-32 items-end gap-2">
           {dashboardChart.map(([day, n]) => (
             <div key={day} className="flex flex-1 flex-col items-center gap-2">
-              <span className="text-[10px] text-muted">{n}</span>
+              <span className="text-[10px] text-muted-foreground">{n}</span>
               <div
                 className="w-full rounded-sm bg-accent"
                 style={{ height: `${Math.max((n / maxDM) * 100, 4)}%` }}
@@ -251,7 +255,7 @@ function DashboardPreview() {
         </div>
       </div>
 
-      <div className="mt-4 rounded border border-border bg-surface p-4">
+      <div className="mt-4 rounded border border-border bg-muted p-4">
         <p className="text-sm font-semibold text-foreground">Recent Activity</p>
         <div className="mt-3 space-y-2">
           {dashboardActivity.map(([user, automation, status, color]) => (
@@ -260,7 +264,9 @@ function DashboardPreview() {
               className="flex items-center justify-between gap-3 border-b border-border py-2 text-sm last:border-0"
             >
               <span className="truncate text-foreground">{user}</span>
-              <span className="truncate text-muted">{automation}</span>
+              <span className="truncate text-muted-foreground">
+                {automation}
+              </span>
               <span className={`text-sm ${color}`}>{status}</span>
             </div>
           ))}

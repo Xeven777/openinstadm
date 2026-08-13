@@ -1,5 +1,7 @@
 import Link from "next/link";
 import PublicSiteHeader from "@/components/public-site-header";
+import { buttonVariants } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 export interface SeoPageSection {
   title: string;
@@ -47,13 +49,19 @@ export default function SeoPageShell({ config }: { config: SeoPageConfig }) {
             <div className="mt-8 flex flex-col gap-3 sm:flex-row">
               <Link
                 href="/login"
-                className="inline-flex items-center justify-center bg-cyan-300 px-6 py-3 text-sm font-bold text-zinc-950 transition hover:bg-cyan-200"
+                className={cn(
+                  buttonVariants({ variant: "default", size: "lg" }),
+                  "bg-cyan-300 text-zinc-950 hover:bg-cyan-200"
+                )}
               >
                 {config.primaryCta}
               </Link>
               <Link
                 href="/templates"
-                className="inline-flex items-center justify-center border border-white/10 bg-white/[0.04] px-6 py-3 text-sm font-bold text-white transition hover:border-white/20 hover:bg-white/[0.08]"
+                className={cn(
+                  buttonVariants({ variant: "outline", size: "lg" }),
+                  "border-white/10 bg-white/[0.04] text-white hover:border-white/20 hover:bg-white/[0.08]"
+                )}
               >
                 {config.secondaryCta ?? "Browse templates"}
               </Link>
@@ -171,7 +179,10 @@ export default function SeoPageShell({ config }: { config: SeoPageConfig }) {
           </p>
           <Link
             href="/login"
-            className="mt-8 inline-flex items-center justify-center bg-cyan-300 px-6 py-3 text-sm font-bold text-zinc-950 transition hover:bg-cyan-200"
+            className={cn(
+              buttonVariants({ variant: "default", size: "lg" }),
+              "mt-8 bg-cyan-300 text-zinc-950 hover:bg-cyan-200"
+            )}
           >
             Start free
           </Link>

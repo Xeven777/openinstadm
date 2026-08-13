@@ -48,7 +48,7 @@ function OverviewSkeleton() {
   return (
     <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3 sm:gap-4">
       {[...Array(6)].map((_, i) => (
-        <div key={i} className="panel rounded p-4 h-24 sm:p-5">
+        <div key={i} className="bg-muted rounded p-4 h-24 sm:p-5">
           <div className="h-4 w-16 bg-zinc-200 rounded" />
           <div className="mt-3 h-6 w-20 bg-zinc-200/60 rounded" />
         </div>
@@ -94,8 +94,8 @@ async function OverviewContent({
 
   if (!account) {
     return (
-      <div className="panel rounded p-8 text-center">
-        <p className="text-sm text-muted">
+      <div className="bg-muted rounded p-8 text-center">
+        <p className="text-sm text-muted-foreground">
           Instagram account not connected. Please connect your account first.
         </p>
         <a
@@ -143,7 +143,7 @@ function OverviewView({
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div className="min-w-0">
           <h1 className="text-lg font-semibold text-foreground">Overview</h1>
-          <p className="text-sm text-muted mt-1">
+          <p className="text-sm text-muted-foreground mt-1">
             {data.requestedCount === "all" ? "All-time" : "Recent"} —{" "}
             {totals.posts} post{totals.posts === 1 ? "" : "s"} from @
             {data.account.username}
@@ -152,32 +152,32 @@ function OverviewView({
           {followers !== null && (
             // Kept out of the tile row below: that row sums the selected posts,
             // whereas this is a current account-level total.
-            <p className="mt-1 text-sm text-muted">
+            <p className="mt-1 text-sm text-muted-foreground">
               {followers.toLocaleString()} followers
             </p>
           )}
-          <p className="mt-1 text-xs text-muted/80">
+          <p className="mt-1 text-xs text-muted-foreground/80">
             Last refreshed {formatTimeAgo(fetchedAt)}
           </p>
         </div>
         <div className="flex flex-wrap items-end gap-x-4 gap-y-3">
-          <OverviewRefresh selectedAccountId={selectedAccountId} count={data.requestedCount} />
+          <OverviewRefresh
+            selectedAccountId={selectedAccountId}
+            count={data.requestedCount}
+          />
           <OverviewRangeSelect value={countParam} />
           {accounts.length > 1 && (
-            <AccountUrlFilter
-              accounts={accounts}
-              value={selectedAccountId}
-            />
+            <AccountUrlFilter accounts={accounts} value={selectedAccountId} />
           )}
         </div>
       </div>
 
       {!insightsAvailable && (
-        <div className="panel rounded p-4 border border-border">
+        <div className="bg-muted rounded p-4 border border-border">
           <p className="text-sm text-foreground">
             Views, reach, saved and shares need the insights permission.
           </p>
-          <p className="text-sm text-muted mt-1">
+          <p className="text-sm text-muted-foreground mt-1">
             Reconnect your account to grant it — likes and comments are shown in
             the meantime.
           </p>
@@ -204,10 +204,12 @@ function OverviewView({
       <OverviewFollowerChart data={followerHistory} followers={followers} />
 
       {/* Per-post table */}
-      <div className="panel rounded p-4 sm:p-6">
+      <div className="bg-muted rounded p-4 sm:p-6">
         <h2 className="text-sm font-semibold text-foreground mb-4">Posts</h2>
         {posts.length === 0 ? (
-          <p className="text-sm text-muted py-8 text-center">No posts found</p>
+          <p className="text-sm text-muted-foreground py-8 text-center">
+            No posts found
+          </p>
         ) : (
           // Eight metric columns can't compress into a phone; let the table keep
           // its natural width and scroll inside the panel instead.
@@ -247,22 +249,22 @@ function OverviewView({
                         </span>
                       )}
                     </td>
-                    <td className="py-3 px-3 text-right text-muted">
+                    <td className="py-3 px-3 text-right text-muted-foreground">
                       {formatNumber(p.views)}
                     </td>
-                    <td className="py-3 px-3 text-right text-muted">
+                    <td className="py-3 px-3 text-right text-muted-foreground">
                       {formatNumber(p.reach)}
                     </td>
-                    <td className="py-3 px-3 text-right text-muted">
+                    <td className="py-3 px-3 text-right text-muted-foreground">
                       {formatNumber(p.likes)}
                     </td>
-                    <td className="py-3 px-3 text-right text-muted">
+                    <td className="py-3 px-3 text-right text-muted-foreground">
                       {formatNumber(p.comments)}
                     </td>
-                    <td className="py-3 px-3 text-right text-muted">
+                    <td className="py-3 px-3 text-right text-muted-foreground">
                       {formatNumber(p.saved)}
                     </td>
-                    <td className="py-3 px-3 text-right text-muted">
+                    <td className="py-3 px-3 text-right text-muted-foreground">
                       {formatNumber(p.shares)}
                     </td>
                     <td className="py-3 pl-3 text-right text-zinc-500">

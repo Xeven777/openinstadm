@@ -13,7 +13,13 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { ArrowLeft } from "@phosphor-icons/react";
 import CampaignPreview, { type PreviewTab } from "@/components/campaign-preview";
+import StatCard from "@/components/stat-card";
+import { Badge } from "@/components/ui/badge";
+import { Button, buttonVariants } from "@/components/ui/button";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { cn } from "@/lib/utils";
 import type { CampaignListItem } from "@/lib/server/automations";
 
 type Tab = "insights" | "preview";
@@ -116,22 +122,20 @@ export default function CampaignDetail({ campaign }: CampaignDetailProps) {
         <div className="flex items-center gap-2">
           <Link
             href="/campaigns"
-            className="text-sm text-muted hover:text-foreground"
+            className={cn(
+              buttonVariants({ variant: "ghost", size: "sm" }),
+              "-ml-2 gap-1.5 px-2 text-muted-foreground",
+            )}
           >
-            &larr; Campaigns
+            <ArrowLeft weight="bold" className="size-4" />
+            Campaigns
           </Link>
         </div>
         <div className="flex items-center gap-2">
           <h1 className="truncate text-lg font-semibold">{campaign.name}</h1>
-          <span
-            className={`shrink-0 rounded px-2 py-0.5 text-xs font-semibold ${
-              isActive
-                ? "bg-success/10 text-success"
-                : "bg-zinc-500/10 text-muted"
-            }`}
-          >
+          <Badge variant={isActive ? "success" : "muted"}>
             {isActive ? "LIVE" : "Paused"}
-          </span>
+          </Badge>
         </div>
 
         <Summary title="When someone comments on">
@@ -144,8 +148,10 @@ export default function CampaignDetail({ campaign }: CampaignDetailProps) {
                 className="h-14 w-14 rounded object-cover"
               />
             ) : (
-              <div className="grid h-14 w-14 place-items-center rounded bg-surface-hover text-[10px] text-muted">
-                {campaign.matchAnyPost || campaign.pendingNextReel ? "Any" : "Post"}
+              <div className="grid h-14 w-14 place-items-center rounded bg-muted text-[10px] text-muted-foreground">
+                {campaign.matchAnyPost || campaign.pendingNextReel
+                  ? "Any"
+                  : "Post"}
               </div>
             )}
             <span className="text-sm text-foreground">{trigger}</span>
@@ -155,14 +161,16 @@ export default function CampaignDetail({ campaign }: CampaignDetailProps) {
         <Summary title="And this comment has">
           <FieldBox>{matchText}</FieldBox>
           {campaign.dmTriggerEnabled && (
-            <p className="text-xs text-muted">
+            <p className="text-xs text-muted-foreground">
               Also replies when someone DMs{" "}
               {campaign.matchAnyWord ? "anything" : "these words"}.
             </p>
           )}
           {publicReplies.length > 0 && (
             <div className="space-y-1.5">
-              <p className="text-xs text-muted">Public reply under the post</p>
+              <p className="text-xs text-muted-foreground">
+                Public reply under the post
+              </p>
               {publicReplies.map((m, i) => (
                 <FieldBox key={i}>{m}</FieldBox>
               ))}
@@ -172,7 +180,9 @@ export default function CampaignDetail({ campaign }: CampaignDetailProps) {
 
         {campaign.openingDmEnabled && (
           <Summary title="They will get an opening DM">
-            <FieldBox>{campaign.openingDmMessage || "Opening message"}</FieldBox>
+            <FieldBox>
+              {campaign.openingDmMessage || "Opening message"}
+            </FieldBox>
             <FieldBox>{campaign.openingDmButtonLabel || "Button"}</FieldBox>
           </Summary>
         )}
@@ -207,12 +217,12 @@ export default function CampaignDetail({ campaign }: CampaignDetailProps) {
               ?.filter((link) => link.destinationUrl)
               .map((link, i) => (
                 <div key={i} className="space-y-1">
-                  <div className="rounded border border-border bg-surface px-3 py-2">
+                  <div className="rounded border border-border bg-muted px-3 py-2">
                     <p className="select-all break-all font-mono text-xs text-foreground">
                       {link.trackedUrl ?? link.destinationUrl}
                     </p>
                   </div>
-                  <p className="text-xs text-muted">
+                  <p className="text-xs text-muted-foreground">
                     {link.label ? `${link.label} · ` : ""}redirects to{" "}
                     <span className="break-all">{link.destinationUrl}</span>
                   </p>
@@ -224,8 +234,9 @@ export default function CampaignDetail({ campaign }: CampaignDetailProps) {
         {campaign.followUpEnabled && campaign.followUpMessage && (
           <Summary title="Then a follow-up message">
             <FieldBox>{campaign.followUpMessage}</FieldBox>
-            <p className="text-xs text-muted">
-              {campaign.followUpDelayMinutes && campaign.followUpDelayMinutes > 0
+            <p className="text-xs text-muted-foreground">
+              {campaign.followUpDelayMinutes &&
+              campaign.followUpDelayMinutes > 0
                 ? `Sent ${campaign.followUpDelayMinutes} min after the link.`
                 : "Sent right after the link."}
             </p>
@@ -236,84 +247,82 @@ export default function CampaignDetail({ campaign }: CampaignDetailProps) {
       {/* Right: top bar + tabs */}
       <div className="space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-3 border-b border-border pb-3">
-          <div className="flex gap-4">
-            <TabButton active={tab === "insights"} onClick={() => setTab("insights")}>
-              Insights
-            </TabButton>
-            <TabButton active={tab === "preview"} onClick={() => setTab("preview")}>
-              Preview
-            </TabButton>
-          </div>
+          <Tabs value={tab} onValueChange={(v) => setTab(v as Tab)}>
+            <TabsList variant="line">
+              <TabsTrigger value="insights">Insights</TabsTrigger>
+              <TabsTrigger value="preview">Preview</TabsTrigger>
+            </TabsList>
+          </Tabs>
           <div className="flex items-center gap-2">
             <Link
               href={`/campaigns/${campaign.id}/edit`}
-              className="rounded border border-border px-3 py-1.5 text-sm text-muted hover:text-foreground"
+              className={cn(buttonVariants({ variant: "outline", size: "sm" }))}
             >
               Edit
             </Link>
-            <button
+            <Button
               onClick={() => void toggleActive()}
               disabled={busy}
-              className={`rounded border px-3 py-1.5 text-sm disabled:opacity-50 ${
+              variant={isActive ? "destructive" : "outline"}
+              className={
                 isActive
-                  ? "border-error/30 text-error hover:bg-error/10"
+                  ? ""
                   : "border-success/30 text-success hover:bg-success/10"
-              }`}
+              }
             >
               {isActive ? "Stop" : "Resume"}
-            </button>
+            </Button>
           </div>
         </div>
 
         {tab === "insights" && (
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
             {metrics.map((m) => (
-              <div key={m.label} className="panel rounded p-4">
-                <p className="text-sm text-muted">{m.label}</p>
-                <p className="mt-1 text-2xl font-semibold text-foreground">
-                  {m.value}
-                </p>
-              </div>
+              <StatCard key={m.label} label={m.label} value={m.value} />
             ))}
           </div>
         )}
 
         {tab === "preview" && (
           <div className="flex justify-center sm:justify-start">
-          <CampaignPreview
-            tab={previewTab}
-            onTabChange={setPreviewTab}
-            username={campaign.instagramAccount.username}
-            avatarUrl={avatarUrl}
-            postThumb={postThumb}
-            caption=""
-            sampleComment={campaign.matchAnyWord ? "nice!" : campaign.keywords[0] ?? "LINK"}
-            dmTriggerEnabled={campaign.dmTriggerEnabled}
-            publicReplyEnabled={campaign.publicReplyEnabled}
-            publicReplyMessage={publicReplies[0] ?? ""}
-            openingDmEnabled={campaign.openingDmEnabled}
-            openingDmMessage={campaign.openingDmMessage ?? ""}
-            openingDmButtonLabel={campaign.openingDmButtonLabel ?? ""}
-            revealMessage={campaign.dmMessage}
-            hasLink={hasLink}
-            linkButtonLabel={campaign.linkButtonLabel ?? "Open link"}
-            linkUrl={
-              campaign.trackedLinks?.[0]?.trackedUrl ??
-              campaign.trackedLinks?.[0]?.destinationUrl
-            }
-            hasSecondLink={hasSecondLink}
-            secondLinkButtonLabel={
-              campaign.trackedLinks?.[1]?.label ?? "Open link"
-            }
-            requireFollow={campaign.requireFollow}
-            followPromptMessage={campaign.followPromptMessage ?? ""}
-            followPromptButtonLabel={
-              campaign.followPromptButtonLabel ?? "i'm following"
-            }
-            followUpEnabled={campaign.followUpEnabled ?? false}
-            followUpMessage={campaign.followUpMessage ?? ""}
-            followUpDelayMinutes={campaign.followUpDelayMinutes ?? 0}
-          />
+            <CampaignPreview
+              tab={previewTab}
+              onTabChange={setPreviewTab}
+              username={campaign.instagramAccount.username}
+              avatarUrl={avatarUrl}
+              postThumb={postThumb}
+              caption=""
+              sampleComment={
+                campaign.matchAnyWord
+                  ? "nice!"
+                  : (campaign.keywords[0] ?? "LINK")
+              }
+              dmTriggerEnabled={campaign.dmTriggerEnabled}
+              publicReplyEnabled={campaign.publicReplyEnabled}
+              publicReplyMessage={publicReplies[0] ?? ""}
+              openingDmEnabled={campaign.openingDmEnabled}
+              openingDmMessage={campaign.openingDmMessage ?? ""}
+              openingDmButtonLabel={campaign.openingDmButtonLabel ?? ""}
+              revealMessage={campaign.dmMessage}
+              hasLink={hasLink}
+              linkButtonLabel={campaign.linkButtonLabel ?? "Open link"}
+              linkUrl={
+                campaign.trackedLinks?.[0]?.trackedUrl ??
+                campaign.trackedLinks?.[0]?.destinationUrl
+              }
+              hasSecondLink={hasSecondLink}
+              secondLinkButtonLabel={
+                campaign.trackedLinks?.[1]?.label ?? "Open link"
+              }
+              requireFollow={campaign.requireFollow}
+              followPromptMessage={campaign.followPromptMessage ?? ""}
+              followPromptButtonLabel={
+                campaign.followPromptButtonLabel ?? "i'm following"
+              }
+              followUpEnabled={campaign.followUpEnabled ?? false}
+              followUpMessage={campaign.followUpMessage ?? ""}
+              followUpDelayMinutes={campaign.followUpDelayMinutes ?? 0}
+            />
           </div>
         )}
       </div>
@@ -332,31 +341,10 @@ function Summary({ title, children }: { title: string; children: React.ReactNode
 
 function FieldBox({ children }: { children: React.ReactNode }) {
   return (
-    <div className="rounded border border-border bg-surface px-3 py-2 text-sm text-foreground">
+    <div className="rounded border border-border bg-muted px-3 py-2 text-sm text-foreground">
       {children}
     </div>
   );
 }
 
-function TabButton({
-  active,
-  onClick,
-  children,
-}: {
-  active: boolean;
-  onClick: () => void;
-  children: React.ReactNode;
-}) {
-  return (
-    <button
-      onClick={onClick}
-      className={`border-b-2 pb-2 text-sm font-medium ${
-        active
-          ? "border-accent text-foreground"
-          : "border-transparent text-muted hover:text-foreground"
-      }`}
-    >
-      {children}
-    </button>
-  );
-}
+

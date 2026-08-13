@@ -10,7 +10,12 @@
  */
 
 import { useEffect, useRef, useState } from "react";
+import { MagnifyingGlass } from "@phosphor-icons/react";
 import RefreshIcon from "@/components/refresh-icon";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Skeleton } from "@/components/ui/skeleton";
 import { readCache, writeCache } from "@/lib/client-cache";
 import { formatTimeAgo } from "@/lib/utils/time";
 
@@ -145,7 +150,7 @@ export default function PostPicker({
     return (
       <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
         {[...Array(8)].map((_, i) => (
-          <div key={i} className="aspect-square rounded bg-surface" />
+          <Skeleton key={i} className="aspect-square" />
         ))}
       </div>
     );
@@ -154,8 +159,10 @@ export default function PostPicker({
   if (error) {
     return (
       <div className="text-center py-8">
-        <p className="text-sm text-muted">{error}</p>
-        <p className="text-xs text-zinc-500 mt-1">Connect your Instagram account first</p>
+        <p className="text-sm text-muted-foreground">{error}</p>
+        <p className="text-xs text-zinc-500 mt-1">
+          Connect your Instagram account first
+        </p>
       </div>
     );
   }
@@ -163,7 +170,7 @@ export default function PostPicker({
   if (posts.length === 0) {
     return (
       <div className="text-center py-8">
-        <p className="text-sm text-muted">No posts found</p>
+        <p className="text-sm text-muted-foreground">No posts found</p>
       </div>
     );
   }
@@ -177,40 +184,53 @@ export default function PostPicker({
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between gap-2">
-        <input
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search your posts by caption…"
-          className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground placeholder:text-zinc-500 focus:border-accent/40 focus:outline-none"
-        />
-        <span className="shrink-0 text-xs text-muted">{posts.length}</span>
-        <button
+        <div className="relative flex-1">
+          <MagnifyingGlass
+            weight="bold"
+            className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
+          />
+          <Input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search your posts by caption…"
+            className="pl-9"
+          />
+        </div>
+        <span className="shrink-0 text-xs text-muted-foreground">
+          {posts.length}
+        </span>
+        <Button
           type="button"
+          variant="outline"
+          size="icon-sm"
           onClick={() => void handleRefresh()}
           disabled={refreshing}
           title="Refresh from Instagram"
           aria-label="Refresh from Instagram"
-          className="shrink-0 rounded-lg border border-border bg-surface p-1.5 text-muted transition hover:border-border-hover hover:text-foreground disabled:opacity-50"
+          className="shrink-0"
         >
           <RefreshIcon className={refreshing ? "animate-spin" : ""} />
-        </button>
+        </Button>
       </div>
       {lastFetchedAt && (
-        <p className="px-1 text-[11px] text-muted">
+        <p className="px-1 text-[11px] text-muted-foreground">
           Last refreshed {formatTimeAgo(lastFetchedAt)}
         </p>
       )}
       {visible.length === 0 ? (
-        <p className="py-6 text-center text-sm text-muted">
+        <p className="py-6 text-center text-sm text-muted-foreground">
           No posts match &ldquo;{query}&rdquo;
         </p>
       ) : (
         <>
           {usedPostIds && Object.keys(usedPostIds).length > 0 && (
-            <p className="flex items-center gap-1.5 px-1 text-[11px] text-muted">
+            <Badge
+              variant="outline"
+              className="gap-1.5 font-normal text-muted-foreground"
+            >
               <span className="inline-block h-2.5 w-2.5 rounded-sm border border-warning/50" />
               Already used
-            </p>
+            </Badge>
           )}
           <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 max-h-64 overflow-y-auto p-1">
             {visible.map((post) => {
@@ -222,58 +242,62 @@ export default function PostPicker({
               const showVideo =
                 isVideo && hoveredId === post.id && Boolean(post.media_url);
               return (
-          <button
-            key={post.id}
-            type="button"
-            onClick={() => onSelect(post.id, post.permalink, thumb, post.caption)}
-            onMouseEnter={() => setHoveredId(post.id)}
-            onMouseLeave={() =>
-              setHoveredId((cur) => (cur === post.id ? null : cur))
-            }
-            aria-pressed={isSelected}
-            title={isUsed ? `Already used by "${usedByName}"` : undefined}
-            className={`
+                <button
+                  key={post.id}
+                  type="button"
+                  onClick={() =>
+                    onSelect(post.id, post.permalink, thumb, post.caption)
+                  }
+                  onMouseEnter={() => setHoveredId(post.id)}
+                  onMouseLeave={() =>
+                    setHoveredId((cur) => (cur === post.id ? null : cur))
+                  }
+                  aria-pressed={isSelected}
+                  title={isUsed ? `Already used by "${usedByName}"` : undefined}
+                  className={`
               relative aspect-square rounded overflow-hidden border-2
               ${
                 isSelected
-                  ? "border-accent"
+                  ? "border-primary"
                   : isUsed
                     ? "border-warning/40 hover:border-warning/60"
                     : "border-border hover:border-border-hover"
               }
             `}
-          >
-            {thumb ? (
-              <img
-                src={thumb}
-                alt={post.caption?.slice(0, 50) ?? "Instagram post"}
-                className={`w-full h-full object-cover ${isUsed ? "opacity-75" : ""}`}
-              />
-            ) : (
-              <div className="w-full h-full bg-surface flex items-center justify-center">
-                <span className="text-xs text-muted">No image</span>
-              </div>
-            )}
-            {showVideo && (
-              <video
-                src={post.media_url}
-                poster={thumb}
-                autoPlay
-                muted
-                loop
-                playsInline
-                preload="none"
-                className={`absolute inset-0 h-full w-full object-cover ${
-                  isUsed ? "opacity-60" : ""
-                }`}
-              />
-            )}
-            {isSelected && (
-              <span className="absolute bottom-0 inset-x-0 bg-accent text-white text-xs py-1">
-                Selected
-              </span>
-            )}
-          </button>
+                >
+                  {thumb ? (
+                    <img
+                      src={thumb}
+                      alt={post.caption?.slice(0, 50) ?? "Instagram post"}
+                      className={`w-full h-full object-cover ${isUsed ? "opacity-75" : ""}`}
+                    />
+                  ) : (
+                    <div className="w-full h-full bg-muted flex items-center justify-center">
+                      <span className="text-xs text-muted-foreground">
+                        No image
+                      </span>
+                    </div>
+                  )}
+                  {showVideo && (
+                    <video
+                      src={post.media_url}
+                      poster={thumb}
+                      autoPlay
+                      muted
+                      loop
+                      playsInline
+                      preload="none"
+                      className={`absolute inset-0 h-full w-full object-cover ${
+                        isUsed ? "opacity-60" : ""
+                      }`}
+                    />
+                  )}
+                  {isSelected && (
+                    <span className="absolute bottom-0 inset-x-0 bg-primary py-1 text-center text-xs font-medium text-primary-foreground">
+                      Selected
+                    </span>
+                  )}
+                </button>
               );
             })}
           </div>

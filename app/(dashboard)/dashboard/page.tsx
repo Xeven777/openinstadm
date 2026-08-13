@@ -34,13 +34,13 @@ export default async function DashboardPage(props: PageProps<"/dashboard">) {
 function DashboardSkeleton() {
   return (
     <div className="space-y-8 animate-pulse" aria-busy="true">
-      <div className="h-8 w-64 rounded bg-surface-hover/70" />
+      <div className="h-8 w-64 rounded bg-muted/70" />
       <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3 sm:gap-4">
         {[...Array(6)].map((_, i) => (
-          <div key={i} className="panel rounded p-5 h-32" />
+          <div key={i} className="bg-muted rounded p-5 h-32" />
         ))}
       </div>
-      <div className="panel rounded p-6 h-64" />
+      <div className="bg-muted rounded p-6 h-64" />
     </div>
   );
 }
@@ -79,7 +79,7 @@ async function DashboardContent({
           <h1 className="text-2xl font-bold text-foreground sm:text-3xl">
             Hello, {stats.userName ?? "there"}!
           </h1>
-          <p className="mt-1 text-sm text-muted">
+          <p className="mt-1 text-sm text-muted-foreground">
             {connectedCount} connected{" "}
             {connectedCount === 1 ? "account" : "accounts"}
             {" · "}
@@ -112,15 +112,24 @@ async function DashboardContent({
       {/* Chart + Recent Activity */}
       <div className="grid grid-cols-1 lg:grid-cols-6 gap-4 sm:gap-6">
         {/* 7-Day Chart */}
-        <div className="lg:col-span-3 panel rounded p-4 sm:p-6">
-          <h2 className="text-sm font-semibold text-foreground mb-6">DMs — Last 7 Days</h2>
+        <div className="lg:col-span-3 bg-muted rounded p-4 sm:p-6">
+          <h2 className="text-sm font-semibold text-foreground mb-6">
+            DMs — Last 7 Days
+          </h2>
           <div className="flex items-end gap-1.5 h-40 sm:gap-2">
             {stats.dailyDMs.map((day) => (
-              <div key={day.date} className="min-w-0 flex-1 flex flex-col items-center gap-2">
-                <span className="text-xs text-muted font-medium">{day.count}</span>
+              <div
+                key={day.date}
+                className="min-w-0 flex-1 flex flex-col items-center gap-2"
+              >
+                <span className="text-xs text-muted-foreground font-medium">
+                  {day.count}
+                </span>
                 <div
                   className="w-full rounded-sm bg-accent min-h-1"
-                  style={{ height: `${Math.max((day.count / maxDM) * 100, 4)}%` }}
+                  style={{
+                    height: `${Math.max((day.count / maxDM) * 100, 4)}%`,
+                  }}
                 />
                 {/* Seven labels share a phone's width, so they must not wrap. */}
                 <span className="w-full truncate text-center text-[10px] text-zinc-500">
@@ -132,29 +141,42 @@ async function DashboardContent({
         </div>
 
         {/* Top Keywords */}
-        <div className="lg:col-span-1 panel rounded p-4 sm:p-6">
-          <h2 className="text-sm font-semibold text-foreground mb-4">Top Keywords</h2>
+        <div className="lg:col-span-1 bg-muted rounded p-4 sm:p-6">
+          <h2 className="text-sm font-semibold text-foreground mb-4">
+            Top Keywords
+          </h2>
           <div className="space-y-3">
             {stats.topKeywords.length === 0 && (
-              <p className="text-sm text-muted py-8">No keyword matches yet</p>
+              <p className="text-sm text-muted-foreground py-8">
+                No keyword matches yet
+              </p>
             )}
             {stats.topKeywords.map((keyword) => (
-              <div key={keyword.keyword} className="flex items-center justify-between gap-3">
+              <div
+                key={keyword.keyword}
+                className="flex items-center justify-between gap-3"
+              >
                 <span className="truncate text-sm font-medium text-foreground">
                   {keyword.keyword}
                 </span>
-                <span className="text-xs text-muted">{keyword.count}</span>
+                <span className="text-xs text-muted-foreground">
+                  {keyword.count}
+                </span>
               </div>
             ))}
           </div>
         </div>
 
         {/* Recent Activity */}
-        <div className="lg:col-span-2 panel rounded p-4 sm:p-6">
-          <h2 className="text-sm font-semibold text-foreground mb-4">Recent Activity</h2>
+        <div className="lg:col-span-2 bg-muted rounded p-4 sm:p-6">
+          <h2 className="text-sm font-semibold text-foreground mb-4">
+            Recent Activity
+          </h2>
           <div className="space-y-3 max-h-60 overflow-y-auto">
             {stats.recentLogs.length === 0 && (
-              <p className="text-sm text-muted text-center py-8">No activity yet</p>
+              <p className="text-sm text-muted-foreground text-center py-8">
+                No activity yet
+              </p>
             )}
             {stats.recentLogs.map((log) => (
               <div
@@ -165,7 +187,7 @@ async function DashboardContent({
                   <p className="text-sm font-medium text-foreground truncate">
                     @{log.commenterName ?? "unknown"}
                   </p>
-                  <p className="text-xs text-muted truncate">
+                  <p className="text-xs text-muted-foreground truncate">
                     {log.instagramAccount
                       ? `@${log.instagramAccount.username} · `
                       : ""}

@@ -120,6 +120,18 @@ The earlier checklist above reflected the intended end state. A fresh code audit
 - [ ] **Keep production dependency footprint small**: Postgres remains the only durable cache dependency; Redis is still only needed for BullMQ queueing.
 ---
 
+## 🎨 3.5. UI Migration (shadcn/ui + Phosphor Icons)
+
+Tracked in detail in [`docs/ui-task.md`](docs/ui-task.md).
+
+- [x] **Phase 0 — Foundation**: shadcn init, `@phosphor-icons/react`, `next-themes` + `ThemeProvider`, shadcn CSS variable tokens in `globals.css`.
+- [x] **Phase 1 — Install shadcn components**: button, card, input, textarea, select, badge, switch, tabs, skeleton, alert, avatar, dropdown-menu, separator, label.
+- [x] **Phase 2 — Component migration** (Groups A–D): all 20 target components migrated to shadcn primitives + Phosphor icons. Badge gained `success`/`warning`/`muted` variants; `text-muted` swept to `text-muted-foreground` app-wide (88 spots) so secondary text survives the new theme. Verified: typecheck ✅, lint ✅, build ✅ 60/60, tests ✅ 134/137.
+- [ ] **Phase 3 — Page-level migration**: landing, login, dashboard loading skeleton, settings forms, SEO pages.
+- [ ] **Phase 4 — Cleanup**: remove `.panel`/`.glass`/`.glass-strong`/`.gradient-mesh`/`.animate-*` no-ops from `globals.css`, sweep remaining inline SVGs, update this checklist.
+
+---
+
 ## 🚀 4. New Feature Roadmap
 
 - [ ] **Story Mention & Story Reply Automations**: Parse and auto-respond to Instagram Story tags and replies in webhooks.

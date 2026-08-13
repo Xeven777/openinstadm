@@ -22,7 +22,7 @@ export default function LegalShell({
           </Link>
           <Link
             href="/login"
-            className="text-sm font-semibold text-muted transition hover:text-foreground"
+            className="text-sm font-semibold text-muted-foreground transition hover:text-foreground"
           >
             Sign in
           </Link>
@@ -30,13 +30,13 @@ export default function LegalShell({
       </header>
 
       <article className="mx-auto max-w-3xl px-5 py-14">
-        <p className="text-sm font-semibold uppercase text-accent">
+        <p className="text-sm font-semibold uppercase text-primary">
           Last updated {updatedAt}
         </p>
         <h1 className="mt-4 text-4xl font-black text-foreground sm:text-5xl">
           {title}
         </h1>
-        <p className="mt-5 text-base leading-8 text-muted">{description}</p>
+        <p className="mt-5 text-base leading-8 text-muted-foreground">{description}</p>
         <div className="mt-10 space-y-8 text-sm leading-7 text-foreground">
           {children}
         </div>

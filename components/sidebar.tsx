@@ -3,20 +3,32 @@
 /**
  * Sidebar Navigation
  *
- * Text-only nav with active state and workspace section.
+ * Nav items as ghost buttons with active state and Phosphor icons.
  */
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import {
+  ChartLine,
+  ChatCircle,
+  Gear,
+  ListDashes,
+  Megaphone,
+  Pulse,
+  SquaresFour,
+  type Icon,
+} from "@phosphor-icons/react";
+import { buttonVariants } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
-const navItems = [
-  { label: "Dashboard", href: "/dashboard" },
-  { label: "Overview", href: "/overview" },
-  { label: "Inbox", href: "/inbox" },
-  { label: "Campaigns", href: "/campaigns" },
-  { label: "DM Logs", href: "/logs" },
-  { label: "Settings", href: "/settings" },
-  { label: "Diagnostics", href: "/diagnostics" },
+const navItems: Array<{ label: string; href: string; icon: Icon }> = [
+  { label: "Dashboard", href: "/dashboard", icon: SquaresFour },
+  { label: "Overview", href: "/overview", icon: ChartLine },
+  { label: "Inbox", href: "/inbox", icon: ChatCircle },
+  { label: "Campaigns", href: "/campaigns", icon: Megaphone },
+  { label: "DM Logs", href: "/logs", icon: ListDashes },
+  { label: "Settings", href: "/settings", icon: Gear },
+  { label: "Diagnostics", href: "/diagnostics", icon: Pulse },
 ];
 
 interface SidebarProps {
@@ -44,7 +56,7 @@ export default function Sidebar({
 
       <aside
         className={`
-          fixed top-0 left-0 z-50 h-dvh w-64 max-w-[85vw] shrink-0 bg-surface border-r border-border flex flex-col
+          fixed top-0 left-0 z-50 h-dvh w-64 max-w-[85vw] shrink-0 bg-muted border-r border-border flex flex-col
           transition-transform duration-200 ease-out
           lg:h-full lg:translate-x-0 lg:static lg:z-auto
           ${isOpen ? "translate-x-0" : "-translate-x-full"}
@@ -60,21 +72,25 @@ export default function Sidebar({
           {navItems.map((item) => {
             const isActive =
               pathname === item.href || pathname.startsWith(item.href + "/");
+            const NavIcon = item.icon;
             return (
               <Link
                 key={item.href}
                 href={item.href}
                 onClick={onClose}
                 aria-current={isActive ? "page" : undefined}
-                className={`
-                  block px-3 py-2.5 rounded text-sm
-                  ${
-                    isActive
-                      ? "bg-surface-hover text-foreground font-medium"
-                      : "text-muted hover:text-foreground hover:bg-surface-hover"
-                  }
-                `}
+                className={cn(
+                  buttonVariants({ variant: "ghost" }),
+                  "w-full justify-start gap-2.5 px-3",
+                  isActive
+                    ? "bg-muted font-medium text-foreground"
+                    : "text-muted-foreground",
+                )}
               >
+                <NavIcon
+                  weight={isActive ? "fill" : "regular"}
+                  className="size-4 shrink-0"
+                />
                 {item.label}
               </Link>
             );
@@ -83,7 +99,7 @@ export default function Sidebar({
 
         <div className="px-5 py-4 border-t border-border">
           <p className="text-sm text-foreground truncate">{workspaceName}</p>
-          <p className="text-xs text-muted">Self-hosted</p>
+          <p className="text-xs text-muted-foreground">Self-hosted</p>
         </div>
       </aside>
     </>

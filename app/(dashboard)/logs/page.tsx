@@ -34,7 +34,7 @@ const STATUS_FILTERS = [
 export default async function LogsPage(props: PageProps<"/logs">) {
   return (
     <div className="space-y-6">
-      <Suspense fallback={<div className="panel rounded p-8 h-64" />}>
+      <Suspense fallback={<div className="bg-muted rounded p-8 h-64" />}>
         <LogsContent searchParams={props.searchParams} />
       </Suspense>
     </div>
@@ -106,11 +106,13 @@ async function LogsContent({
                 ${
                   statusFilter === status
                     ? "bg-accent/15 text-accent border border-accent/20"
-                    : "bg-surface text-muted border border-border hover:border-border-hover hover:text-foreground"
+                    : "bg-muted text-muted-foreground border border-border hover:border-border-hover hover:text-foreground"
                 }
               `}
             >
-              {status === "ALL" ? "All" : status.replace("SKIPPED_", "").replace("_", " ")}
+              {status === "ALL"
+                ? "All"
+                : status.replace("SKIPPED_", "").replace("_", " ")}
             </Link>
           ))}
         </div>
@@ -128,49 +130,73 @@ async function LogsContent({
       </div>
 
       {/* Table */}
-      <div className="panel rounded overflow-hidden">
+      <div className="bg-muted rounded overflow-hidden">
         {/* Six columns don't fit a phone; the table keeps its width and scrolls
             horizontally inside the panel rather than crushing every cell. */}
         <div className="overflow-x-auto">
           <table className="w-full min-w-[760px] text-sm">
             <thead>
               <tr className="border-b border-border text-left">
-                <th className="px-4 py-4 text-xs font-semibold text-muted uppercase tracking-wider sm:px-6">Commenter</th>
-                <th className="px-4 py-4 text-xs font-semibold text-muted uppercase tracking-wider sm:px-6">Comment</th>
-                <th className="px-4 py-4 text-xs font-semibold text-muted uppercase tracking-wider sm:px-6">Campaign</th>
-                <th className="px-4 py-4 text-xs font-semibold text-muted uppercase tracking-wider sm:px-6">Account</th>
-                <th className="px-4 py-4 text-xs font-semibold text-muted uppercase tracking-wider sm:px-6">Status</th>
-                <th className="px-4 py-4 text-xs font-semibold text-muted uppercase tracking-wider sm:px-6">Time</th>
+                <th className="px-4 py-4 text-xs font-semibold text-muted-foreground uppercase tracking-wider sm:px-6">
+                  Commenter
+                </th>
+                <th className="px-4 py-4 text-xs font-semibold text-muted-foreground uppercase tracking-wider sm:px-6">
+                  Comment
+                </th>
+                <th className="px-4 py-4 text-xs font-semibold text-muted-foreground uppercase tracking-wider sm:px-6">
+                  Campaign
+                </th>
+                <th className="px-4 py-4 text-xs font-semibold text-muted-foreground uppercase tracking-wider sm:px-6">
+                  Account
+                </th>
+                <th className="px-4 py-4 text-xs font-semibold text-muted-foreground uppercase tracking-wider sm:px-6">
+                  Status
+                </th>
+                <th className="px-4 py-4 text-xs font-semibold text-muted-foreground uppercase tracking-wider sm:px-6">
+                  Time
+                </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
               {logs.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="px-4 py-12 text-center text-muted sm:px-6">
+                  <td
+                    colSpan={6}
+                    className="px-4 py-12 text-center text-muted-foreground sm:px-6"
+                  >
                     No logs found
                   </td>
                 </tr>
               )}
               {logs.map((log) => (
-                <tr key={log.id} className="hover:bg-surface-hover/50 transition-colors">
+                <tr
+                  key={log.id}
+                  className="hover:bg-muted/50 transition-colors"
+                >
                   <td className="px-4 py-4 sm:px-6">
                     <span className="font-medium text-foreground">
                       @{log.commenterName ?? log.commenterId.slice(0, 8)}
                     </span>
                   </td>
                   <td className="px-4 py-4 max-w-[200px] sm:px-6">
-                    <span className="text-muted truncate block">{log.commentText}</span>
+                    <span className="text-muted-foreground truncate block">
+                      {log.commentText}
+                    </span>
                   </td>
                   <td className="px-4 py-4 sm:px-6">
-                    <span className="text-muted">{log.automation.name}</span>
+                    <span className="text-muted-foreground">
+                      {log.automation.name}
+                    </span>
                   </td>
                   <td className="px-4 py-4 sm:px-6">
-                    <span className="text-muted">@{log.instagramAccount.username}</span>
+                    <span className="text-muted-foreground">
+                      @{log.instagramAccount.username}
+                    </span>
                   </td>
                   <td className="px-4 py-4 sm:px-6">
                     <StatusBadge status={log.status} />
                   </td>
-                  <td className="px-4 py-4 text-muted whitespace-nowrap sm:px-6">
+                  <td className="px-4 py-4 text-muted-foreground whitespace-nowrap sm:px-6">
                     {new Date(log.createdAt).toLocaleString("en-US", {
                       month: "short",
                       day: "numeric",
@@ -187,26 +213,26 @@ async function LogsContent({
         {/* Pagination */}
         {pagination.totalPages > 1 && (
           <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-4 border-t border-border sm:px-6">
-            <p className="text-xs text-muted">
+            <p className="text-xs text-muted-foreground">
               Showing {(pagination.page - 1) * pagination.limit + 1}–
-              {Math.min(pagination.page * pagination.limit, pagination.total)} of{" "}
-              {pagination.total}
+              {Math.min(pagination.page * pagination.limit, pagination.total)}{" "}
+              of {pagination.total}
             </p>
             <div className="flex items-center gap-2">
               <Link
                 aria-disabled={page <= 1}
                 href={filterHref({ nextPage: page - 1 })}
-                className="px-3 py-1.5 rounded-lg text-xs font-medium text-muted border border-border hover:text-foreground hover:border-border-hover transition-all aria-disabled:opacity-30 aria-disabled:pointer-events-none"
+                className="px-3 py-1.5 rounded-lg text-xs font-medium text-muted-foreground border border-border hover:text-foreground hover:border-border-hover transition-all aria-disabled:opacity-30 aria-disabled:pointer-events-none"
               >
                 Previous
               </Link>
-              <span className="text-xs text-muted px-2">
+              <span className="text-xs text-muted-foreground px-2">
                 {page} / {pagination.totalPages}
               </span>
               <Link
                 aria-disabled={page >= pagination.totalPages}
                 href={filterHref({ nextPage: page + 1 })}
-                className="px-3 py-1.5 rounded-lg text-xs font-medium text-muted border border-border hover:text-foreground hover:border-border-hover transition-all aria-disabled:opacity-30 aria-disabled:pointer-events-none"
+                className="px-3 py-1.5 rounded-lg text-xs font-medium text-muted-foreground border border-border hover:text-foreground hover:border-border-hover transition-all aria-disabled:opacity-30 aria-disabled:pointer-events-none"
               >
                 Next
               </Link>

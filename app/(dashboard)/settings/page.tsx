@@ -30,7 +30,7 @@ export default function SettingsPage() {
 
       {/* The session lookup + workspace/accounts/members reads stream inside
           this boundary under cacheComponents. */}
-      <Suspense fallback={<div className="panel rounded p-8 h-64" />}>
+      <Suspense fallback={<div className="bg-muted rounded p-8 h-64" />}>
         <SettingsContent />
       </Suspense>
     </div>
@@ -52,14 +52,14 @@ async function SettingsContent() {
 
       <SettingsTeam members={members} />
 
-      <section className="panel rounded p-4 sm:p-6">
+      <section className="bg-muted rounded p-4 sm:p-6">
         <h2 className="text-base font-semibold mb-6">Usage</h2>
         <div className="flex items-center justify-between gap-3 py-3">
           <div>
             <p className="text-sm font-medium text-foreground">
               DMs sent this month
             </p>
-            <p className="text-xs text-muted mt-0.5">
+            <p className="text-xs text-muted-foreground mt-0.5">
               Self-hosted — no plan limits.
             </p>
           </div>

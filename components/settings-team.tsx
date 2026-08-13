@@ -11,6 +11,8 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import type { WorkspaceMembersPayload } from "@/lib/server/members";
 
 export default function SettingsTeam({
@@ -64,7 +66,7 @@ export default function SettingsTeam({
   }
 
   return (
-    <section className="panel rounded p-4 sm:p-6">
+    <section className="bg-muted rounded p-4 sm:p-6">
       <h2 className="text-base font-semibold mb-6">Team</h2>
       <div className="space-y-3">
         {members.members.map((member) => (
@@ -76,9 +78,11 @@ export default function SettingsTeam({
               <p className="truncate text-sm font-medium text-foreground">
                 {member.user.name ?? member.user.email ?? "Unknown member"}
               </p>
-              <p className="text-xs text-muted">{member.user.email}</p>
+              <p className="text-xs text-muted-foreground">
+                {member.user.email}
+              </p>
             </div>
-            <span className="rounded-full border border-border px-3 py-1 text-xs font-semibold text-muted">
+            <span className="rounded-full border border-border px-3 py-1 text-xs font-semibold text-muted-foreground">
               {member.role}
             </span>
           </div>
@@ -94,13 +98,13 @@ export default function SettingsTeam({
             {members.invitations.map((invitation) => (
               <div
                 key={invitation.id}
-                className="flex flex-col gap-3 rounded border border-border bg-surface/70 p-3 sm:flex-row sm:items-center sm:justify-between"
+                className="flex flex-col gap-3 rounded border border-border bg-muted/70 p-3 sm:flex-row sm:items-center sm:justify-between"
               >
                 <div className="min-w-0">
                   <p className="truncate text-sm font-medium text-foreground">
                     {invitation.email}
                   </p>
-                  <p className="truncate text-xs text-muted">
+                  <p className="truncate text-xs text-muted-foreground">
                     {invitation.role} · {invitation.inviteUrl}
                   </p>
                 </div>
@@ -110,7 +114,7 @@ export default function SettingsTeam({
                     onClick={() =>
                       void navigator.clipboard?.writeText(invitation.inviteUrl)
                     }
-                    className="rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-muted transition-colors hover:border-border-hover hover:text-foreground"
+                    className="rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:border-border-hover hover:text-foreground"
                   >
                     Copy
                   </button>
@@ -134,12 +138,11 @@ export default function SettingsTeam({
           onSubmit={inviteMember}
           className="mt-6 grid gap-3 border-t border-border pt-4 sm:grid-cols-[1fr_140px_auto]"
         >
-          <input
+          <Input
             type="email"
             value={inviteEmail}
             onChange={(event) => setInviteEmail(event.target.value)}
             placeholder="teammate@agency.com"
-            className="rounded border border-border bg-surface px-4 py-2 text-sm text-foreground outline-none transition-colors focus:border-accent/40"
             required
           />
           <select
@@ -147,21 +150,15 @@ export default function SettingsTeam({
             onChange={(event) =>
               setInviteRole(event.target.value as "ADMIN" | "MEMBER")
             }
-            className="rounded border border-border bg-surface px-3 py-2 text-sm text-foreground outline-none transition-colors focus:border-accent/40"
+            className="rounded border border-border bg-muted px-3 py-2 text-sm text-foreground outline-none transition-colors focus:border-accent/40"
           >
             <option value="MEMBER">Member</option>
             <option value="ADMIN">Admin</option>
           </select>
-          <button
-            type="submit"
-            disabled={busy === "invite"}
-            className="rounded bg-accent px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-accent-hover disabled:opacity-50"
-          >
+          <Button type="submit" disabled={busy === "invite"}>
             {busy === "invite" ? "Inviting..." : "Invite"}
-          </button>
-          {error && (
-            <p className="sm:col-span-3 text-sm text-error">{error}</p>
-          )}
+          </Button>
+          {error && <p className="sm:col-span-3 text-sm text-error">{error}</p>}
         </form>
       )}
     </section>

@@ -7,6 +7,9 @@
  */
 
 import { useState, type KeyboardEvent } from "react";
+import { X } from "@phosphor-icons/react";
+import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 
 interface KeywordInputProps {
   keywords: string[];
@@ -42,33 +45,32 @@ export default function KeywordInput({ keywords, onChange, max = 10 }: KeywordIn
 
   return (
     <div className="space-y-2">
-      <div className="flex flex-wrap gap-2 p-3 rounded bg-surface border border-border min-h-[48px]">
+      <div className="flex flex-wrap gap-2 rounded-md border border-border bg-muted p-3 min-h-[48px]">
         {keywords.map((keyword) => (
-          <span
-            key={keyword}
-            className="inline-flex items-center gap-2 px-2 py-1 rounded border border-border text-xs"
-          >
+          <Badge key={keyword} variant="outline" className="gap-1 pr-1">
             {keyword}
             <button
               type="button"
               onClick={() => removeKeyword(keyword)}
               aria-label={`Remove ${keyword}`}
-              className="text-muted hover:text-error"
+              className="text-muted-foreground transition-colors hover:text-error"
             >
-              Remove
+              <X weight="bold" className="size-3" />
             </button>
-          </span>
+          </Badge>
         ))}
-        <input
+        <Input
           type="text"
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder={keywords.length === 0 ? "Type keyword and press Enter..." : ""}
-          className="flex-1 min-w-[120px] bg-transparent text-sm text-foreground placeholder:text-zinc-500 outline-none"
+          placeholder={
+            keywords.length === 0 ? "Type keyword and press Enter..." : ""
+          }
+          className="h-8 min-w-[120px] flex-1 border-0 bg-transparent px-0 shadow-none focus-visible:ring-0"
         />
       </div>
-      <p className="text-xs text-muted">
+      <p className="text-xs text-muted-foreground">
         {keywords.length}/{max} keywords · Press Enter or comma to add
       </p>
     </div>

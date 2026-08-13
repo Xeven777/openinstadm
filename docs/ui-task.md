@@ -139,6 +139,14 @@ npx shadcn@latest add button card input textarea select badge switch tabs skelet
 
 ## Phase 2: Component Migration
 
+**Status: DONE** — all four groups migrated (verified: `npm run typecheck` ✅, `npm run lint` ✅ 0 errors, `npm run build` ✅ 60/60 pages, `npm test` ✅ 134/137 — 3 pre-existing env failures).
+
+Notes on deviations:
+- **`Badge` gained `success` / `warning` / `muted` variants** (`components/ui/badge.tsx`) so status labels use the theme tokens instead of ad-hoc color classes.
+- **Landing/SEO CTAs** keep their cyan/dark colors — they're now built on `buttonVariants` (shadcn shape/typography/focus) with color overrides, pending the Phase 3 page-level token unification.
+- **`text-muted` → `text-muted-foreground` swept app-wide** (88 occurrences, 15 files): the shadcn theme's `--muted` token is a near-white *surface* color, so the old `text-muted` secondary text was nearly invisible on light backgrounds.
+- `dashboard-shell.tsx` and `legal-shell.tsx` needed no changes (no hand-rolled elements). `campaign-preview.tsx` kept as-is per the scope exclusions.
+
 ### Group A — Atomic Primitives (no deps on other project components)
 
 | # | File | Changes |

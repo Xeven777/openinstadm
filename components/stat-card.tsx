@@ -1,8 +1,10 @@
 /**
  * Stat Card
  *
- * Metric panel with label, value, and optional trend.
+ * Metric panel with label, value, and optional trend. Wraps shadcn Card.
  */
+
+import { Card, CardContent } from "@/components/ui/card";
 
 interface StatCardProps {
   label: string;
@@ -13,14 +15,16 @@ interface StatCardProps {
 
 export default function StatCard({ label, value, trend, trendUp }: StatCardProps) {
   return (
-    <div className="panel rounded p-4">
-      <p className="text-sm text-muted">{label}</p>
-      <p className="text-2xl font-semibold text-foreground mt-1">{value}</p>
-      {trend && (
-        <p className={`text-xs mt-1 ${trendUp ? "text-success" : "text-error"}`}>
-          {trendUp ? "Up" : "Down"} {trend}
-        </p>
-      )}
-    </div>
+    <Card size="sm">
+      <CardContent className="gap-1">
+        <p className="text-sm text-muted-foreground">{label}</p>
+        <p className="text-2xl font-semibold text-foreground">{value}</p>
+        {trend && (
+          <p className={`text-xs ${trendUp ? "text-success" : "text-error"}`}>
+            {trendUp ? "Up" : "Down"} {trend}
+          </p>
+        )}
+      </CardContent>
+    </Card>
   );
 }

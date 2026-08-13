@@ -10,7 +10,7 @@ import EditCampaignBuilder from "@/components/edit-campaign-builder";
  */
 export default function EditCampaignPage() {
   return (
-    <Suspense fallback={<div className="panel rounded p-8 h-64" />}>
+    <Suspense fallback={<div className="bg-muted rounded p-8 h-64" />}>
       <EditCampaignBuilder />
     </Suspense>
   );

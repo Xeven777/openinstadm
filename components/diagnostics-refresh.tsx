@@ -10,18 +10,19 @@
 
 import { useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { Button } from "@/components/ui/button";
 
 export default function DiagnosticsRefresh() {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
 
   return (
-    <button
+    <Button
+      variant="outline"
       onClick={() => startTransition(() => router.refresh())}
       disabled={isPending}
-      className="rounded border border-border bg-surface px-4 py-2 text-sm font-semibold text-foreground transition hover:border-border-hover disabled:opacity-50"
     >
       {isPending ? "Refreshing…" : "Refresh"}
-    </button>
+    </Button>
   );
 }

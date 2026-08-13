@@ -11,7 +11,7 @@ export default function TemplateVisual({
 }: TemplateVisualProps) {
   return (
     <div className="border border-border p-4">
-      <div className="border border-border bg-surface p-4">
+      <div className="border border-border bg-muted p-4">
         <div className="flex items-center justify-between gap-3 border-b border-white/10 pb-3">
           <div>
             <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
