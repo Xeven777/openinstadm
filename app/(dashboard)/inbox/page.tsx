@@ -8,21 +8,33 @@
  * (Meta only exposes the 20 most recent per thread) and refreshed by polling.
  * Sending is subject to Instagram's 24-hour messaging window — Meta's error is
  * surfaced verbatim when it applies.
+ *
+ * Data layer is TanStack Query:
+ *  - conversations + thread messages are queries polled on a `refetchInterval`
+ *    (TanStack pauses the interval while the tab is hidden and catches up on
+ *    focus, replacing the old manual visibility listener);
+ *  - the query cache is persisted to IndexedDB (lib/query/provider.tsx), so a
+ *    same-browser revisit paints the last conversations/thread instantly and
+ *    revalidates in the background;
+ *  - sending is a mutation with an optimistic append, rolled back on error.
  */
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import AccountSelect, { type AccountOption } from "@/components/account-select";
-import { readCache, writeCache } from "@/lib/client-cache";
-import type { ConversationListItem } from "@/app/api/instagram/conversations/route";
-import type { ThreadMessage } from "@/app/api/instagram/conversations/[id]/route";
+import { queryKeys } from "@/lib/query/keys";
+import {
+  fetchAccountList,
+  fetchConversations,
+  fetchThreadMessages,
+  sendDirectMessageApi,
+  type ThreadMessage,
+} from "@/lib/query/api";
 
 const POLL_MS = 12_000;
-// Cached list/threads are shown instantly on revisit, then revalidated in the
-// background. The Instagram Conversations API is slow (often several seconds),
-// so this is what makes the inbox feel fast after the first load.
-const CACHE_MAX_AGE_MS = 60_000;
-const convCacheKey = (accountId: string) => `inbox:convs:${accountId}`;
-const msgCacheKey = (conversationId: string) => `inbox:msgs:${conversationId}`;
+// The seeded account is remembered in sessionStorage so a revisit can start on
+// the right account before the account list resolves.
+const SELECTED_ACCOUNT_KEY = "inbox:selectedAccount";
 
 function formatTime(iso: string | null): string {
   if (!iso) return "";
@@ -36,231 +48,88 @@ function formatTime(iso: string | null): string {
 }
 
 export default function InboxPage() {
-  const [accounts, setAccounts] = useState<AccountOption[]>([]);
+  const queryClient = useQueryClient();
   // Seed from the last-used account so a revisit can paint the cached
   // conversation list immediately, before the account list even loads.
   const [selectedAccountId, setSelectedAccountId] = useState(() => {
     if (typeof window === "undefined") return "";
-    return window.sessionStorage.getItem("inbox:selectedAccount") ?? "";
+    return window.sessionStorage.getItem(SELECTED_ACCOUNT_KEY) ?? "";
   });
-
-  const [conversations, setConversations] = useState<ConversationListItem[]>([]);
-  const [convLoading, setConvLoading] = useState(true);
-  const [convError, setConvError] = useState<string | null>(null);
-
   const [activeId, setActiveId] = useState<string | null>(null);
-  const [messages, setMessages] = useState<ThreadMessage[]>([]);
-  const [threadLoading, setThreadLoading] = useState(false);
 
   const [draft, setDraft] = useState("");
-  const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
 
   const scrollRef = useRef<HTMLDivElement>(null);
-  // Always-latest selection/thread, so async completions can tell whether the
-  // response they belong to is still the active one (mirrors the requestKeyRef
-  // pattern on the overview page).
-  const selectedAccountRef = useRef("");
-  useEffect(() => {
-    selectedAccountRef.current = selectedAccountId;
-  });
+  // Always-latest selection/thread, so async mutation callbacks can tell where
+  // to restore/roll back even if the user switched mid-flight.
   const activeIdRef = useRef<string | null>(null);
   useEffect(() => {
     activeIdRef.current = activeId;
   });
 
-  // Which request is currently in flight, keyed by selection so switching
-  // accounts/threads mid-flight can never block the new selection's load or
-  // let a stale response land. A poll tick skips while its key is taken (the
-  // Instagram Conversations API can take several seconds, longer than the
-  // poll interval).
-  const convInFlightRef = useRef<string | null>(null);
-  const msgInFlightRef = useRef<string | null>(null);
-
-  const active = conversations.find((c) => c.id === activeId) ?? null;
-
   // Accounts for the selector; default to the first connected account. Uses the
   // lightweight accounts endpoint (one query) rather than the heavy dashboard
   // stats aggregation, so the inbox isn't gated on analytics before it can load.
+  const accountsQuery = useQuery({
+    queryKey: queryKeys.accounts,
+    queryFn: fetchAccountList,
+    staleTime: 60_000,
+  });
+  const accounts: AccountOption[] = accountsQuery.data?.instagramAccounts ?? [];
+
+  // Resolve the default account: keep the seeded one only if it's still
+  // connected, otherwise fall back to the default so a removed account can't
+  // wedge the inbox.
   useEffect(() => {
-    fetch("/api/instagram/accounts")
-      .then((r) => r.json())
-      .then((payload) => {
-        if (!payload.success) return;
-        const next: AccountOption[] = payload.data.instagramAccounts ?? [];
-        setAccounts(next);
-        setSelectedAccountId((prev) => {
-          // Keep the seeded account only if it's still connected; otherwise
-          // fall back to the default so a removed account can't wedge the inbox.
-          const stillValid = prev && next.some((a) => a.id === prev);
-          return stillValid
-            ? prev
-            : payload.data.selectedInstagramAccountId || next[0]?.id || "";
-        });
-      })
-      .catch(() => setAccounts([]));
-  }, []);
+    if (!accounts.length) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setSelectedAccountId((prev) => {
+      const stillValid = prev && accounts.some((a) => a.id === prev);
+      return stillValid
+        ? prev
+        : accountsQuery.data?.selectedInstagramAccountId ||
+            accounts[0]?.id ||
+            "";
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [accounts]);
 
   // Remember the chosen account for the next visit.
   useEffect(() => {
     if (typeof window === "undefined" || !selectedAccountId) return;
-    window.sessionStorage.setItem("inbox:selectedAccount", selectedAccountId);
+    window.sessionStorage.setItem(SELECTED_ACCOUNT_KEY, selectedAccountId);
   }, [selectedAccountId]);
 
-  const loadConversations = useCallback(
-    async (silent: boolean) => {
-      const accountId = selectedAccountId;
-      if (!accountId) return;
-      // Skip only if this exact account's request is already in flight, so a
-      // stale poll for a previous account can never block the current one.
-      if (convInFlightRef.current === accountId) return;
-      convInFlightRef.current = accountId;
-      if (!silent) setConvLoading(true);
-      try {
-        const res = await fetch(
-          `/api/instagram/conversations?instagramAccountId=${accountId}`,
-          { cache: "no-store" }
-        );
-        const data = await res.json();
-        // The user may have switched accounts while this request was in
-        // flight — discard the stale response instead of showing it.
-        if (selectedAccountRef.current !== accountId) return;
-        if (data.success) {
-          setConversations(data.data.conversations);
-          writeCache(convCacheKey(accountId), data.data.conversations);
-          setConvError(null);
-        } else if (!silent) {
-          setConvError(data.error ?? "Failed to load conversations");
-        }
-      } catch {
-        if (!silent && selectedAccountRef.current === accountId) {
-          setConvError("Failed to load conversations");
-        }
-      } finally {
-        if (convInFlightRef.current === accountId) convInFlightRef.current = null;
-        if (!silent) setConvLoading(false);
-      }
-    },
-    [selectedAccountId]
-  );
-
-  // Load + poll conversations for the selected account. A cached list is shown
-  // immediately (so revisits are instant) while a fresh copy loads silently.
-  // Polling is visibility-aware (skips while the tab is hidden) and skips a
-  // tick when a request is already in flight; coming back to the tab polls
-  // immediately so the list catches up without waiting for the next tick.
+  // Reset the open thread when switching accounts. This is an intentional
+  // synchronous reset on a dependency change, not derived render state.
   useEffect(() => {
-    if (!selectedAccountId) return;
-    // Reset the open thread when switching accounts. This is an intentional
-    // synchronous reset on a dependency change, not derived render state.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setActiveId(null);
-    setMessages([]);
-    const cached = readCache<ConversationListItem[]>(
-      convCacheKey(selectedAccountId),
-      CACHE_MAX_AGE_MS
-    );
-    if (cached.data) {
-      setConversations(cached.data);
-      setConvLoading(false);
-    } else {
-      setConversations([]);
-      setConvLoading(true);
-    }
-    void loadConversations(Boolean(cached.data));
+  }, [selectedAccountId]);
 
-    const tick = () => {
-      // Skip work entirely while the tab is hidden; the visibility listener
-      // below catches up the moment it becomes visible again.
-      if (document.visibilityState === "hidden") return;
-      void loadConversations(true);
-    };
-    const timer = window.setInterval(tick, POLL_MS);
-    const onVisibility = () => {
-      if (document.visibilityState === "visible") {
-        void loadConversations(true);
-      }
-    };
-    document.addEventListener("visibilitychange", onVisibility);
-    return () => {
-      window.clearInterval(timer);
-      document.removeEventListener("visibilitychange", onVisibility);
-    };
-  }, [selectedAccountId, loadConversations]);
+  const conversationsQuery = useQuery({
+    queryKey: queryKeys.conversations(selectedAccountId),
+    queryFn: () =>
+      fetchConversations(selectedAccountId).then((r) => r.conversations),
+    enabled: Boolean(selectedAccountId),
+    refetchInterval: POLL_MS,
+  });
+  const conversations = conversationsQuery.data ?? [];
+  const convLoading = conversationsQuery.isPending;
+  const convError = conversationsQuery.error ? conversationsQuery.error.message : null;
 
-  const loadMessages = useCallback(
-    async (conversationId: string, silent: boolean) => {
-      const accountId = selectedAccountId;
-      if (!accountId) return;
-      const requestKey = `${accountId}:${conversationId}`;
-      // Keyed by account + thread so switching either mid-flight can't block
-      // or clobber the new selection.
-      if (msgInFlightRef.current === requestKey) return;
-      msgInFlightRef.current = requestKey;
-      if (!silent) setThreadLoading(true);
-      try {
-        const res = await fetch(
-          `/api/instagram/conversations/${conversationId}?instagramAccountId=${accountId}`,
-          { cache: "no-store" }
-        );
-        const data = await res.json();
-        // Discard responses for a selection/thread that is no longer active.
-        if (
-          selectedAccountRef.current !== accountId ||
-          activeIdRef.current !== conversationId
-        ) {
-          return;
-        }
-        if (data.success) {
-          setMessages(data.data.messages);
-          writeCache(msgCacheKey(conversationId), data.data.messages);
-        }
-      } catch {
-        // keep whatever is shown
-      } finally {
-        if (msgInFlightRef.current === requestKey) msgInFlightRef.current = null;
-        if (!silent) setThreadLoading(false);
-      }
-    },
-    [selectedAccountId]
-  );
+  const messagesQuery = useQuery({
+    queryKey: queryKeys.messages(selectedAccountId, activeId ?? ""),
+    queryFn: () =>
+      fetchThreadMessages(selectedAccountId, activeId!).then((r) => r.messages),
+    enabled: Boolean(selectedAccountId && activeId),
+    refetchInterval: POLL_MS,
+  });
+  const messages = useMemo(() => messagesQuery.data ?? [], [messagesQuery.data]);
+  const threadLoading = messagesQuery.isPending;
 
-  // Load + poll the open thread. Cached messages render instantly while a fresh
-  // copy loads silently; opening a thread never shows a blank pane on revisit.
-  // Same visibility-aware + in-flight-guarded polling as the conversation list.
-  useEffect(() => {
-    if (!activeId) return;
-    const cached = readCache<ThreadMessage[]>(
-      msgCacheKey(activeId),
-      CACHE_MAX_AGE_MS
-    );
-    if (cached.data) {
-      // Paint cached messages instantly on thread change; intentional reset.
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setMessages(cached.data);
-      setThreadLoading(false);
-    } else {
-      setMessages([]);
-      setThreadLoading(true);
-    }
-    void loadMessages(activeId, Boolean(cached.data));
-
-    const tick = () => {
-      if (document.visibilityState === "hidden") return;
-      void loadMessages(activeId, true);
-    };
-    const timer = window.setInterval(tick, POLL_MS);
-    const onVisibility = () => {
-      if (document.visibilityState === "visible") {
-        void loadMessages(activeId, true);
-      }
-    };
-    document.addEventListener("visibilitychange", onVisibility);
-    return () => {
-      window.clearInterval(timer);
-      document.removeEventListener("visibilitychange", onVisibility);
-    };
-  }, [activeId, loadMessages]);
+  const openConversation = conversations.find((c) => c.id === activeId) ?? null;
 
   // Keep the thread pinned to the latest message.
   useEffect(() => {
@@ -268,60 +137,61 @@ export default function InboxPage() {
     if (el) el.scrollTop = el.scrollHeight;
   }, [messages]);
 
-  function openConversation(id: string) {
-    setActiveId(id);
-    setSendError(null);
-    // Paint any cached thread synchronously so the pane never flashes empty
-    // or shows the previously open conversation while the fetch runs.
-    const cached = readCache<ThreadMessage[]>(msgCacheKey(id), CACHE_MAX_AGE_MS);
-    setMessages(cached.data ?? []);
-    setThreadLoading(!cached.data);
-  }
+  const sendMutation = useMutation({
+    mutationFn: (input: { recipientId: string; text: string }) =>
+      sendDirectMessageApi({
+        instagramAccountId: selectedAccountId,
+        ...input,
+      }),
+    onMutate: async ({ text }) => {
+      const key = queryKeys.messages(selectedAccountId, activeId ?? "");
+      await queryClient.cancelQueries({ queryKey: key });
+      // Optimistically show the reply immediately, then confirm with the server.
+      const optimistic: ThreadMessage = {
+        id: `optimistic-${Date.now()}`,
+        text,
+        fromMe: true,
+        fromUsername: null,
+        createdTime: new Date().toISOString(),
+      };
+      queryClient.setQueryData<ThreadMessage[]>(key, (old) => [
+        ...(old ?? []),
+        optimistic,
+      ]);
+    },
+    onError: (err, vars) => {
+      // Roll the optimistic message back (refetch server truth) and restore the
+      // draft so the text isn't lost.
+      if (activeIdRef.current) {
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.messages(selectedAccountId, activeIdRef.current),
+        });
+      }
+      setDraft(vars.text);
+      setSendError(err instanceof Error ? err.message : "Failed to send message");
+    },
+    onSettled: () => {
+      // Refresh both the list (last message + ordering) and the thread.
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.conversations(selectedAccountId),
+      });
+      if (activeIdRef.current) {
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.messages(selectedAccountId, activeIdRef.current),
+        });
+      }
+    },
+  });
 
   async function handleSend() {
     const text = draft.trim();
-    if (!text || !active?.contact.id || sending) return;
-    setSending(true);
+    if (!text || !openConversation?.contact.id || sendMutation.isPending) return;
     setSendError(null);
-
-    // Optimistically show the reply immediately, then confirm with the server.
-    const optimistic: ThreadMessage = {
-      id: `optimistic-${Date.now()}`,
-      text,
-      fromMe: true,
-      fromUsername: null,
-      createdTime: new Date().toISOString(),
-    };
-    setMessages((prev) => [...prev, optimistic]);
     setDraft("");
-
-    try {
-      const res = await fetch("/api/instagram/conversations", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          instagramAccountId: selectedAccountId,
-          recipientId: active.contact.id,
-          text,
-        }),
-      });
-      const data = await res.json();
-      if (data.success) {
-        await loadMessages(active.id, true);
-        void loadConversations(true);
-      } else {
-        // Roll the optimistic message back and restore the draft so it's not lost.
-        setMessages((prev) => prev.filter((m) => m.id !== optimistic.id));
-        setDraft(text);
-        setSendError(data.error ?? "Failed to send message");
-      }
-    } catch {
-      setMessages((prev) => prev.filter((m) => m.id !== optimistic.id));
-      setDraft(text);
-      setSendError("Failed to send message");
-    } finally {
-      setSending(false);
-    }
+    await sendMutation.mutateAsync({
+      recipientId: openConversation.contact.id,
+      text,
+    });
   }
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
@@ -330,6 +200,8 @@ export default function InboxPage() {
       void handleSend();
     }
   }
+
+  const sending = sendMutation.isPending;
 
   return (
     <div className="space-y-4">
@@ -350,7 +222,7 @@ export default function InboxPage() {
             once a thread is open (ManyChat-style); on sm+ it is always shown. */}
         <div
           className={`min-h-0 flex-col border-b border-border sm:flex sm:border-b-0 sm:border-r ${
-            active ? "hidden" : "flex"
+            openConversation ? "hidden" : "flex"
           }`}
         >
           <div className="shrink-0 border-b border-border px-4 py-3 text-sm font-semibold text-foreground">
@@ -374,7 +246,7 @@ export default function InboxPage() {
                   <button
                     key={c.id}
                     type="button"
-                    onClick={() => openConversation(c.id)}
+                    onClick={() => setActiveId(c.id)}
                     className={`block w-full border-b border-border px-4 py-3 text-left ${
                       isActive ? "bg-muted" : "hover:bg-muted"
                     }`}
@@ -403,9 +275,9 @@ export default function InboxPage() {
         {/* Thread. On mobile it is only shown once a conversation is open and
             fills the pane; on sm+ it always sits beside the list. */}
         <div
-          className={`min-h-0 flex-col w-[70%] ${active ? "flex" : "hidden sm:flex"}`}
+          className={`min-h-0 flex-col w-[70%] ${openConversation ? "flex" : "hidden sm:flex"}`}
         >
-          {!active ? (
+          {!openConversation ? (
             <div className="flex flex-1 items-center justify-center p-6 text-sm text-muted-foreground">
               Select a conversation to read and reply.
             </div>
@@ -421,7 +293,7 @@ export default function InboxPage() {
                   Back
                 </button>
                 <span className="truncate">
-                  @{active.contact.username ?? "unknown"}
+                  @{openConversation.contact.username ?? "unknown"}
                 </span>
               </div>
 

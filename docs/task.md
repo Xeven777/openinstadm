@@ -90,8 +90,8 @@ The earlier checklist above reflected the intended end state. A fresh code audit
 **Core shape:**
 
 - [x] **Server Components for DB dashboard pages**: Move DB-backed dashboard screens to RSC/direct Prisma where possible (`dashboard`, `campaigns`, `logs`, `settings`, `diagnostics`, campaign detail). Keep only interactive controls as client islands.
-- [ ] **TanStack Query for client islands and live data**: Replace the custom `lib/client-cache.ts` pattern gradually with TanStack Query for inbox, campaign builder, Instagram post picker, profile previews, diagnostics refresh, and optimistic campaign mutations.
-- [ ] **IndexedDB TanStack Query persister for instant same-browser revisits**: Persist the TanStack cache in IndexedDB, not `localStorage`, so larger API payloads can be restored without blocking the main thread.
+- [x] **TanStack Query for client islands and live data**: Replace the custom `lib/client-cache.ts` pattern gradually with TanStack Query for inbox, campaign builder, Instagram post picker, profile previews, diagnostics refresh, and optimistic campaign mutations.
+- [x] **IndexedDB TanStack Query persister for instant same-browser revisits**: Persist the TanStack cache in IndexedDB, not `localStorage`, so larger API payloads can be restored without blocking the main thread.
 - [x] **Postgres snapshots for Meta Graph API cache**: Replaced the in-process overview `Map` cache with a generic `ApiSnapshot` table keyed by resource (`ig:overview:{accountId}:count:50`, `ig:posts:{accountId}:limit:50`, `ig:profile:{accountId}`, etc.) for the initial Meta-heavy endpoints.
 - [ ] **`localStorage` only for small UI preferences**: Keep selected account, last active tab, collapsed panels, and lightweight preferences in localStorage/sessionStorage. Do not store large Meta payloads there.
 - [x] **Next 16 `cacheComponents` after route cleanup**: Enabled — `cacheComponents: true` in `next.config.ts`; all dashboard routes now have clear Suspense boundaries (see the audit-follow-up item above).
@@ -111,12 +111,12 @@ The earlier checklist above reflected the intended end state. A fresh code audit
 - [x] **Full post library / picker (`all=true`)**: cache for 2 hours with a 300-post storage cap. `refresh=true` covers newly published content once wired to UI controls.
 - [x] **Instagram overview recent ranges (`25/50/100`)**: cache for 1 hour. Insights are not real-time enough to justify minute-level refreshes for normal dashboard use.
 - [x] **Instagram overview all-time**: cache for 2 hours, with the existing 500-post cap retained.
-- [ ] **Inbox conversations/messages**: do not snapshot in Postgres initially. Use TanStack Query + IndexedDB persistence, visibility-aware polling, and manual refresh because this is closer to live communication.
+- [x] **Inbox conversations/messages**: do not snapshot in Postgres initially. Use TanStack Query + IndexedDB persistence, visibility-aware polling, and manual refresh because this is closer to live communication.
 
 **Expected impact:**
 
 - [x] **Reduce Meta Graph API traffic sharply**: Long Postgres snapshot TTLs now prevent repeated Meta hits for profile, posts, and overview across navigation, refreshes, tabs, devices, and serverless instances.
-- [ ] **Keep UI fast on repeat visits**: IndexedDB-persisted TanStack Query should paint cached client-island data immediately in the same browser.
+- [x] **Keep UI fast on repeat visits**: IndexedDB-persisted TanStack Query should paint cached client-island data immediately in the same browser.
 - [ ] **Keep production dependency footprint small**: Postgres remains the only durable cache dependency; Redis is still only needed for BullMQ queueing.
 ---
 

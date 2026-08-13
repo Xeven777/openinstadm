@@ -12,6 +12,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import {
   ArrowSquareOut,
   Copy,
@@ -35,7 +36,8 @@ import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
-import { readCache, writeCache } from "@/lib/client-cache";
+import { queryKeys } from "@/lib/query/keys";
+import { fetchPosts } from "@/lib/query/api";
 import type { CampaignListItem as Campaign } from "@/lib/server/automations";
 
 interface CampaignsListProps {
@@ -50,11 +52,6 @@ export default function CampaignsList({ campaigns, accounts }: CampaignsListProp
   // an in-flight navigation can never revert a toggle/delete.
   const [overrides, setOverrides] = useState<Record<string, Campaign>>({});
   const [removedIds, setRemovedIds] = useState<ReadonlySet<string>>(new Set());
-  // postId -> current thumbnail URL, fetched live (Instagram URLs expire, so
-  // they are never stored on the campaign).
-  const [thumbnails, setThumbnails] = useState<Record<string, string>>({});
-  // postId -> video URL for reels, so a campaign thumbnail can play on click.
-  const [videos, setVideos] = useState<Record<string, string>>({});
   // The reel currently playing in the lightbox (null when closed).
   const [playingVideo, setPlayingVideo] = useState<{
     url: string;
@@ -84,67 +81,39 @@ export default function CampaignsList({ campaigns, accounts }: CampaignsListProp
     return next;
   }, [campaigns, selectedAccountId, overrides, removedIds]);
 
-  // Fetch fresh post thumbnails (and reel video URLs) for the accounts in view
-  // and map them by postId. Cache-first so they show instantly on a return
-  // visit. Instagram URLs expire, so they are never stored on the campaign.
-  useEffect(() => {
-    if (automations.length === 0) return;
-    let cancelled = false;
-    const accountIds = Array.from(
-      new Set(automations.map((a) => a.instagramAccountId))
-    ).sort();
-    const cacheKey = `ig-media:${accountIds.join(",")}`;
-
-    const cached = readCache<{
-      thumbs: Record<string, string>;
-      videos: Record<string, string>;
-    }>(cacheKey, 15 * 60 * 1000);
-    // Hydrating state from cache is a legitimate effect use here.
-    /* eslint-disable react-hooks/set-state-in-effect */
-    if (cached.data) {
-      setThumbnails(cached.data.thumbs);
-      setVideos(cached.data.videos);
-    }
-    /* eslint-enable react-hooks/set-state-in-effect */
-
-    Promise.all(
-      accountIds.map((accountId) =>
-        fetch(`/api/instagram/posts?instagramAccountId=${accountId}&limit=50`)
-          .then((res) => res.json())
-          .then((payload) =>
-            payload.success
-              ? (payload.data as {
-                  id: string;
-                  media_type?: string;
-                  media_url?: string;
-                  thumbnail_url?: string;
-                }[])
-              : []
-          )
-          .catch(() => [])
-      )
-    ).then((lists) => {
-      if (cancelled) return;
+  // Live post thumbnails + reel video URLs, keyed by the accounts in view.
+  // TanStack Query + IndexedDB means they restore instantly on revisit; the
+  // underlying IG URLs are always fresh (fetched server-side, short-lived).
+  const mediaAccountIds = useMemo(
+    () => Array.from(new Set(automations.map((a) => a.instagramAccountId))).sort(),
+    [automations]
+  );
+  const mediaQuery = useQuery({
+    queryKey: queryKeys.media(mediaAccountIds),
+    queryFn: async () => {
+      const lists = await Promise.all(
+        mediaAccountIds.map((accountId) =>
+          fetchPosts(accountId, { limit: 50 })
+            .then((p) => p.data)
+            .catch(() => [] as { id: string; media_type?: string; media_url?: string; thumbnail_url?: string }[])
+        )
+      );
       const thumbs: Record<string, string> = {};
       const vids: Record<string, string> = {};
       for (const list of lists) {
         for (const media of list) {
           const url = media.thumbnail_url ?? media.media_url;
           if (url) thumbs[media.id] = url;
-          if (media.media_type === "VIDEO" && media.media_url) {
-            vids[media.id] = media.media_url;
-          }
+          if (media.media_type === "VIDEO" && media.media_url) vids[media.id] = media.media_url;
         }
       }
-      setThumbnails(thumbs);
-      setVideos(vids);
-      writeCache(cacheKey, { thumbs, videos: vids });
-    });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [automations]);
+      return { thumbs, videos: vids };
+    },
+    enabled: mediaAccountIds.length > 0,
+    staleTime: 15 * 60 * 1000,
+  });
+  const thumbnails = mediaQuery.data?.thumbs ?? {};
+  const videos = mediaQuery.data?.videos ?? {};
 
   // Close the reel lightbox on Escape.
   useEffect(() => {
@@ -161,23 +130,52 @@ export default function CampaignsList({ campaigns, accounts }: CampaignsListProp
     setMenuOpenId(null);
   }
 
-  async function toggleActive(id: string, isActive: boolean) {
-    try {
-      await fetch(`/api/automations?id=${id}`, {
+  const toggleMutation = useMutation({
+    mutationFn: ({ id, isActive }: { id: string; isActive: boolean }) =>
+      fetch(`/api/automations?id=${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ isActive: !isActive }),
-      });
+      }).then((r) => {
+        if (!r.ok) throw new Error("Failed to toggle");
+      }),
+    onMutate: ({ id, isActive }) => {
+      // Optimistically flip the UI immediately; the overlay is reverted only
+      // on error.
       const current = automations.find((a) => a.id === id);
-      if (!current) return;
-      setOverrides((prev) => ({
-        ...prev,
-        [id]: { ...current, isActive: !isActive },
-      }));
-    } catch (err) {
-      console.error("Failed to toggle:", err);
-    }
-  }
+      if (current) {
+        setOverrides((prev) => ({
+          ...prev,
+          [id]: { ...current, isActive: !isActive },
+        }));
+      }
+    },
+    onError: (_err, { id }) => {
+      // Server rejected the toggle — drop the overlay so the badge reverts.
+      setOverrides((prev) => {
+        const next = { ...prev };
+        delete next[id];
+        return next;
+      });
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) =>
+      fetch(`/api/automations?id=${id}`, { method: "DELETE" }).then((r) => {
+        if (!r.ok) throw new Error("Failed to delete");
+      }),
+    onMutate: (id) => {
+      setRemovedIds((prev) => new Set(prev).add(id));
+    },
+    onError: (_err, id) => {
+      setRemovedIds((prev) => {
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
+    },
+  });
 
   async function copyReelUrl(auto: Campaign) {
     setMenuOpenId(null);
@@ -194,14 +192,13 @@ export default function CampaignsList({ campaigns, accounts }: CampaignsListProp
     }
   }
 
-  async function deleteAutomation(id: string) {
+  function handleDelete(id: string) {
     if (!confirm("Delete this campaign? This cannot be undone.")) return;
-    try {
-      await fetch(`/api/automations?id=${id}`, { method: "DELETE" });
-      setRemovedIds((prev) => new Set(prev).add(id));
-    } catch (err) {
-      console.error("Failed to delete:", err);
-    }
+    deleteMutation.mutate(id);
+  }
+
+  function handleToggle(id: string, isActive: boolean) {
+    toggleMutation.mutate({ id, isActive });
   }
 
   async function duplicateAutomation(auto: Campaign) {
@@ -238,8 +235,6 @@ export default function CampaignsList({ campaigns, accounts }: CampaignsListProp
       });
       const data = await res.json();
       if (data.success) {
-        // Re-render the server component so the fresh list (including the new
-        // campaign) streams back from the page instead of a client fetch.
         router.refresh();
       } else {
         console.error("Duplicate failed:", data.error);
@@ -516,7 +511,7 @@ export default function CampaignsList({ campaigns, accounts }: CampaignsListProp
                     <Switch
                       checked={auto.isActive}
                       onCheckedChange={() =>
-                        toggleActive(auto.id, auto.isActive)
+                        handleToggle(auto.id, auto.isActive)
                       }
                       aria-label="Toggle campaign"
                     />
@@ -550,7 +545,7 @@ export default function CampaignsList({ campaigns, accounts }: CampaignsListProp
                           variant="destructive"
                           onClick={() => {
                             setMenuOpenId(null);
-                            void deleteAutomation(auto.id);
+                            void handleDelete(auto.id);
                           }}
                         >
                           <Trash weight="bold" />

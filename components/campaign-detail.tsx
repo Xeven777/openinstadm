@@ -10,9 +10,10 @@
  * so they are never stored on the campaign).
  */
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { ArrowLeft } from "@phosphor-icons/react";
 import CampaignPreview, { type PreviewTab } from "@/components/campaign-preview";
 import StatCard from "@/components/stat-card";
@@ -20,6 +21,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
+import { queryKeys } from "@/lib/query/keys";
+import { fetchProfile, fetchPosts } from "@/lib/query/api";
 import type { CampaignListItem } from "@/lib/server/automations";
 
 type Tab = "insights" | "preview";
@@ -30,11 +33,8 @@ interface CampaignDetailProps {
 
 export default function CampaignDetail({ campaign }: CampaignDetailProps) {
   const router = useRouter();
-  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
-  const [postThumb, setPostThumb] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>("insights");
   const [previewTab, setPreviewTab] = useState<PreviewTab>("dm");
-  const [busy, setBusy] = useState(false);
   // Optimistic toggle, applied on top of the server prop so the badge flips
   // instantly while the PATCH is in flight; router.refresh() then re-renders
   // the server component with the authoritative value.
@@ -42,41 +42,38 @@ export default function CampaignDetail({ campaign }: CampaignDetailProps) {
 
   const isActive = toggledActive ?? campaign.isActive;
 
-  useEffect(() => {
-    const acct = campaign.instagramAccountId;
-    fetch(`/api/instagram/profile?instagramAccountId=${acct}`)
-      .then((r) => r.json())
-      .then((d) =>
-        setAvatarUrl(d.success ? d.data.profilePictureUrl ?? null : null)
-      )
-      .catch(() => setAvatarUrl(null));
+  // Live avatar + post thumbnail. Instagram URLs expire, so they are never
+  // stored on the campaign; both are fetched from the IG media/profile queries
+  // (cached by TanStack Query + IndexedDB, so a revisit restores them fast).
+  const accountId = campaign.instagramAccountId;
+  const profileQuery = useQuery({
+    queryKey: queryKeys.profile(accountId),
+    queryFn: () => fetchProfile(accountId),
+    staleTime: 30 * 60 * 1000,
+  });
+  const avatarUrl = profileQuery.data?.profilePictureUrl ?? null;
 
-    if (campaign.postId) {
-      fetch(`/api/instagram/posts?instagramAccountId=${acct}&limit=50`)
-        .then((r) => r.json())
-        .then((payload) => {
-          if (!payload.success) return;
-          const hit = (
-            payload.data as {
-              id: string;
-              thumbnail_url?: string;
-              media_url?: string;
-            }[]
-          ).find((p) => p.id === campaign.postId);
-          setPostThumb(hit?.thumbnail_url ?? hit?.media_url ?? null);
-        })
-        .catch(() => setPostThumb(null));
-    }
-  }, [campaign.instagramAccountId, campaign.postId]);
+  const postsQuery = useQuery({
+    queryKey: queryKeys.posts(accountId, { limit: 50 }),
+    queryFn: () => fetchPosts(accountId, { limit: 50 }),
+    enabled: Boolean(campaign.postId),
+    staleTime: 15 * 60 * 1000,
+  });
+  const postThumb = campaign.postId
+    ? (postsQuery.data?.data.find((p) => p.id === campaign.postId)
+        ?.thumbnail_url ??
+      postsQuery.data?.data.find((p) => p.id === campaign.postId)?.media_url ??
+      null)
+    : null;
 
-  async function toggleActive() {
-    setBusy(true);
-    try {
-      const res = await fetch(`/api/automations?id=${campaign.id}`, {
+  const toggleMutation = useMutation({
+    mutationFn: () =>
+      fetch(`/api/automations?id=${campaign.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ isActive: !isActive }),
-      });
+      }),
+    onSuccess: async (res) => {
       // Only apply the optimistic overlay when the server confirmed — if the
       // PATCH failed, the badge/button must keep agreeing with the server
       // data instead of diverging until the next full reload.
@@ -85,8 +82,14 @@ export default function CampaignDetail({ campaign }: CampaignDetailProps) {
       // Re-render the server component so the fresh toggle state streams back
       // from the page instead of a client fetch.
       router.refresh();
-    } finally {
-      setBusy(false);
+    },
+  });
+
+  async function toggleActive() {
+    try {
+      await toggleMutation.mutateAsync();
+    } catch {
+      // keep current state
     }
   }
 
@@ -262,7 +265,7 @@ export default function CampaignDetail({ campaign }: CampaignDetailProps) {
             </Link>
             <Button
               onClick={() => void toggleActive()}
-              disabled={busy}
+              disabled={toggleMutation.isPending}
               variant={isActive ? "destructive" : "outline"}
               className={
                 isActive

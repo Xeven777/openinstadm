@@ -9,25 +9,17 @@
  * Fetches from /api/instagram/posts.
  */
 
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { MagnifyingGlass } from "@phosphor-icons/react";
 import RefreshIcon from "@/components/refresh-icon";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
-import { readCache, writeCache } from "@/lib/client-cache";
 import { formatTimeAgo } from "@/lib/utils/time";
-
-interface InstagramPost {
-  id: string;
-  caption?: string;
-  media_type: string;
-  media_url?: string;
-  thumbnail_url?: string;
-  permalink?: string;
-  timestamp: string;
-}
+import { queryKeys } from "@/lib/query/keys";
+import { fetchPosts } from "@/lib/query/api";
 
 interface PostPickerProps {
   selectedPostId: string | null;
@@ -48,100 +40,55 @@ export default function PostPicker({
   usedPostIds,
   onSelect,
 }: PostPickerProps) {
-  const [posts, setPosts] = useState<InstagramPost[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   // The post currently hovered — its video (if it's a reel) plays a preview.
   const [hoveredId, setHoveredId] = useState<string | null>(null);
-  // When the server-side post snapshot was written (snapshot.fetchedAt).
-  const [lastFetchedAt, setLastFetchedAt] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
 
-  // Bumped whenever the account changes; manual refreshes started for a
-  // previous account are dropped once their token no longer matches.
-  const refreshTokenRef = useRef(0);
+  // Load the full library so older posts/reels are selectable, not just the
+  // most recent page. The query cache is persisted to IndexedDB, so a revisit
+  // restores the library instantly (no skeleton) and revalidates in the
+  // background. Switching accounts swaps the query key, so the grid never
+  // flashes the previous account's posts.
+  const postsKey = queryKeys.posts(instagramAccountId, { all: true });
+  const queryClient = useQueryClient();
+  const postsQuery = useQuery({
+    queryKey: postsKey,
+    queryFn: () => fetchPosts(instagramAccountId, { all: true }),
+    staleTime: 15 * 60 * 1000,
+  });
 
-  useEffect(() => {
-    // Invalidate any in-flight manual refresh for the previous account.
-    refreshTokenRef.current += 1;
-    let cancelled = false;
-    const params = new URLSearchParams();
-    if (instagramAccountId) {
-      params.set("instagramAccountId", instagramAccountId);
-    }
-    // Load the full library so older posts/reels are selectable, not just the
-    // most recent page.
-    params.set("all", "true");
+  const refreshMutation = useMutation({
+    mutationFn: () => fetchPosts(instagramAccountId, { all: true, refresh: true }),
+    onSuccess: (payload) => {
+      queryClient.setQueryData(postsKey, payload);
+    },
+  });
 
-    // Show the cached library instantly (stale-while-revalidate), then refresh.
-    const cacheKey = `ig-posts:${instagramAccountId ?? "default"}`;
-    const cached = readCache<InstagramPost[]>(cacheKey, 15 * 60 * 1000);
-    // Hydrating state from cache is a legitimate effect use here.
-    /* eslint-disable react-hooks/set-state-in-effect */
-    if (cached.data) {
-      setPosts(cached.data);
-      setLoading(false);
-    }
-    // The previous account's freshness no longer applies; hide it until the
-    // new account's fetch reports its snapshot time.
-    setLastFetchedAt(null);
-    /* eslint-enable react-hooks/set-state-in-effect */
-
-    fetch(`/api/instagram/posts${params.size ? `?${params}` : ""}`)
-      .then((r) => r.json())
-      .then((data) => {
-        if (cancelled) return;
-        if (data.success) {
-          setPosts(data.data);
-          writeCache(cacheKey, data.data);
-          if (data.snapshot?.fetchedAt) {
-            setLastFetchedAt(data.snapshot.fetchedAt as string);
-          }
-        } else if (!cached.data) {
-          setError(data.error ?? "Failed to load posts");
-        }
-      })
-      .catch(() => {
-        if (!cancelled && !cached.data) setError("Failed to load posts");
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [instagramAccountId]);
+  // Derive the view straight from the query — posts + freshness stay in
+  // lockstep with no parallel state to keep in sync. `isPending` is true only
+  // when there is nothing cached yet (an IndexedDB restore skips it), so a
+  // revisit paints the last library instantly.
+  const posts = postsQuery.data?.data ?? [];
+  const lastFetchedAt = postsQuery.data?.snapshot?.fetchedAt ?? null;
+  const loading = postsQuery.isPending;
+  const error = postsQuery.error
+    ? postsQuery.error instanceof Error
+      ? postsQuery.error.message
+      : "Failed to load posts"
+    : null;
 
   // Manual refresh: bypass the Postgres snapshot (refresh=true) so a newly
   // published post shows up immediately. The grid keeps showing the current
-  // library while the refetch is in flight. If the account changes mid-flight,
-  // the response is dropped so it can't clobber the new account's grid.
+  // library while the refetch is in flight.
   async function handleRefresh() {
     setRefreshing(true);
-    const token = refreshTokenRef.current;
     try {
-      const params = new URLSearchParams();
-      if (instagramAccountId) {
-        params.set("instagramAccountId", instagramAccountId);
-      }
-      params.set("all", "true");
-      params.set("refresh", "true");
-
-      const res = await fetch(`/api/instagram/posts?${params}`);
-      const data = await res.json();
-      if (data.success && token === refreshTokenRef.current) {
-        setPosts(data.data);
-        writeCache(`ig-posts:${instagramAccountId ?? "default"}`, data.data);
-        if (data.snapshot?.fetchedAt) {
-          setLastFetchedAt(data.snapshot.fetchedAt as string);
-        }
-      }
+      await refreshMutation.mutateAsync();
     } catch {
       // Best-effort — keep the current grid on failure.
     } finally {
-      // Transient UI flag — always safe to clear, even for a stale request.
+      // Transient UI flag — always safe to clear.
       setRefreshing(false);
     }
   }

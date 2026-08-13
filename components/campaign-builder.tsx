@@ -14,8 +14,9 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useQuery } from "@tanstack/react-query";
 import { Plus, Warning, X } from "@phosphor-icons/react";
-import AccountSelect, { type AccountOption } from "@/components/account-select";
+import AccountSelect from "@/components/account-select";
 import PostPicker from "@/components/post-picker";
 import CampaignPreview, { type PreviewTab } from "@/components/campaign-preview";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -24,7 +25,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
-import { readCache, writeCache } from "@/lib/client-cache";
+import { queryKeys } from "@/lib/query/keys";
+import { fetchAccountList, fetchProfile } from "@/lib/query/api";
 import {
   IMPORT_QUEUE_KEY,
   IMPORT_ACCOUNT_KEY,
@@ -123,10 +125,7 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
   const [error, setError] = useState<string | null>(null);
 
   const [name, setName] = useState("");
-  const [accounts, setAccounts] = useState<AccountOption[]>([]);
   const [selectedAccountId, setSelectedAccountId] = useState("");
-
-  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [isActive, setIsActive] = useState(true);
 
   const [triggerScope, setTriggerScope] = useState<TriggerScope>("specific");
@@ -182,48 +181,43 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
     [keywordText]
   );
 
-  // Fetch the connected account's real avatar for the preview (cache-first so
-  // it shows instantly on a return visit instead of a blank circle).
-  useEffect(() => {
-    if (!selectedAccountId) return;
-    let cancelled = false;
-    const cacheKey = `ig-avatar:${selectedAccountId}`;
-    const cached = readCache<string | null>(cacheKey, 30 * 60 * 1000);
-    // Hydrating state from cache is a legitimate effect use here.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    if (cached.data !== null) setAvatarUrl(cached.data);
-
-    const params = new URLSearchParams({ instagramAccountId: selectedAccountId });
-    fetch(`/api/instagram/profile?${params}`)
-      .then((r) => r.json())
-      .then((d) => {
-        if (cancelled) return;
-        const url = d.success ? d.data.profilePictureUrl ?? null : null;
-        setAvatarUrl(url);
-        writeCache(cacheKey, url);
-      })
-      .catch(() => {
-        if (!cancelled && cached.data === null) setAvatarUrl(null);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [selectedAccountId]);
+  // Fetch the connected account's real avatar for the preview. Cached by
+  // TanStack Query (+ IndexedDB), so it shows instantly on a return visit
+  // instead of a blank circle; switching accounts swaps the key and refetches.
+  const profileQuery = useQuery({
+    queryKey: queryKeys.profile(selectedAccountId),
+    queryFn: () => fetchProfile(selectedAccountId),
+    enabled: Boolean(selectedAccountId),
+    staleTime: 30 * 60 * 1000,
+  });
+  const avatarUrl = profileQuery.data?.profilePictureUrl ?? null;
 
   // Load accounts (both modes need them for the preview username + selector).
+  // Uses the lightweight accounts endpoint rather than the heavy dashboard
+  // stats aggregation, so the builder isn't gated on analytics.
+  const accountsQuery = useQuery({
+    queryKey: queryKeys.accounts,
+    queryFn: fetchAccountList,
+    staleTime: 60_000,
+  });
+  // Derive the list directly from the query — no parallel state to sync.
+  const accounts = accountsQuery.data?.instagramAccounts ?? [];
+  // Seed the selected account on first load: keep the existing choice only if
+  // it's still connected, otherwise fall back to the server default.
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
-    fetch("/api/dashboard/stats")
-      .then((r) => r.json())
-      .then((payload) => {
-        if (!payload.success) return;
-        const next: AccountOption[] = payload.data.instagramAccounts ?? [];
-        setAccounts(next);
-        setSelectedAccountId(
-          (prev) => prev || payload.data.selectedInstagramAccountId || next[0]?.id || ""
-        );
-      })
-      .catch(() => setAccounts([]));
-  }, []);
+    if (!accountsQuery.data) return;
+    const next = accountsQuery.data.instagramAccounts;
+    if (!next.length) return;
+    setSelectedAccountId(
+      (prev) =>
+        prev ||
+        accountsQuery.data?.selectedInstagramAccountId ||
+        next[0]?.id ||
+        ""
+    );
+  }, [accountsQuery.data]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   // Prefill when editing.
   useEffect(() => {

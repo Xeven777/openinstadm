@@ -1,15 +1,10 @@
 "use client";
 
-/**
- * Top Bar
- *
- * Page title, mobile hamburger, and connection status.
- */
-
 import { usePathname } from "next/navigation";
 import { List } from "@phosphor-icons/react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { ModeToggle } from "./theme-toggle";
 
 const pageTitles: Record<string, string> = {
   "/dashboard": "Dashboard",
@@ -51,25 +46,27 @@ export default function TopBar({
         <h1 className="truncate text-base font-semibold sm:text-lg">{title}</h1>
       </div>
 
-      {instagramAccountCount > 0 ? (
-        <p className="shrink-0 truncate text-sm text-muted-foreground">
-          {instagramAccountCount > 1
-            ? `${instagramAccountCount} accounts`
-            : `@${instagramUsername}`}
-        </p>
-      ) : (
-        <a
+      <div className="flex items-center gap-3 sm:gap-4">
+        {instagramAccountCount > 0 ? (
+          <p className="shrink-0 truncate text-sm text-muted-foreground">
+            {instagramAccountCount > 1
+              ? `${instagramAccountCount} accounts`
+              : `@${instagramUsername}`}
+          </p>
+        ) : (
+          <a
           href="/api/instagram/connect"
           className={cn(
             buttonVariants({ variant: "default" }),
-            "shrink-0 whitespace-nowrap"
+            "shrink-0 whitespace-nowrap",
           )}
-        >
-          {/* Full label needs more room than a 360px header has to spare. */}
-          <span className="sm:hidden">Connect</span>
-          <span className="hidden sm:inline">Connect Instagram</span>
-        </a>
-      )}
+          >
+            <span className="sm:hidden">Connect</span>
+            <span className="hidden sm:inline">Connect Instagram</span>
+          </a>
+        )}
+        <ModeToggle />
+      </div>
     </header>
   );
 }
