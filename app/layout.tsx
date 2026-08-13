@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import "./globals.css";
-import { Inter_Tight } from "next/font/google";
+import { Geist } from "next/font/google";
+import { cn } from "@/lib/utils";
+import { ThemeProvider } from "next-themes";
 
 export const metadata: Metadata = {
   title: "OpenInstaDM - Open source Instagram comment-to-DM automation",
@@ -15,7 +17,7 @@ export const metadata: Metadata = {
   ],
 };
 
-const inter = Inter_Tight({ subsets: ["latin"], variable: "--font-sans" });
+const geist = Geist({subsets:['latin'],variable:'--font-sans'});
 
 export default function RootLayout({
   children,
@@ -23,14 +25,16 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className="h-full dark">
+    <html lang="en" className={cn("h-full", "font-sans", geist.variable)} suppressHydrationWarning>
       <body
         className={
           "min-h-full bg-background text-foreground font-sans antialiased " +
-          inter.className
+          geist.className
         }
       >
-        {children}
+        <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+          {children}
+        </ThemeProvider>
       </body>
     </html>
   );
