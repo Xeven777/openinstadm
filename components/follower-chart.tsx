@@ -72,7 +72,7 @@ function ChartTooltip({
         {point.followers.toLocaleString()} followers
       </p>
       {point.delta !== null && point.delta !== 0 && (
-        <p className={point.delta > 0 ? "text-success" : "text-error"}>
+        <p className={point.delta > 0 ? "text-success" : "text-destructive"}>
           {formatSigned(point.delta)} that day
         </p>
       )}
@@ -111,7 +111,7 @@ export default function FollowerChart({
               {net !== null && (
                 <>
                   {" · "}
-                  <span className={net >= 0 ? "text-success" : "text-error"}>
+                  <span className={net >= 0 ? "text-success" : "text-destructive"}>
                     {formatSigned(net)}
                   </span>{" "}
                   over {data.length} days

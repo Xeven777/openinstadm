@@ -106,7 +106,7 @@ async function LogsContent({
                 ${
                   statusFilter === status
                     ? "bg-accent/15 text-accent border border-accent/20"
-                    : "bg-muted text-muted-foreground border border-border hover:border-border-hover hover:text-foreground"
+                    : "bg-muted text-muted-foreground border border-border hover:border-foreground/20 hover:text-foreground"
                 }
               `}
             >
@@ -222,7 +222,7 @@ async function LogsContent({
               <Link
                 aria-disabled={page <= 1}
                 href={filterHref({ nextPage: page - 1 })}
-                className="px-3 py-1.5 rounded-lg text-xs font-medium text-muted-foreground border border-border hover:text-foreground hover:border-border-hover transition-all aria-disabled:opacity-30 aria-disabled:pointer-events-none"
+                className="px-3 py-1.5 rounded-lg text-xs font-medium text-muted-foreground border border-border hover:text-foreground hover:border-foreground/20 transition-all aria-disabled:opacity-30 aria-disabled:pointer-events-none"
               >
                 Previous
               </Link>
@@ -232,7 +232,7 @@ async function LogsContent({
               <Link
                 aria-disabled={page >= pagination.totalPages}
                 href={filterHref({ nextPage: page + 1 })}
-                className="px-3 py-1.5 rounded-lg text-xs font-medium text-muted-foreground border border-border hover:text-foreground hover:border-border-hover transition-all aria-disabled:opacity-30 aria-disabled:pointer-events-none"
+                className="px-3 py-1.5 rounded-lg text-xs font-medium text-muted-foreground border border-border hover:text-foreground hover:border-foreground/20 transition-all aria-disabled:opacity-30 aria-disabled:pointer-events-none"
               >
                 Next
               </Link>

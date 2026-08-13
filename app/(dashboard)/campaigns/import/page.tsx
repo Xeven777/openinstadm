@@ -104,7 +104,7 @@ export default function ImportCampaignsPage() {
       </div>
 
       {error && (
-        <div className="p-4 rounded bg-error/10 border border-error/20 text-error text-sm">
+        <div className="p-4 rounded bg-destructive/10 border border-destructive/20 text-destructive text-sm">
           {error}
         </div>
       )}
@@ -145,7 +145,7 @@ export default function ImportCampaignsPage() {
       <div className="flex items-center gap-4">
         <button
           onClick={startImport}
-          className="px-5 py-2 rounded bg-accent text-sm font-medium text-white hover:bg-accent-hover"
+          className="px-5 py-2 rounded bg-primary text-sm font-medium text-primary-foreground hover:bg-primary/80"
         >
           Review and import
         </button>

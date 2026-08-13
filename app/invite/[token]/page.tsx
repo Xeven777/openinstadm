@@ -61,7 +61,7 @@ async function InviteContent({ params }: InvitePageProps) {
           </p>
           <div className="mt-8">
             {expired ? (
-              <p className="text-sm text-error">
+              <p className="text-sm text-destructive">
                 This invitation has expired. Ask the workspace owner to resend it.
               </p>
             ) : (

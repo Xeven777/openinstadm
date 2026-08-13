@@ -99,7 +99,7 @@ function Radio({
       className={`flex w-full items-center gap-3 rounded-lg border px-3 py-2.5 text-left text-sm transition-colors ${
         checked
           ? "border-primary bg-primary/5"
-          : "border-border hover:border-border-hover"
+          : "border-border hover:border-foreground/20"
       }`}
     >
       <span
@@ -757,7 +757,7 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
                             prev.filter((_, idx) => idx !== i),
                           )
                         }
-                        className="shrink-0 text-muted-foreground hover:text-error"
+                        className="shrink-0 text-muted-foreground hover:text-destructive"
                         aria-label="Remove reply"
                       >
                         <X weight="bold" />

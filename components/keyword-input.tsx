@@ -53,7 +53,7 @@ export default function KeywordInput({ keywords, onChange, max = 10 }: KeywordIn
               type="button"
               onClick={() => removeKeyword(keyword)}
               aria-label={`Remove ${keyword}`}
-              className="text-muted-foreground transition-colors hover:text-error"
+              className="text-muted-foreground transition-colors hover:text-destructive"
             >
               <X weight="bold" className="size-3" />
             </button>

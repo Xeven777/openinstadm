@@ -173,7 +173,7 @@ export default function SettingsTeam({
           <Button type="submit" disabled={busy === "invite"}>
             {busy === "invite" ? "Inviting..." : "Invite"}
           </Button>
-          {error && <p className="sm:col-span-3 text-sm text-error">{error}</p>}
+          {error && <p className="sm:col-span-3 text-sm text-destructive">{error}</p>}
         </form>
       )}
     </CardContent>

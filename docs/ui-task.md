@@ -209,11 +209,13 @@ Notes on deviations:
 
 ## Phase 4: Cleanup
 
-1. Remove `.panel`, `.glass`, `.glass-strong`, `.gradient-mesh` from `globals.css`
-2. Remove all inline SVGs replaced by Phosphor icons
-3. Remove `.animate-*` no-op classes from `globals.css`
-4. Verify `npm run lint` and `npm run typecheck` pass
-5. Update `task.md` checkboxes
+**Status: DONE** (verified: `npm run typecheck` ✅, `npm run lint` ✅ 0 errors — 1 pre-existing warning in `invitation-accept-card.tsx`, `npm run build` ✅ 60/60, `npm test` ✅ 137/137).
+
+1. Removed `.panel`, `.glass`, `.glass-strong`, `.gradient-mesh` from `globals.css`
+2. Removed inline SVGs replaced by Phosphor icons — GitHub icon in `app/page.tsx` (header + footer) now uses Phosphor `GithubLogo`. (Scope exclusions kept: `campaign-preview.tsx` phone mockup/Instagram SVGs, decorative chart polyline in the landing preview.)
+3. Removed `.animate-fade-in` / `.animate-slide-in` / `.animate-pulse-glow` / `.stagger` no-op classes from `globals.css`
+4. Pruned non-standard custom theme tokens from `globals.css` `@theme inline`: removed `--color-surface`, `--color-surface-hover`, `--color-border-hover`, `--color-accent-hover`, `--color-error`. Converted `--color-success` to oklch. Consumers migrated to shadcn standard tokens: `text/bg/border-error` → `text/bg/border-destructive`, `hover:border-border-hover` → `hover:border-foreground/20`, `bg-accent`+`hover:bg-accent-hover` action buttons → `bg-primary`/`hover:bg-primary/80`.
+5. Updated `task.md` checkboxes.
 
 ---
 

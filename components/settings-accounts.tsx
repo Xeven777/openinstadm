@@ -96,7 +96,7 @@ export default function SettingsAccounts({
         </div>
 
         <div className="space-y-3 py-3">
-          {error && <p className="text-sm text-error">{error}</p>}
+          {error && <p className="text-sm text-destructive">{error}</p>}
           {accounts.length === 0 && (
             <p className="text-sm text-muted-foreground">
               Connect an Instagram professional account to launch campaigns.

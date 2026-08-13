@@ -362,7 +362,7 @@ export default function InboxPage() {
                 Loading…
               </p>
             ) : convError ? (
-              <p className="px-4 py-6 text-sm text-error">{convError}</p>
+              <p className="px-4 py-6 text-sm text-destructive">{convError}</p>
             ) : conversations.length === 0 ? (
               <p className="px-4 py-6 text-sm text-muted-foreground">
                 No conversations yet.
@@ -464,7 +464,7 @@ export default function InboxPage() {
 
               <div className="shrink-0 border-t border-border p-3">
                 {sendError && (
-                  <p className="mb-2 text-xs text-error">{sendError}</p>
+                  <p className="mb-2 text-xs text-destructive">{sendError}</p>
                 )}
                 <div className="flex items-end gap-2">
                   <textarea
@@ -479,7 +479,7 @@ export default function InboxPage() {
                     type="button"
                     onClick={() => void handleSend()}
                     disabled={sending || !draft.trim()}
-                    className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white hover:bg-accent-hover disabled:opacity-50"
+                    className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/80 disabled:opacity-50"
                   >
                     {sending ? "Sending…" : "Send"}
                   </button>

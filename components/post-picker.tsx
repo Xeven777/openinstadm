@@ -261,7 +261,7 @@ export default function PostPicker({
                   ? "border-primary"
                   : isUsed
                     ? "border-warning/40 hover:border-warning/60"
-                    : "border-border hover:border-border-hover"
+                    : "border-border hover:border-foreground/20"
               }
             `}
                 >

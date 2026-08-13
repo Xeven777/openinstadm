@@ -390,7 +390,7 @@ export default function CampaignsList({ campaigns, accounts }: CampaignsListProp
                         <img
                           src={thumbnails[auto.postId]}
                           alt="Campaign reel"
-                          className="w-12 h-12 rounded object-cover border border-border hover:border-border-hover"
+                          className="w-12 h-12 rounded object-cover border border-border hover:border-foreground/20"
                           onError={(e) => {
                             e.currentTarget.style.display = "none";
                           }}

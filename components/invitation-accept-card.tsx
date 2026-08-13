@@ -57,7 +57,7 @@ export default function InvitationAcceptCard({
       >
         {busy ? "Accepting..." : "Accept invitation"}
       </Button>
-      {message && <p className="text-sm text-error">{message}</p>}
+      {message && <p className="text-sm text-destructive">{message}</p>}
       <p className="text-xs text-muted-foreground">
         Use the magic link account for {invitedEmail}.
       </p>
