@@ -1,5 +1,9 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
+import { GithubLogo } from "@phosphor-icons/react/dist/ssr";
+import { buttonVariants } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { cn } from "@/lib/utils";
 
 const GITHUB_URL = "https://github.com/xeven777/OpenInstaDM";
 
@@ -9,9 +13,6 @@ function formatStars(count: number): string {
   }
   return count.toLocaleString();
 }
-
-const githubIconPath =
-  "M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0016 8c0-4.42-3.58-8-8-8z";
 
 const heroStats = [
   { value: "24/7", label: "Comment monitoring" },
@@ -77,10 +78,12 @@ function AppWindow({
 
 function Stat({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded border border-border bg-muted p-4">
-      <p className="text-sm text-muted-foreground">{label}</p>
-      <p className="mt-1 text-2xl font-semibold text-foreground">{value}</p>
-    </div>
+    <Card size="sm">
+      <CardContent className="gap-1">
+        <p className="text-sm text-muted-foreground">{label}</p>
+        <p className="text-2xl font-semibold text-foreground">{value}</p>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -143,7 +146,7 @@ function OverviewPreview() {
             strokeLinecap="round"
             strokeLinejoin="round"
             vectorEffect="non-scaling-stroke"
-            className="text-accent"
+            className="text-primary"
           />
         </svg>
       </div>
@@ -152,7 +155,7 @@ function OverviewPreview() {
         <p className="text-sm font-semibold text-foreground">Posts</p>
         <table className="mt-3 w-full text-sm">
           <thead>
-            <tr className="border-b border-border text-left text-[11px] uppercase tracking-wide text-zinc-500">
+            <tr className="border-b border-border text-left text-[11px] uppercase tracking-wide text-muted-foreground">
               <th className="pb-2 pr-3 font-medium">Post</th>
               <th className="pb-2 px-3 text-right font-medium">Views</th>
               <th className="pb-2 px-3 text-right font-medium">Likes</th>
@@ -169,7 +172,9 @@ function OverviewPreview() {
                 <td className="py-2 px-3 text-right text-muted-foreground">
                   {likes}
                 </td>
-                <td className="py-2 pl-3 text-right text-zinc-500">{date}</td>
+                <td className="py-2 pl-3 text-right text-muted-foreground">
+                  {date}
+                </td>
               </tr>
             ))}
           </tbody>
@@ -187,7 +192,7 @@ function MatchedCommentCard() {
       <p className="mt-1 text-sm text-muted-foreground">LINK please</p>
       <div className="mt-3 border-t border-border pt-3">
         <p className="text-xs text-muted-foreground">
-          Matched <span className="text-accent">GUIDE</span>
+          Matched <span className="text-primary">GUIDE</span>
         </p>
         <p className="mt-1 text-sm font-medium text-success">
           Queued private reply
@@ -246,10 +251,10 @@ function DashboardPreview() {
             <div key={day} className="flex flex-1 flex-col items-center gap-2">
               <span className="text-[10px] text-muted-foreground">{n}</span>
               <div
-                className="w-full rounded-sm bg-accent"
+                className="w-full rounded-sm bg-primary"
                 style={{ height: `${Math.max((n / maxDM) * 100, 4)}%` }}
               />
-              <span className="text-[10px] text-zinc-500">{day}</span>
+              <span className="text-[10px] text-muted-foreground">{day}</span>
             </div>
           ))}
         </div>
@@ -298,15 +303,15 @@ async function getGitHubStars(): Promise<number | null> {
 export default async function Home() {
   const stars = await getGitHubStars();
   return (
-    <main className="min-h-screen bg-white text-zinc-900">
-      <header className="sticky top-0 z-40 border-b border-zinc-200 bg-white">
+    <main className="min-h-screen bg-background text-foreground">
+      <header className="sticky top-0 z-40 border-b border-border bg-background">
         <div className="mx-auto flex h-16 w-full max-w-7xl items-center justify-between px-5 sm:px-6 lg:px-8">
           <Link
             href="/"
             className="flex items-center gap-3"
             aria-label="OpenInstaDM home"
           >
-            <span className="text-lg font-bold text-zinc-900">OpenInstaDM</span>
+            <span className="text-lg font-bold text-foreground">OpenInstaDM</span>
           </Link>
 
           <div className="flex items-center gap-4">
@@ -314,21 +319,15 @@ export default async function Home() {
               href={GITHUB_URL}
               target="_blank"
               rel="noreferrer"
-              className="inline-flex items-center gap-2 text-sm font-semibold text-zinc-600 transition hover:text-zinc-900"
+              className="inline-flex items-center gap-2 text-sm font-semibold text-muted-foreground transition hover:text-foreground"
               aria-label="View OpenInstaDM on GitHub"
             >
-              <svg
-                viewBox="0 0 16 16"
-                aria-hidden="true"
-                className="h-4 w-4 fill-current"
-              >
-                <path d={githubIconPath} />
-              </svg>
+              <GithubLogo weight="fill" className="h-4 w-4" aria-hidden="true" />
               {stars !== null && <span>{formatStars(stars)}</span>}
             </a>
             <Link
               href="/login"
-              className="inline-flex items-center justify-center gap-2 bg-orange-500 px-4 py-2 text-sm font-bold text-white transition hover:bg-orange-600"
+              className={cn(buttonVariants({ variant: "default" }))}
             >
               Get started
             </Link>
@@ -338,15 +337,15 @@ export default async function Home() {
 
       <section className="mx-auto grid w-full max-w-7xl items-center gap-10 px-5 pb-16 pt-12 sm:px-6 sm:pt-18 lg:grid-cols-[0.95fr_1.05fr] lg:px-8 lg:pb-24">
         <div className="max-w-3xl">
-          <div className="inline-flex items-center gap-2 border border-zinc-200 bg-white px-3 py-2 text-sm font-semibold text-zinc-600">
+          <div className="inline-flex items-center gap-2 border border-border bg-background px-3 py-2 text-sm font-semibold text-muted-foreground">
             Open source · Official Meta API
           </div>
 
-          <h1 className="mt-7 text-balance text-5xl font-black leading-[1.02] text-zinc-900 sm:text-6xl lg:text-7xl">
+          <h1 className="mt-7 text-balance text-5xl font-black leading-[1.02] text-foreground sm:text-6xl lg:text-7xl">
             Make every comment start the right DM
           </h1>
 
-          <p className="mt-6 max-w-2xl text-lg leading-8 text-zinc-600">
+          <p className="mt-6 max-w-2xl text-lg leading-8 text-muted-foreground">
             Open-sourced ManyChat. When someone comments your keyword on a post
             or reel, they get your DM a second later. Free, self-hosted, and
             built on the official Instagram API.
@@ -355,13 +354,13 @@ export default async function Home() {
           <div className="mt-8 flex flex-col gap-3 sm:flex-row">
             <Link
               href="/login"
-              className="inline-flex items-center justify-center gap-2 bg-orange-500 px-6 py-3 text-sm font-bold text-white transition hover:bg-orange-600"
+              className={cn(buttonVariants({ variant: "default", size: "lg" }))}
             >
               Get started
             </Link>
             <a
               href="#how"
-              className="inline-flex items-center justify-center border border-zinc-200 bg-white px-6 py-3 text-sm font-bold text-zinc-900 transition hover:border-zinc-300 hover:bg-zinc-100"
+              className={cn(buttonVariants({ variant: "outline", size: "lg" }))}
             >
               See how it works
             </a>
@@ -369,17 +368,16 @@ export default async function Home() {
 
           <dl className="mt-10 grid max-w-xl grid-cols-3 gap-3">
             {heroStats.map((stat) => (
-              <div
-                key={stat.label}
-                className="border border-zinc-200 bg-zinc-50 p-4"
-              >
-                <dt className="text-2xl font-black text-zinc-900">
-                  {stat.value}
-                </dt>
-                <dd className="mt-1 text-xs leading-5 text-zinc-500">
-                  {stat.label}
-                </dd>
-              </div>
+              <Card key={stat.label} size="sm">
+                <CardContent className="gap-1">
+                  <dt className="text-2xl font-black text-foreground">
+                    {stat.value}
+                  </dt>
+                  <dd className="text-xs leading-5 text-muted-foreground">
+                    {stat.label}
+                  </dd>
+                </CardContent>
+              </Card>
             ))}
           </dl>
         </div>
@@ -398,13 +396,13 @@ export default async function Home() {
       >
         <div className="grid gap-10 lg:grid-cols-[0.82fr_1.18fr] lg:items-center">
           <div>
-            <p className="text-sm font-bold uppercase text-orange-600">
+            <p className="text-sm font-bold uppercase text-primary">
               How it works
             </p>
-            <h2 className="mt-3 text-4xl font-black leading-tight text-zinc-900 sm:text-5xl">
+            <h2 className="mt-3 text-4xl font-black leading-tight text-foreground sm:text-5xl">
               A comment in, a DM out
             </h2>
-            <p className="mt-5 text-base leading-8 text-zinc-600">
+            <p className="mt-5 text-base leading-8 text-muted-foreground">
               Three steps. Connect an account, build a campaign, and let it run.
               The webhook handles it live and the poll sweeps up whatever the
               webhook misses.
@@ -415,16 +413,16 @@ export default async function Home() {
             {flowSteps.map((step) => (
               <article
                 key={step.title}
-                className="grid gap-4 border border-zinc-200 bg-zinc-50 p-5 sm:grid-cols-[120px_1fr]"
+                className="grid gap-4 rounded-xl border border-border bg-muted p-5 sm:grid-cols-[120px_1fr]"
               >
-                <p className="text-sm font-bold text-orange-600">
+                <p className="text-sm font-bold text-primary">
                   {step.eyebrow}
                 </p>
                 <div>
-                  <h3 className="text-xl font-bold text-zinc-900">
+                  <h3 className="text-xl font-bold text-foreground">
                     {step.title}
                   </h3>
-                  <p className="mt-2 text-sm leading-6 text-zinc-600">
+                  <p className="mt-2 text-sm leading-6 text-muted-foreground">
                     {step.description}
                   </p>
                 </div>
@@ -434,18 +432,18 @@ export default async function Home() {
         </div>
       </section>
 
-      <section className="border-y border-zinc-200 bg-zinc-50 py-20">
+      <section className="border-y border-border bg-muted py-20">
         <div className="mx-auto grid w-full max-w-7xl gap-10 px-5 sm:px-6 lg:grid-cols-[1.08fr_0.92fr] lg:px-8 lg:items-center">
           <DashboardPreview />
 
           <div>
-            <p className="text-sm font-bold uppercase text-orange-600">
+            <p className="text-sm font-bold uppercase text-primary">
               The dashboard
             </p>
-            <h2 className="mt-3 text-4xl font-black leading-tight text-zinc-900 sm:text-5xl">
+            <h2 className="mt-3 text-4xl font-black leading-tight text-foreground sm:text-5xl">
               See exactly what happened
             </h2>
-            <p className="mt-5 text-base leading-8 text-zinc-600">
+            <p className="mt-5 text-base leading-8 text-muted-foreground">
               Every comment event is traceable: queued, matched, sent, skipped,
               failed, or rate-limited. No black box.
             </p>
@@ -458,13 +456,13 @@ export default async function Home() {
         className="mx-auto w-full max-w-7xl px-5 py-20 sm:px-6 lg:px-8"
       >
         <div className="max-w-2xl">
-          <p className="text-sm font-bold uppercase text-orange-600">
+          <p className="text-sm font-bold uppercase text-primary">
             What&rsquo;s included
           </p>
-          <h2 className="mt-3 text-4xl font-black leading-tight text-zinc-900 sm:text-5xl">
+          <h2 className="mt-3 text-4xl font-black leading-tight text-foreground sm:text-5xl">
             Everything, no tiers
           </h2>
-          <p className="mt-5 text-base leading-8 text-zinc-600">
+          <p className="mt-5 text-base leading-8 text-muted-foreground">
             It is self-hosted and open source, so there is nothing to unlock.
             You run it, you own it.
           </p>
@@ -472,36 +470,35 @@ export default async function Home() {
 
         <div className="mt-10 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {features.map((feature) => (
-            <div
-              key={feature}
-              className="border border-zinc-200 bg-zinc-50 p-4 text-sm font-semibold text-zinc-700"
-            >
-              {feature}
-            </div>
+            <Card key={feature} size="sm">
+              <CardContent className="text-sm font-semibold text-foreground">
+                {feature}
+              </CardContent>
+            </Card>
           ))}
         </div>
       </section>
 
       <section className="mx-auto w-full max-w-7xl px-5 pb-20 sm:px-6 lg:px-8">
-        <div className="grid gap-8 border border-orange-200 bg-orange-50 p-6 sm:p-10 lg:grid-cols-[1fr_auto] lg:items-center">
+        <div className="grid gap-8 rounded-xl border border-primary/20 bg-primary/5 p-6 sm:p-10 lg:grid-cols-[1fr_auto] lg:items-center">
           <div>
-            <h2 className="max-w-3xl text-4xl font-black leading-tight text-zinc-900 sm:text-5xl">
+            <h2 className="max-w-3xl text-4xl font-black leading-tight text-foreground sm:text-5xl">
               Turn your next reel&rsquo;s comments into DMs
             </h2>
-            <p className="mt-4 text-base text-zinc-600">
+            <p className="mt-4 text-base text-muted-foreground">
               Free and open source. Star it if it saves you a subscription.
             </p>
           </div>
           <div className="flex flex-col gap-3 sm:flex-row lg:flex-col">
             <Link
               href="/login"
-              className="inline-flex items-center justify-center gap-2 bg-orange-500 px-6 py-3 text-sm font-bold text-white transition hover:bg-orange-600"
+              className={cn(buttonVariants({ variant: "default", size: "lg" }))}
             >
               Get started
             </Link>
             <a
               href={GITHUB_URL}
-              className="inline-flex items-center justify-center border border-zinc-200 bg-white px-6 py-3 text-sm font-bold text-zinc-900 transition hover:border-zinc-300 hover:bg-zinc-100"
+              className={cn(buttonVariants({ variant: "outline", size: "lg" }))}
             >
               View on GitHub
             </a>
@@ -509,22 +506,16 @@ export default async function Home() {
         </div>
       </section>
 
-      <footer className="border-t border-zinc-200 py-8">
-        <div className="mx-auto flex w-full max-w-7xl items-center justify-between px-5 text-sm text-zinc-500 sm:px-6 lg:px-8">
-          <span className="font-semibold text-zinc-600">OpenInstaDM</span>
+      <footer className="border-t border-border py-8">
+        <div className="mx-auto flex w-full max-w-7xl items-center justify-between px-5 text-sm text-muted-foreground sm:px-6 lg:px-8">
+          <span className="font-semibold text-foreground">OpenInstaDM</span>
           <a
             href={GITHUB_URL}
             target="_blank"
             rel="noreferrer"
-            className="inline-flex items-center gap-2 transition hover:text-zinc-900"
+            className="inline-flex items-center gap-2 transition hover:text-foreground"
           >
-            <svg
-              viewBox="0 0 16 16"
-              aria-hidden="true"
-              className="h-4 w-4 fill-current"
-            >
-              <path d={githubIconPath} />
-            </svg>
+            <GithubLogo weight="fill" className="h-4 w-4" aria-hidden="true" />
             {stars !== null && <span>{formatStars(stars)}</span>}
           </a>
         </div>

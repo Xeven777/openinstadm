@@ -5,16 +5,18 @@
  * navigation between dashboard pages paints this skeleton immediately instead
  * of waiting for each page's data fetch.
  */
+import { Skeleton } from "@/components/ui/skeleton";
+
 export default function DashboardLoading() {
   return (
-    <div className="space-y-6 animate-pulse" aria-busy="true">
-      <div className="h-8 w-48 rounded bg-muted/70" />
+    <div className="space-y-6" aria-busy="true">
+      <Skeleton className="h-8 w-48" />
       <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3 sm:gap-4">
         {[...Array(6)].map((_, i) => (
-          <div key={i} className="bg-muted rounded p-5 h-32" />
+          <Skeleton key={i} className="h-32" />
         ))}
       </div>
-      <div className="bg-muted rounded p-6 h-64" />
+      <Skeleton className="h-64" />
     </div>
   );
 }

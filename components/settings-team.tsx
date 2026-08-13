@@ -12,7 +12,15 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import type { WorkspaceMembersPayload } from "@/lib/server/members";
 
 export default function SettingsTeam({
@@ -66,8 +74,9 @@ export default function SettingsTeam({
   }
 
   return (
-    <section className="bg-muted rounded p-4 sm:p-6">
-      <h2 className="text-base font-semibold mb-6">Team</h2>
+    <Card size="sm">
+      <CardContent className="gap-0">
+        <h2 className="text-base font-semibold mb-6">Team</h2>
       <div className="space-y-3">
         {members.members.map((member) => (
           <div
@@ -109,23 +118,25 @@ export default function SettingsTeam({
                   </p>
                 </div>
                 <div className="flex gap-2">
-                  <button
+                  <Button
                     type="button"
+                    size="sm"
+                    variant="outline"
                     onClick={() =>
                       void navigator.clipboard?.writeText(invitation.inviteUrl)
                     }
-                    className="rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:border-border-hover hover:text-foreground"
                   >
                     Copy
-                  </button>
-                  <button
+                  </Button>
+                  <Button
                     type="button"
+                    size="sm"
+                    variant="destructive"
                     onClick={() => void removeInvitation(invitation.id)}
                     disabled={busy === `invite:${invitation.id}`}
-                    className="rounded-lg border border-error/20 px-3 py-1.5 text-xs font-medium text-error transition-colors hover:bg-error/10 disabled:opacity-50"
                   >
                     Revoke
-                  </button>
+                  </Button>
                 </div>
               </div>
             ))}
@@ -145,22 +156,27 @@ export default function SettingsTeam({
             placeholder="teammate@agency.com"
             required
           />
-          <select
+          <Select
             value={inviteRole}
-            onChange={(event) =>
-              setInviteRole(event.target.value as "ADMIN" | "MEMBER")
+            onValueChange={(value) =>
+              setInviteRole((value ?? "MEMBER") as "ADMIN" | "MEMBER")
             }
-            className="rounded border border-border bg-muted px-3 py-2 text-sm text-foreground outline-none transition-colors focus:border-accent/40"
           >
-            <option value="MEMBER">Member</option>
-            <option value="ADMIN">Admin</option>
-          </select>
+            <SelectTrigger className="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="MEMBER">Member</SelectItem>
+              <SelectItem value="ADMIN">Admin</SelectItem>
+            </SelectContent>
+          </Select>
           <Button type="submit" disabled={busy === "invite"}>
             {busy === "invite" ? "Inviting..." : "Invite"}
           </Button>
           {error && <p className="sm:col-span-3 text-sm text-error">{error}</p>}
         </form>
       )}
-    </section>
+    </CardContent>
+    </Card>
   );
 }

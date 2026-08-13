@@ -127,7 +127,7 @@ Tracked in detail in [`docs/ui-task.md`](docs/ui-task.md).
 - [x] **Phase 0 — Foundation**: shadcn init, `@phosphor-icons/react`, `next-themes` + `ThemeProvider`, shadcn CSS variable tokens in `globals.css`.
 - [x] **Phase 1 — Install shadcn components**: button, card, input, textarea, select, badge, switch, tabs, skeleton, alert, avatar, dropdown-menu, separator, label.
 - [x] **Phase 2 — Component migration** (Groups A–D): all 20 target components migrated to shadcn primitives + Phosphor icons. Badge gained `success`/`warning`/`muted` variants; `text-muted` swept to `text-muted-foreground` app-wide (88 spots) so secondary text survives the new theme. Verified: typecheck ✅, lint ✅, build ✅ 60/60, tests ✅ 134/137.
-- [ ] **Phase 3 — Page-level migration**: landing, login, dashboard loading skeleton, settings forms, SEO pages.
+- [x] **Phase 3 — Page-level migration**: landing (`app/page.tsx`) unified to shadcn theme tokens with `Button`/`buttonVariants` CTAs and `Card` stat/feature boxes; login already used `Input`/`Button`/`Card`; `(dashboard)/loading.tsx` now uses shadcn `Skeleton`; settings page + `settings-accounts`/`settings-team` migrated to `Card`/`Button`/`Input`/`Select`; SEO pages already build CTAs on `buttonVariants` via `seo-page-shell`. Verified: typecheck ✅, lint ✅ 0 errors (1 pre-existing warning), build ✅ 60/60, tests ✅ 137/137.
 - [ ] **Phase 4 — Cleanup**: remove `.panel`/`.glass`/`.glass-strong`/`.gradient-mesh`/`.animate-*` no-ops from `globals.css`, sweep remaining inline SVGs, update this checklist.
 
 ---

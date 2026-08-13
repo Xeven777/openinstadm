@@ -14,6 +14,8 @@ import { redirect } from "next/navigation";
 import { InstagramConnectNotice } from "@/components/instagram-connect-notice";
 import SettingsAccounts from "@/components/settings-accounts";
 import SettingsTeam from "@/components/settings-team";
+import { Card, CardContent } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 import { getWorkspaceMembers } from "@/lib/server/members";
 import { getSettingsData } from "@/lib/server/settings";
 import { getCurrentWorkspaceContext } from "@/lib/workspace-access";
@@ -30,7 +32,7 @@ export default function SettingsPage() {
 
       {/* The session lookup + workspace/accounts/members reads stream inside
           this boundary under cacheComponents. */}
-      <Suspense fallback={<div className="bg-muted rounded p-8 h-64" />}>
+      <Suspense fallback={<Skeleton className="h-64" />}>
         <SettingsContent />
       </Suspense>
     </div>
@@ -52,22 +54,24 @@ async function SettingsContent() {
 
       <SettingsTeam members={members} />
 
-      <section className="bg-muted rounded p-4 sm:p-6">
-        <h2 className="text-base font-semibold mb-6">Usage</h2>
-        <div className="flex items-center justify-between gap-3 py-3">
-          <div>
-            <p className="text-sm font-medium text-foreground">
-              DMs sent this month
-            </p>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              Self-hosted — no plan limits.
-            </p>
+      <Card size="sm">
+        <CardContent className="gap-0">
+          <h2 className="text-base font-semibold mb-6">Usage</h2>
+          <div className="flex items-center justify-between gap-3 py-3">
+            <div>
+              <p className="text-sm font-medium text-foreground">
+                DMs sent this month
+              </p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Self-hosted — no plan limits.
+              </p>
+            </div>
+            <span className="text-sm font-semibold text-foreground">
+              {settings.workspace?.dmsSentThisPeriod ?? 0}
+            </span>
           </div>
-          <span className="text-sm font-semibold text-foreground">
-            {settings.workspace?.dmsSentThisPeriod ?? 0}
-          </span>
-        </div>
-      </section>
+        </CardContent>
+      </Card>
     </>
   );
 }

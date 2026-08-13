@@ -194,14 +194,16 @@ Notes on deviations:
 
 ## Phase 3: Page-Level Migration
 
+**Status: DONE** — all pages migrated (verified: `npm run typecheck` ✅, `npm run lint` ✅ 0 errors — 1 pre-existing warning in `invitation-accept-card.tsx`, `npm run build` ✅ 60/60 pages, `npm test` ✅ 137/137).
+
 | Page | Changes |
 |---|---|
-| `app/page.tsx` (landing) | Buttons → `Button`, stat boxes → `Card`, features → `Card`, unify colors to shadcn theme tokens |
-| `app/login/page.tsx` | Input → `Input`, button → `Button`, `.panel` → `Card` |
+| `app/page.tsx` (landing) | Buttons → `Button`/`buttonVariants` (default + outline variants for CTAs), stat boxes → `Card`, features → `Card`, unify all `zinc`/`orange` hardcodes to shadcn theme tokens (`bg-background`, `text-foreground`, `text-muted-foreground`, `border-border`, `bg-muted`, `text-primary`, `bg-primary`, `text-success`, `text-warning`). Note: brand accents (`text-accent`, `bg-accent`, `bg-orange-500`, `text-orange-600`) map to the app's `--primary` token. |
+| `app/login/page.tsx` | Input → `Input`, button → `Button`, `.panel` → `Card` (done previously) |
 | `app/(dashboard)/loading.tsx` | Raw skeleton divs → shadcn `Skeleton` |
-| `app/(dashboard)/settings/page.tsx` | Form elements → `Input`/`Button`/`Card` |
-| `app/(dashboard)/automations/new/page.tsx` | Uses campaign-builder, minimal changes |
-| SEO landing pages | Buttons → `Button` |
+| `app/(dashboard)/settings/page.tsx` | Usage `.panel` section → `Card`; Suspense fallback → `Skeleton`. Sub-components: `settings-accounts` (disconnect `<button>` → `Button variant="destructive"`, `.panel` → `Card`), `settings-team` (native `<select>` → shadcn `Select`, Copy/Revoke `<button>`s → `Button`, `.panel` → `Card`) |
+| `app/(dashboard)/automations/new/page.tsx` | Uses campaign-builder, minimal changes (verified: it is a redirect stub, `export const instant = false`, no UI — no change needed) |
+| SEO landing pages | Buttons → `Button` (done via `seo-page-shell.tsx` `buttonVariants` CTAs, verified) |
 
 ---
 

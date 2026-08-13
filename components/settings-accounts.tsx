@@ -11,7 +11,8 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { buttonVariants } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import type { InstagramAccountStat } from "@/lib/server/stats";
 
@@ -58,8 +59,9 @@ export default function SettingsAccounts({
   }
 
   return (
-    <section className="bg-muted rounded p-4 sm:p-6">
-      <h2 className="text-base font-semibold mb-6">Instagram Connection</h2>
+    <Card size="sm">
+      <CardContent className="gap-0">
+        <h2 className="text-base font-semibold mb-6">Instagram Connection</h2>
 
       <div className="space-y-4">
         <div className="flex items-center justify-between gap-3 py-3 border-b border-border">
@@ -120,15 +122,15 @@ export default function SettingsAccounts({
                     : "Webhook pending"}
                 </p>
               </div>
-              <button
+              <Button
+                variant="destructive"
                 onClick={() => void disconnectInstagram(account.id)}
                 disabled={busy === `disconnect:${account.id}`}
-                className="inline-flex items-center justify-center rounded border border-error/20 px-4 py-2 text-sm font-medium text-error transition-all hover:border-error/40 hover:bg-error/10 disabled:opacity-50"
               >
                 {busy === `disconnect:${account.id}`
                   ? "Disconnecting..."
                   : "Disconnect"}
-              </button>
+              </Button>
             </div>
           ))}
         </div>
@@ -144,6 +146,7 @@ export default function SettingsAccounts({
             : "Connect Instagram"}
         </a>
       </div>
-    </section>
+    </CardContent>
+    </Card>
   );
 }
