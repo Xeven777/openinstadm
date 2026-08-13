@@ -1,4 +1,5 @@
 import type { InstagramAccount } from "@/app/generated/prisma/client";
+import { cacheLife, cacheTag } from "next/cache";
 import { prisma } from "@/lib/db/client";
 import {
   getAllUserMedia,
@@ -125,21 +126,66 @@ export function parseOverviewCount(
   return Number.isFinite(parsed) ? Math.max(parsed, 1) : 50;
 }
 
+export type OverviewLoaderParams = {
+  workspaceId: string;
+  account: Pick<InstagramAccount, "id" | "instagramId" | "username" | "accessToken">;
+  count: "all" | number;
+};
+
+export type OverviewLoaderResult = {
+  data: OverviewResponse;
+  snapshot: OverviewSnapshotInfo;
+};
+
+/**
+ * Cache tag covering every overview range for one account.
+ *
+ * Account-scoped (not per-range) so a manual refresh or token change can expire
+ * all ranges at once with a single `revalidateTag`.
+ */
+export function overviewSnapshotTag(accountId: string): string {
+  return `ig:overview:${accountId}`;
+}
+
 /**
  * Shared server-side loader for the Instagram Overview page.
  *
  * Used by both the API route handler and the server-rendered Overview page.
  * Heavy Meta work (paginated media + per-post insights + follower history) runs
  * once per snapshot TTL; repeat reads are served from the durable `ApiSnapshot`
- * row. The workspace's account list is always re-fetched so a newly connected
- * account appears in the filter even while the snapshot itself is cached.
+ * row, with this `use cache` layer as a fast in-process front-cache. The
+ * workspace's account list is always re-fetched so a newly connected account
+ * appears in the filter even while the snapshot itself is cached.
+ *
+ * The refresh path deliberately bypasses this cache: the API route calls
+ * `revalidateTag(overviewSnapshotTag(...), { expire: 0 })` and then
+ * `loadOverviewDataImpl` directly (see app/api/instagram/overview/route.ts).
  */
-export async function loadOverviewData(params: {
-  workspaceId: string;
-  account: Pick<InstagramAccount, "id" | "instagramId" | "username" | "accessToken">;
-  count: "all" | number;
-  refresh?: boolean;
-}): Promise<{ data: OverviewResponse; snapshot: OverviewSnapshotInfo }> {
+export async function loadOverviewData(
+  params: OverviewLoaderParams
+): Promise<OverviewLoaderResult> {
+  "use cache";
+  // The durable Postgres snapshot governs freshness (1h recent / 2h all-time),
+  // so this in-process front-cache revalidates at 1h and expires at 2h — it
+  // can never serve data meaningfully older than the snapshot would. The 60s
+  // stale keeps return navigations instant while still checking the server on
+  // frequent revisits.
+  cacheLife({
+    stale: 60,
+    revalidate: 3600,
+    expire: 7200,
+  });
+  cacheTag(overviewSnapshotTag(params.account.id));
+  return loadOverviewDataImpl({ ...params, refresh: false });
+}
+
+/**
+ * Un-cached implementation used by `loadOverviewData` and the manual-refresh
+ * path (which must always hit Meta, never serve a cached copy).
+ */
+export async function loadOverviewDataImpl(
+  params: OverviewLoaderParams & { refresh?: boolean }
+): Promise<OverviewLoaderResult> {
   const { workspaceId, account, count, refresh = false } = params;
   const target =
     count === "all" ? OVERVIEW_MAX_POSTS : Math.min(count, OVERVIEW_MAX_POSTS);

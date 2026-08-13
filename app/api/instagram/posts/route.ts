@@ -1,22 +1,24 @@
 import { NextRequest, NextResponse } from "next/server";
+import { revalidateTag } from "next/cache";
 import { getCurrentWorkspaceId } from "@/lib/auth";
 import { getWorkspaceInstagramAccount } from "@/lib/instagram-accounts";
+import { snapshotHeaders } from "@/lib/server/api-snapshots";
 import {
-  getAllUserMedia,
-  getUserMedia,
-  type InstagramMedia,
-} from "@/lib/meta/client";
-import { decryptToken } from "@/lib/meta/oauth";
-import {
-  buildApiSnapshotKey,
-  getApiSnapshot,
-  setApiSnapshot,
-  snapshotHeaders,
-} from "@/lib/server/api-snapshots";
+  ALL_POSTS_TTL_SECONDS,
+  loadPostsData,
+  loadPostsDataImpl,
+  postsSnapshotTag,
+  RECENT_POSTS_TTL_SECONDS,
+} from "@/lib/server/instagram-media";
 
-const RECENT_POSTS_TTL_SECONDS = 60 * 60;
-const ALL_POSTS_TTL_SECONDS = 2 * 60 * 60;
-
+/**
+ * Posts API — thin wrapper around `loadPostsData` (lib/server/instagram-media.ts).
+ *
+ * Manual refresh is bypass-aware: it first expires the `use cache` entry for
+ * this account (all variants) via `revalidateTag`, then runs the uncached impl
+ * so the response — and every subsequent read until the window elapses — comes
+ * from the freshly rewritten snapshot, never a stale in-process copy.
+ */
 export async function GET(request: NextRequest) {
   const workspaceId = await getCurrentWorkspaceId();
   if (!workspaceId) {
@@ -35,7 +37,8 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(
       {
         success: false,
-        error: "Instagram account not connected. Please connect your account first.",
+        error:
+          "Instagram account not connected. Please connect your account first.",
       },
       { status: 400 }
     );
@@ -50,62 +53,31 @@ export async function GET(request: NextRequest) {
     const limit = Number.isFinite(parsedLimit)
       ? Math.min(Math.max(parsedLimit, 1), 50)
       : 25;
-    const ttlSeconds = loadAll ? ALL_POSTS_TTL_SECONDS : RECENT_POSTS_TTL_SECONDS;
-    const snapshotKey = buildApiSnapshotKey({
-      source: "ig:posts",
-      accountId: account.id,
-      params: loadAll ? { all: true, max: 300 } : { limit },
-    });
     const refresh = request.nextUrl.searchParams.get("refresh") === "true";
+    const ttlSeconds = loadAll ? ALL_POSTS_TTL_SECONDS : RECENT_POSTS_TTL_SECONDS;
 
-    const cached = await getApiSnapshot<InstagramMedia[]>(snapshotKey, {
-      bypass: refresh,
-    });
-    if (cached) {
-      return NextResponse.json(
-        {
-          success: true,
-          data: cached.data,
-          snapshot: {
-            status: "HIT",
-            fetchedAt: cached.fetchedAt,
-            expiresAt: cached.expiresAt,
-          },
-        },
-        { headers: snapshotHeaders(ttlSeconds, "HIT") }
-      );
-    }
-
-    const accessToken = decryptToken(account.accessToken);
-    let posts;
-    if (loadAll) {
-      posts = await getAllUserMedia(accessToken, 300);
-    } else {
-      posts = await getUserMedia(accessToken, limit);
-    }
-
-    const snapshot = await setApiSnapshot(
-      {
+    let result;
+    if (refresh) {
+      revalidateTag(postsSnapshotTag(account.id), { expire: 0 });
+      result = await loadPostsDataImpl({
         workspaceId,
-        instagramAccountId: account.id,
-        key: snapshotKey,
-        source: "ig:posts",
-      },
-      posts,
-      ttlSeconds * 1000
-    );
+        account,
+        loadAll,
+        limit,
+        refresh: true,
+      });
+    } else {
+      result = await loadPostsData({ workspaceId, account, loadAll, limit });
+    }
+    const { data, snapshot } = result;
 
     return NextResponse.json(
       {
         success: true,
-        data: posts,
-        snapshot: {
-          status: "MISS",
-          fetchedAt: snapshot.fetchedAt,
-          expiresAt: snapshot.expiresAt,
-        },
+        data,
+        snapshot,
       },
-      { headers: snapshotHeaders(ttlSeconds, "MISS") }
+      { headers: snapshotHeaders(ttlSeconds, snapshot.status) }
     );
   } catch (err) {
     console.error("[Instagram Posts] Error:", err);

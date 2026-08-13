@@ -1,37 +1,33 @@
+import { cacheLife, cacheTag, revalidateTag } from "next/cache";
 import { prisma } from "@/lib/db/client";
-import { clearCachedByPrefix, getCached, setCached } from "@/lib/server-cache";
 import {
   calculateCtr,
   normalizeTopKeywords,
   summarizeDmStatuses,
 } from "@/lib/tracking/analytics";
 
-// Dashboard tiles are fine a bit stale; 120s matches the old client-side SWR
-// maxAge. The dashboard RSC re-renders on every navigation, so without this
-// every visit would re-run ~16 queries against the DB.
-const STATS_TTL_MS = 120_000;
-
 /**
- * Drop every cached dashboard payload for a workspace.
+ * Invalidate every cached dashboard payload for a workspace.
  *
  * Call this from any route that mutates the data the dashboard tiles read
  * (campaign create/update/delete/import, Instagram connect/disconnect), so the
- * next navigation doesn't serve stale counts for the rest of the TTL window.
- * Defined here rather than next to `clearCachedByPrefix` so the invalidation
- * prefix can never drift from the actual cache-key scheme above.
+ * next navigation doesn't serve stale counts. Uses `revalidateTag` with
+ * `{ expire: 0 }` — the next read is a blocking cache miss that regenerates
+ * fresh data synchronously, the same contract the old in-process cache clear
+ * had. Tag and cache key live together in `getDashboardStats` below so they
+ * can never drift apart.
  */
 export function invalidateWorkspaceStats(workspaceId: string): void {
-  clearCachedByPrefix(`dash:stats:${workspaceId}:`);
+  revalidateTag(`dash:stats:${workspaceId}`, { expire: 0 });
 }
 
 /**
  * Shared server-side query for the dashboard home page.
  *
- * Used by both the API route handler (settings page still consumes its JSON
- * response) and the server-rendered Dashboard page, so the aggregation lives in
- * exactly one place. All Dates are converted to ISO strings so the result is
- * plain serializable data that can be JSON-serialized (API) or passed straight
- * into the render tree.
+ * Used by both the API route handler and the server-rendered Dashboard page, so
+ * the aggregation lives in exactly one place. All Dates are converted to ISO
+ * strings so the result is plain serializable data that can be JSON-serialized
+ * (API), cached by `use cache`, or passed straight into the render tree.
  */
 
 export interface InstagramAccountStat {
@@ -81,19 +77,20 @@ export async function getDashboardStats(
   userId: string | null,
   selectedAccountId: string | null,
 ): Promise<DashboardStatsData> {
-  // Keyed by user too: the greeting name (userName) is per-user, so two
-  // members of an agency workspace must not see each other's name for 120s.
-  const cacheKey = `dash:stats:${workspaceId}:${userId ?? "anon"}:${selectedAccountId ?? "all"}`;
-  const cached = getCached<DashboardStatsData>(cacheKey);
-  if (cached) return cached;
-
-  const data = await computeDashboardStats(
-    workspaceId,
-    userId,
-    selectedAccountId,
-  );
-  setCached(cacheKey, data, STATS_TTL_MS);
-  return data;
+  "use cache";
+  // Dashboard tiles are fine a bit stale; 120s matches the old in-process TTL.
+  // The cache key is derived from the arguments (workspace + user + account),
+  // so the per-user greeting name never leaks across members. In self-hosted
+  // Node the entry persists across requests in Next's in-memory LRU, exactly
+  // like the Map cache it replaces. Revalidate runs in the background after
+  // the window; mutations call invalidateWorkspaceStats() to force fresh data.
+  cacheLife({
+    stale: 120,
+    revalidate: 120,
+    expire: 3600,
+  });
+  cacheTag(`dash:stats:${workspaceId}`);
+  return computeDashboardStats(workspaceId, userId, selectedAccountId);
 }
 
 async function computeDashboardStats(
