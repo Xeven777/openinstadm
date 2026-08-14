@@ -154,6 +154,82 @@ select:focus-visible {
   --sidebar-ring: oklch(0.556 0 0);
 }
 
+/* Landing page utilities */
+@layer utilities {
+  .section-fade {
+    background: linear-gradient(
+      180deg,
+      oklch(0.97 0 0 / 0%) 0%,
+      oklch(0.97 0 0 / 100%) 100%
+    );
+  }
+
+  .dark .section-fade {
+    background: linear-gradient(
+      180deg,
+      oklch(0.145 0 0 / 0%) 0%,
+      oklch(0.205 0 0 / 100%) 100%
+    );
+  }
+
+  .app-window-glow {
+    box-shadow:
+      0 0 0 1px oklch(0 0 0 / 5%),
+      0 25px 50px -12px oklch(0 0 0 / 25%),
+      0 0 80px oklch(0.841 0.238 128.85 / 8%);
+  }
+
+  .dark .app-window-glow {
+    box-shadow:
+      0 0 0 1px oklch(1 0 0 / 8%),
+      0 25px 50px -12px oklch(0 0 0 / 50%),
+      0 0 80px oklch(0.768 0.233 130.85 / 6%);
+  }
+
+  .step-connector {
+    position: relative;
+  }
+
+  .step-connector::after {
+    content: "";
+    position: absolute;
+    left: 23px;
+    top: 56px;
+    bottom: -16px;
+    width: 1px;
+    background: oklch(0.841 0.238 128.85 / 25%);
+  }
+
+  .step-connector:last-child::after {
+    display: none;
+  }
+
+  .dark .step-connector::after {
+    background: oklch(0.768 0.233 130.85 / 20%);
+  }
+
+  @keyframes fade-in-up {
+    from {
+      opacity: 0;
+      transform: translateY(16px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  .animate-fade-in-up {
+    animation: fade-in-up 0.6s ease-out both;
+  }
+
+  .animate-delay-100 { animation-delay: 100ms; }
+  .animate-delay-200 { animation-delay: 200ms; }
+  .animate-delay-300 { animation-delay: 300ms; }
+  .animate-delay-400 { animation-delay: 400ms; }
+  .animate-delay-500 { animation-delay: 500ms; }
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;
@@ -163,5 +239,6 @@ select:focus-visible {
   }
   html {
     @apply font-sans;
+    scroll-behavior: smooth;
   }
 }

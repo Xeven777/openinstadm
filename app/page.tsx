@@ -4,6 +4,7 @@ import { GithubLogo } from "@phosphor-icons/react/dist/ssr";
 import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
+import { ModeToggle } from "@/components/theme-toggle";
 
 const GITHUB_URL = "https://github.com/xeven777/OpenInstaDM";
 
@@ -16,60 +17,99 @@ function formatStars(count: number): string {
 
 const heroStats = [
   { value: "24/7", label: "Comment monitoring" },
-  { value: "1", label: "DM per matched comment" },
+  { value: "<1s", label: "Reply latency" },
   { value: "0", label: "Scraping required" },
 ];
 
 const flowSteps = [
   {
-    eyebrow: "Connect",
-    title: "Link your Instagram professional account",
+    number: "01",
+    title: "Connect your Instagram",
     description:
-      "Sign in by email and connect Instagram once. No password sharing, no browser automation.",
+      "Sign in by email and link your professional account once. No password sharing, no browser automation, no risk.",
   },
   {
-    eyebrow: "Build",
-    title: "Pick a post, keywords, and the DM",
+    number: "02",
+    title: "Set keywords and replies",
     description:
-      "Create a campaign for a reel or post: the keyword to watch, the public reply, and the DM to send.",
+      "Create a campaign: pick a post, choose the keyword to watch, write the DM and optional public reply.",
   },
   {
-    eyebrow: "Deliver",
-    title: "Replies go out through the official API",
+    number: "03",
+    title: "It runs itself",
     description:
-      "Webhooks catch comments instantly and a polling sweep catches the ones Instagram never pushes, so nothing is missed. Every send is queued, rate-limited, and logged.",
+      "Webhooks catch comments instantly. A polling sweep catches anything Instagram misses. Every send is queued, rate-limited, and logged.",
   },
 ];
 
 const features = [
-  "Email magic-link sign-in",
-  "Multiple Instagram accounts",
-  "Encrypted tokens at rest",
-  "Webhook + polling reconciliation",
-  "Queue-backed delivery worker",
-  "Per-account rate limiting",
-  "Tracked links with click stats",
-  "DM logs with full status",
-  "No plan limits, fully self-hosted",
+  {
+    title: "Email magic-link sign-in",
+    description: "No passwords. One tap from your email.",
+  },
+  {
+    title: "Multiple Instagram accounts",
+    description: "Connect several professional accounts under one workspace.",
+  },
+  {
+    title: "Encrypted tokens at rest",
+    description: "AES-256-GCM encryption. Your tokens never touch plaintext.",
+  },
+  {
+    title: "Webhook + polling reconciliation",
+    description:
+      "Live webhooks plus a polling safety net. Nothing slips through.",
+  },
+  {
+    title: "Queue-backed delivery",
+    description:
+      "BullMQ handles retries, rate limits, and overflow automatically.",
+  },
+  {
+    title: "Tracked links with click stats",
+    description:
+      "Swap any link for a tracked redirect. See clicks and CTR per campaign.",
+  },
+  {
+    title: "DM logs with full status",
+    description: "Every send, skip, and failure is logged with a reason.",
+  },
+  {
+    title: "Follow gate",
+    description:
+      "Optionally require a follow before handing over the link. Re-prompts until they do.",
+  },
+  {
+    title: "Fully self-hosted",
+    description: "No plan limits, no seat caps. You run it, you own it.",
+  },
 ];
 
-/* Static, faithful copies of the real Overview and Dashboard screens, built in
-   the app's own design tokens so what visitors see is what the app looks like. */
+/* ─── App Preview Mocks ─── */
 
 function AppWindow({
   label,
   children,
+  className,
 }: {
   label: string;
   children: ReactNode;
+  className?: string;
 }) {
   return (
-    <div className="overflow-hidden rounded-lg border border-border bg-background shadow-2xl shadow-black/50">
-      <div className="flex items-center gap-2 border-b border-border bg-muted px-4 py-3">
+    <div
+      className={cn(
+        "overflow-hidden rounded-xl border border-border bg-background app-window-glow",
+        className,
+      )}
+    >
+      <div className="flex items-center gap-2 border-b border-border bg-muted/50 px-4 py-3">
         <span className="h-2.5 w-2.5 rounded-full bg-border" />
         <span className="h-2.5 w-2.5 rounded-full bg-border" />
         <span className="h-2.5 w-2.5 rounded-full bg-border" />
-        <span className="ml-2 text-xs text-muted-foreground">{label}</span>
+        <span className="ml-2 text-xs font-medium text-muted-foreground">
+          {label}
+        </span>
       </div>
       <div className="p-5">{children}</div>
     </div>
@@ -80,8 +120,10 @@ function Stat({ label, value }: { label: string; value: string }) {
   return (
     <Card size="sm">
       <CardContent className="gap-1">
-        <p className="text-sm text-muted-foreground">{label}</p>
-        <p className="text-2xl font-semibold text-foreground">{value}</p>
+        <p className="text-xs text-muted-foreground">{label}</p>
+        <p className="text-2xl font-bold tracking-tight text-foreground">
+          {value}
+        </p>
       </CardContent>
     </Card>
   );
@@ -112,7 +154,7 @@ function OverviewPreview() {
             Recent — 24 posts from @studio.store
           </p>
         </div>
-        <span className="rounded border border-border px-2 py-1 text-xs text-muted-foreground">
+        <span className="rounded-md border border-border bg-muted px-2.5 py-1 text-xs text-muted-foreground">
           Last 50
         </span>
       </div>
@@ -123,13 +165,14 @@ function OverviewPreview() {
         ))}
       </div>
 
-      <div className="mt-4 rounded border border-border bg-muted p-4">
+      <div className="mt-4 rounded-lg border border-border bg-muted/50 p-4">
         <div className="flex items-baseline justify-between">
           <p className="text-sm font-semibold text-foreground">
             Followers over time
           </p>
           <p className="text-xs text-muted-foreground">
-            48,210 <span className="text-success">+1,240</span> · 30d
+            48,210 <span className="font-medium text-success">+1,240</span> ·
+            30d
           </p>
         </div>
         <svg
@@ -138,6 +181,24 @@ function OverviewPreview() {
           className="mt-3 h-16 w-full"
           aria-hidden="true"
         >
+          <defs>
+            <linearGradient id="chart-gradient" x1="0" y1="0" x2="0" y2="1">
+              <stop
+                offset="0%"
+                stopColor="oklch(0.841 0.238 128.85)"
+                stopOpacity="0.2"
+              />
+              <stop
+                offset="100%"
+                stopColor="oklch(0.841 0.238 128.85)"
+                stopOpacity="0"
+              />
+            </linearGradient>
+          </defs>
+          <path
+            d="M0,54 L43,49 L86,51 L129,40 L171,36 L214,26 L257,20 L300,9 L300,64 L0,64 Z"
+            fill="url(#chart-gradient)"
+          />
           <polyline
             points="0,54 43,49 86,51 129,40 171,36 214,26 257,20 300,9"
             fill="none"
@@ -151,7 +212,7 @@ function OverviewPreview() {
         </svg>
       </div>
 
-      <div className="mt-4 rounded border border-border bg-muted p-4">
+      <div className="mt-4 rounded-lg border border-border bg-muted/50 p-4">
         <p className="text-sm font-semibold text-foreground">Posts</p>
         <table className="mt-3 w-full text-sm">
           <thead>
@@ -165,14 +226,16 @@ function OverviewPreview() {
           <tbody>
             {overviewPosts.map(([post, views, likes, date]) => (
               <tr key={post} className="border-b border-border last:border-0">
-                <td className="py-2 pr-3 text-foreground">{post}</td>
-                <td className="py-2 px-3 text-right text-muted-foreground">
+                <td className="py-2.5 pr-3 font-medium text-foreground">
+                  {post}
+                </td>
+                <td className="py-2.5 px-3 text-right text-muted-foreground">
                   {views}
                 </td>
-                <td className="py-2 px-3 text-right text-muted-foreground">
+                <td className="py-2.5 px-3 text-right text-muted-foreground">
                   {likes}
                 </td>
-                <td className="py-2 pl-3 text-right text-muted-foreground">
+                <td className="py-2.5 pl-3 text-right text-muted-foreground">
                   {date}
                 </td>
               </tr>
@@ -186,16 +249,24 @@ function OverviewPreview() {
 
 function MatchedCommentCard() {
   return (
-    <div className="w-64 rounded-lg border border-border bg-muted p-4 shadow-2xl shadow-black/50">
-      <p className="text-xs text-muted-foreground">New comment</p>
-      <p className="mt-1 text-sm font-semibold text-foreground">@maya.co</p>
-      <p className="mt-1 text-sm text-muted-foreground">LINK please</p>
-      <div className="mt-3 border-t border-border pt-3">
-        <p className="text-xs text-muted-foreground">
-          Matched <span className="text-primary">GUIDE</span>
+    <div className="w-64 rounded-xl border border-border bg-background p-4 app-window-glow animate-fade-in-up animate-delay-300">
+      <div className="flex items-center gap-2">
+        <span className="flex size-7 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary">
+          MC
+        </span>
+        <div>
+          <p className="text-sm font-semibold text-foreground">@maya.co</p>
+          <p className="text-[11px] text-muted-foreground">just now</p>
+        </div>
+      </div>
+      <p className="mt-2.5 text-sm text-muted-foreground">LINK please</p>
+      <div className="mt-3 rounded-lg border border-primary/20 bg-primary/5 p-2.5">
+        <p className="text-[11px] font-medium text-muted-foreground">
+          Matched keyword
         </p>
-        <p className="mt-1 text-sm font-medium text-success">
-          Queued private reply
+        <p className="mt-0.5 text-sm font-bold text-primary">LINK</p>
+        <p className="mt-1 text-[11px] font-medium text-success">
+          Private reply queued
         </p>
       </div>
     </div>
@@ -242,16 +313,18 @@ function DashboardPreview() {
         ))}
       </div>
 
-      <div className="mt-4 rounded border border-border bg-muted p-4">
+      <div className="mt-4 rounded-lg border border-border bg-muted/50 p-4">
         <p className="text-sm font-semibold text-foreground">
           DMs — Last 7 Days
         </p>
         <div className="mt-4 flex h-32 items-end gap-2">
           {dashboardChart.map(([day, n]) => (
             <div key={day} className="flex flex-1 flex-col items-center gap-2">
-              <span className="text-[10px] text-muted-foreground">{n}</span>
+              <span className="text-[10px] font-medium text-muted-foreground">
+                {n}
+              </span>
               <div
-                className="w-full rounded-sm bg-primary"
+                className="w-full rounded-sm bg-primary/80 transition-all duration-500"
                 style={{ height: `${Math.max((n / maxDM) * 100, 4)}%` }}
               />
               <span className="text-[10px] text-muted-foreground">{day}</span>
@@ -260,19 +333,19 @@ function DashboardPreview() {
         </div>
       </div>
 
-      <div className="mt-4 rounded border border-border bg-muted p-4">
+      <div className="mt-4 rounded-lg border border-border bg-muted/50 p-4">
         <p className="text-sm font-semibold text-foreground">Recent Activity</p>
-        <div className="mt-3 space-y-2">
+        <div className="mt-3 space-y-0">
           {dashboardActivity.map(([user, automation, status, color]) => (
             <div
               key={user}
-              className="flex items-center justify-between gap-3 border-b border-border py-2 text-sm last:border-0"
+              className="flex items-center justify-between gap-3 border-b border-border py-2.5 text-sm last:border-0"
             >
-              <span className="truncate text-foreground">{user}</span>
+              <span className="font-medium text-foreground">{user}</span>
               <span className="truncate text-muted-foreground">
                 {automation}
               </span>
-              <span className={`text-sm ${color}`}>{status}</span>
+              <span className={`text-xs font-medium ${color}`}>{status}</span>
             </div>
           ))}
         </div>
@@ -304,25 +377,33 @@ export default async function Home() {
   const stars = await getGitHubStars();
   return (
     <main className="min-h-screen bg-background text-foreground">
-      <header className="sticky top-0 z-40 border-b border-border bg-background">
+      {/* ─── Header ─── */}
+      <header className="sticky top-0 z-40 border-b border-border bg-background/80 backdrop-blur-xl">
         <div className="mx-auto flex h-16 w-full max-w-7xl items-center justify-between px-5 sm:px-6 lg:px-8">
           <Link
             href="/"
             className="flex items-center gap-3"
             aria-label="OpenInstaDM home"
           >
-            <span className="text-lg font-bold text-foreground">OpenInstaDM</span>
+            <span className="text-lg font-bold tracking-tight text-foreground">
+              OpenInstaDM
+            </span>
           </Link>
 
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3">
+            <ModeToggle />
             <a
               href={GITHUB_URL}
               target="_blank"
               rel="noreferrer"
-              className="inline-flex items-center gap-2 text-sm font-semibold text-muted-foreground transition hover:text-foreground"
+              className="inline-flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
               aria-label="View OpenInstaDM on GitHub"
             >
-              <GithubLogo weight="fill" className="h-4 w-4" aria-hidden="true" />
+              <GithubLogo
+                weight="fill"
+                className="h-4 w-4"
+                aria-hidden="true"
+              />
               {stars !== null && <span>{formatStars(stars)}</span>}
             </a>
             <Link
@@ -335,189 +416,259 @@ export default async function Home() {
         </div>
       </header>
 
-      <section className="mx-auto grid w-full max-w-7xl items-center gap-10 px-5 pb-16 pt-12 sm:px-6 sm:pt-18 lg:grid-cols-[0.95fr_1.05fr] lg:px-8 lg:pb-24">
-        <div className="max-w-3xl">
-          <div className="inline-flex items-center gap-2 border border-border bg-background px-3 py-2 text-sm font-semibold text-muted-foreground">
-            Open source · Official Meta API
-          </div>
+      {/* ─── Hero ─── */}
+      <section className="relative overflow-hidden min-h-[calc(100vh-4rem)]">
+        <div className="bg-radial from-transparent to-primary/10 absolute inset-0 pointer-events-none" />
+        <div className="relative mx-auto grid w-full max-w-7xl items-center gap-12 px-5 pb-20 pt-16 sm:px-6 sm:pt-20 lg:grid-cols-[1fr_1.1fr] lg:px-8 lg:pb-28 lg:pt-24">
+          <div className="max-w-2xl">
+            <div className="animate-fade-in-up inline-flex items-center gap-2 rounded-full border border-border bg-background/60 px-4 py-1.5 text-xs font-semibold tracking-wide text-muted-foreground backdrop-blur-sm">
+              <span className="size-1.5 rounded-full bg-primary animate-pulse" />
+              Open source · Official Meta API
+            </div>
 
-          <h1 className="mt-7 text-balance text-5xl font-black leading-[1.02] text-foreground sm:text-6xl lg:text-7xl">
-            Make every comment start the right DM
-          </h1>
+            <h1 className="mt-8 text-balance text-5xl font-bold leading-[1.05] tracking-tighter text-foreground sm:text-6xl lg:text-7xl">
+              Every comment
+              <br />
+              starts the
+              <br />
+              <span className="text-primary">right DM</span>
+            </h1>
 
-          <p className="mt-6 max-w-2xl text-lg leading-8 text-muted-foreground">
-            Open-sourced ManyChat. When someone comments your keyword on a post
-            or reel, they get your DM a second later. Free, self-hosted, and
-            built on the official Instagram API.
-          </p>
+            <p className="mt-7 max-w-xl text-lg leading-relaxed text-muted-foreground">
+              Open-sourced ManyChat. Someone comments your keyword on a reel,
+              they get your DM a second later. Free, self-hosted, built on the
+              official Instagram API.
+            </p>
 
-          <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-            <Link
-              href="/login"
-              className={cn(buttonVariants({ variant: "default", size: "lg" }))}
-            >
-              Get started
-            </Link>
-            <a
-              href="#how"
-              className={cn(buttonVariants({ variant: "outline", size: "lg" }))}
-            >
-              See how it works
-            </a>
-          </div>
+            <div className="mt-10 flex flex-col gap-3 sm:flex-row">
+              <Link
+                href="/login"
+                className={cn(
+                  buttonVariants({ variant: "default", size: "lg" }),
+                  "px-7",
+                )}
+              >
+                Get started free
+              </Link>
+              <a
+                href="#how"
+                className={cn(
+                  buttonVariants({ variant: "outline", size: "lg" }),
+                  "px-7",
+                )}
+              >
+                See how it works
+              </a>
+            </div>
 
-          <dl className="mt-10 grid max-w-xl grid-cols-3 gap-3">
-            {heroStats.map((stat) => (
-              <Card key={stat.label} size="sm">
-                <CardContent className="gap-1">
-                  <dt className="text-2xl font-black text-foreground">
+            <dl className="mt-12 grid max-w-md grid-cols-3 gap-4">
+              {heroStats.map((stat) => (
+                <div key={stat.label}>
+                  <dt className="text-3xl font-bold tracking-tight text-foreground">
                     {stat.value}
                   </dt>
-                  <dd className="text-xs leading-5 text-muted-foreground">
+                  <dd className="mt-1 text-xs leading-5 text-muted-foreground">
                     {stat.label}
                   </dd>
-                </CardContent>
-              </Card>
-            ))}
-          </dl>
-        </div>
-
-        <div className="relative">
-          <OverviewPreview />
-          <div className="absolute -bottom-8 -left-6 hidden lg:block">
-            <MatchedCommentCard />
-          </div>
-        </div>
-      </section>
-
-      <section
-        id="how"
-        className="mx-auto w-full max-w-7xl px-5 py-20 sm:px-6 lg:px-8"
-      >
-        <div className="grid gap-10 lg:grid-cols-[0.82fr_1.18fr] lg:items-center">
-          <div>
-            <p className="text-sm font-bold uppercase text-primary">
-              How it works
-            </p>
-            <h2 className="mt-3 text-4xl font-black leading-tight text-foreground sm:text-5xl">
-              A comment in, a DM out
-            </h2>
-            <p className="mt-5 text-base leading-8 text-muted-foreground">
-              Three steps. Connect an account, build a campaign, and let it run.
-              The webhook handles it live and the poll sweeps up whatever the
-              webhook misses.
-            </p>
-          </div>
-
-          <div className="grid gap-4">
-            {flowSteps.map((step) => (
-              <article
-                key={step.title}
-                className="grid gap-4 rounded-xl border border-border bg-muted p-5 sm:grid-cols-[120px_1fr]"
-              >
-                <p className="text-sm font-bold text-primary">
-                  {step.eyebrow}
-                </p>
-                <div>
-                  <h3 className="text-xl font-bold text-foreground">
-                    {step.title}
-                  </h3>
-                  <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                    {step.description}
-                  </p>
                 </div>
-              </article>
-            ))}
+              ))}
+            </dl>
+          </div>
+
+          <div className="relative">
+            <OverviewPreview />
+            <div className="absolute -bottom-10 -left-8 hidden lg:block">
+              <MatchedCommentCard />
+            </div>
           </div>
         </div>
       </section>
 
-      <section className="border-y border-border bg-muted py-20">
-        <div className="mx-auto grid w-full max-w-7xl gap-10 px-5 sm:px-6 lg:grid-cols-[1.08fr_0.92fr] lg:px-8 lg:items-center">
+      {/* ─── How it works ─── */}
+      <section id="how" className="border-t border-border bg-muted/30">
+        <div className="mx-auto w-full max-w-7xl px-5 py-24 sm:px-6 lg:px-8">
+          <div className="grid gap-16 lg:grid-cols-[0.85fr_1.15fr] lg:items-center">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-widest text-primary">
+                How it works
+              </p>
+              <h2 className="mt-4 text-4xl font-bold leading-tight tracking-tighter text-foreground sm:text-5xl">
+                A comment in,
+                <br />a DM out
+              </h2>
+              <p className="mt-6 max-w-md text-base leading-relaxed text-muted-foreground">
+                Three steps. Connect an account, build a campaign, and let it
+                run. The webhook handles it live and the poll sweeps up whatever
+                Instagram never pushes.
+              </p>
+            </div>
+
+            <div className="grid gap-5">
+              {flowSteps.map((step, i) => (
+                <article
+                  key={step.title}
+                  className={cn(
+                    "group relative rounded-xl border border-border bg-background p-6 transition-all duration-200 hover:border-primary/30 hover:shadow-sm",
+                    i === flowSteps.length - 1 &&
+                      "border-primary/20 bg-primary/2",
+                  )}
+                >
+                  <div className="flex items-start gap-5">
+                    <span className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-sm font-bold text-primary">
+                      {step.number}
+                    </span>
+                    <div>
+                      <h3 className="text-lg font-bold text-foreground">
+                        {step.title}
+                      </h3>
+                      <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                        {step.description}
+                      </p>
+                    </div>
+                  </div>
+                </article>
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ─── Dashboard ─── */}
+      <section className="border-y border-border">
+        <div className="mx-auto grid w-full max-w-7xl gap-12 px-5 py-24 sm:px-6 lg:grid-cols-[1.1fr_0.9fr] lg:px-8 lg:items-center">
           <DashboardPreview />
 
           <div>
-            <p className="text-sm font-bold uppercase text-primary">
+            <p className="text-xs font-bold uppercase tracking-widest text-primary">
               The dashboard
             </p>
-            <h2 className="mt-3 text-4xl font-black leading-tight text-foreground sm:text-5xl">
-              See exactly what happened
+            <h2 className="mt-4 text-4xl font-bold leading-tight tracking-tighter text-foreground sm:text-5xl">
+              See exactly what
+              <br />
+              happened
             </h2>
-            <p className="mt-5 text-base leading-8 text-muted-foreground">
+            <p className="mt-6 text-base leading-relaxed text-muted-foreground">
               Every comment event is traceable: queued, matched, sent, skipped,
               failed, or rate-limited. No black box.
             </p>
+            <div className="mt-8 flex flex-col gap-3">
+              {[
+                "Real-time activity feed",
+                "Per-campaign click tracking",
+                "Full DM logs with reasons",
+              ].map((item) => (
+                <div key={item} className="flex items-center gap-3">
+                  <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-primary/10 text-[10px] font-bold text-primary">
+                    ✓
+                  </span>
+                  <span className="text-sm font-medium text-foreground">
+                    {item}
+                  </span>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       </section>
 
-      <section
-        id="features"
-        className="mx-auto w-full max-w-7xl px-5 py-20 sm:px-6 lg:px-8"
-      >
-        <div className="max-w-2xl">
-          <p className="text-sm font-bold uppercase text-primary">
-            What&rsquo;s included
-          </p>
-          <h2 className="mt-3 text-4xl font-black leading-tight text-foreground sm:text-5xl">
-            Everything, no tiers
-          </h2>
-          <p className="mt-5 text-base leading-8 text-muted-foreground">
-            It is self-hosted and open source, so there is nothing to unlock.
-            You run it, you own it.
-          </p>
-        </div>
-
-        <div className="mt-10 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {features.map((feature) => (
-            <Card key={feature} size="sm">
-              <CardContent className="text-sm font-semibold text-foreground">
-                {feature}
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      </section>
-
-      <section className="mx-auto w-full max-w-7xl px-5 pb-20 sm:px-6 lg:px-8">
-        <div className="grid gap-8 rounded-xl border border-primary/20 bg-primary/5 p-6 sm:p-10 lg:grid-cols-[1fr_auto] lg:items-center">
-          <div>
-            <h2 className="max-w-3xl text-4xl font-black leading-tight text-foreground sm:text-5xl">
-              Turn your next reel&rsquo;s comments into DMs
+      {/* ─── Features ─── */}
+      <section id="features" className="bg-muted/30">
+        <div className="mx-auto w-full max-w-7xl px-5 py-24 sm:px-6 lg:px-8">
+          <div className="max-w-2xl">
+            <p className="text-xs font-bold uppercase tracking-widest text-primary">
+              What&rsquo;s included
+            </p>
+            <h2 className="mt-4 text-4xl font-bold leading-tight tracking-tighter text-foreground sm:text-5xl">
+              Everything,
+              <br />
+              no tiers
             </h2>
-            <p className="mt-4 text-base text-muted-foreground">
-              Free and open source. Star it if it saves you a subscription.
+            <p className="mt-6 text-base leading-relaxed text-muted-foreground">
+              Self-hosted and open source. Nothing to unlock. You run it, you
+              own it.
             </p>
           </div>
-          <div className="flex flex-col gap-3 sm:flex-row lg:flex-col">
-            <Link
-              href="/login"
-              className={cn(buttonVariants({ variant: "default", size: "lg" }))}
-            >
-              Get started
-            </Link>
-            <a
-              href={GITHUB_URL}
-              className={cn(buttonVariants({ variant: "outline", size: "lg" }))}
-            >
-              View on GitHub
-            </a>
+
+          <div className="mt-14 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {features.map((feature) => (
+              <div
+                key={feature.title}
+                className="group rounded-xl border border-border bg-background p-5 transition-all duration-200 hover:border-primary/25 hover:shadow-sm"
+              >
+                <h3 className="text-sm font-bold text-foreground">
+                  {feature.title}
+                </h3>
+                <p className="mt-1.5 text-sm leading-5 text-muted-foreground">
+                  {feature.description}
+                </p>
+              </div>
+            ))}
           </div>
         </div>
       </section>
 
-      <footer className="border-t border-border py-8">
-        <div className="mx-auto flex w-full max-w-7xl items-center justify-between px-5 text-sm text-muted-foreground sm:px-6 lg:px-8">
-          <span className="font-semibold text-foreground">OpenInstaDM</span>
-          <a
-            href={GITHUB_URL}
-            target="_blank"
-            rel="noreferrer"
-            className="inline-flex items-center gap-2 transition hover:text-foreground"
-          >
-            <GithubLogo weight="fill" className="h-4 w-4" aria-hidden="true" />
-            {stars !== null && <span>{formatStars(stars)}</span>}
-          </a>
+      {/* ─── CTA ─── */}
+      <section className="border-t border-border">
+        <div className="mx-auto w-full max-w-7xl px-5 py-24 sm:px-6 lg:px-8">
+          <div className="relative overflow-hidden rounded-2xl border border-border bg-background p-8 sm:p-12 lg:p-16">
+            <div className="hero-glow absolute inset-0 pointer-events-none opacity-50" />
+            <div className="relative grid gap-8 lg:grid-cols-[1fr_auto] lg:items-center">
+              <div>
+                <h2 className="max-w-2xl text-4xl font-bold leading-tight tracking-tighter text-foreground sm:text-5xl">
+                  Turn your next reel&rsquo;s
+                  <br />
+                  comments into DMs
+                </h2>
+                <p className="mt-5 max-w-lg text-base text-muted-foreground">
+                  Free and open source. Star it if it saves you a subscription.
+                </p>
+              </div>
+              <div className="flex flex-col gap-3 sm:flex-row lg:flex-col">
+                <Link
+                  href="/login"
+                  className={cn(
+                    buttonVariants({ variant: "default", size: "lg" }),
+                    "px-7",
+                  )}
+                >
+                  Get started free
+                </Link>
+                <a
+                  href={GITHUB_URL}
+                  className={cn(
+                    buttonVariants({ variant: "outline", size: "lg" }),
+                    "px-7",
+                  )}
+                >
+                  View on GitHub
+                </a>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ─── Footer ─── */}
+      <footer className="border-t border-border">
+        <div className="mx-auto flex w-full max-w-7xl items-center justify-between px-5 py-6 text-sm text-muted-foreground sm:px-6 lg:px-8">
+          <span className="font-semibold tracking-tight text-foreground">
+            OpenInstaDM
+          </span>
+          <div className="flex items-center gap-4">
+            <a
+              href={GITHUB_URL}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-2 transition-colors hover:text-foreground"
+            >
+              <GithubLogo
+                weight="fill"
+                className="h-4 w-4"
+                aria-hidden="true"
+              />
+              {stars !== null && <span>{formatStars(stars)}</span>}
+            </a>
+          </div>
         </div>
       </footer>
     </main>
