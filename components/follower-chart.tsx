@@ -31,11 +31,8 @@ export interface FollowerChartPoint {
   delta: number | null;
 }
 
-// Colors read against the light chart surface (#ffffff): the accent line clears
-// 3:1 contrast and grid/axis text match the muted/border tokens. See globals.css.
-const SERIES_COLOR = "#f97316";
-const GRID_COLOR = "#e4e4e7";
-const AXIS_TEXT = "#71717a";
+const SERIES_COLOR = "var(--color-primary)";
+const GRID_COLOR = "var(--color-muted)";
 
 function formatCompact(n: number): string {
   if (Math.abs(n) >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
@@ -111,7 +108,9 @@ export default function FollowerChart({
               {net !== null && (
                 <>
                   {" · "}
-                  <span className={net >= 0 ? "text-success" : "text-destructive"}>
+                  <span
+                    className={net >= 0 ? "text-success" : "text-destructive"}
+                  >
                     {formatSigned(net)}
                   </span>{" "}
                   over {data.length} days
@@ -148,7 +147,7 @@ export default function FollowerChart({
           <div className="mt-4 max-h-72 overflow-y-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-border text-left text-xs uppercase tracking-wide text-zinc-500">
+                <tr className="border-b border-border text-left text-xs uppercase tracking-wide text-muted-foreground">
                   <th className="py-2 pr-4 font-medium">Date</th>
                   <th className="py-2 px-3 font-medium text-right">
                     Followers
@@ -191,14 +190,14 @@ export default function FollowerChart({
                 <XAxis
                   dataKey="date"
                   tickFormatter={formatDay}
-                  tick={{ fill: AXIS_TEXT, fontSize: 12 }}
+                  tick={{ fill: "white", fontSize: 12 }}
                   stroke={GRID_COLOR}
                   tickLine={false}
                   minTickGap={24}
                 />
                 <YAxis
                   tickFormatter={formatCompact}
-                  tick={{ fill: AXIS_TEXT, fontSize: 12 }}
+                  tick={{ fill: "white", fontSize: 12 }}
                   stroke={GRID_COLOR}
                   tickLine={false}
                   width={52}
@@ -219,7 +218,7 @@ export default function FollowerChart({
                   activeDot={{
                     r: 4,
                     fill: SERIES_COLOR,
-                    stroke: "#ffffff",
+                    stroke: "var(--color-background)",
                     strokeWidth: 2,
                   }}
                   isAnimationActive={false}
