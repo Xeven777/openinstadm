@@ -1,4 +1,5 @@
 import type { Workspace, WorkspaceRole } from "@/app/generated/prisma/client";
+import { cacheLife, cacheTag } from "next/cache";
 import { getCurrentUserId } from "@/lib/auth";
 import { prisma } from "@/lib/db/client";
 import { ensureWorkspaceForUser } from "@/lib/workspace";
@@ -31,9 +32,30 @@ export function canManageBilling(role: WorkspaceRole) {
   return role === "OWNER";
 }
 
+/**
+ * Resolve the current user's workspace context (userId, workspaceId, role).
+ *
+ * auth() reads headers() which is dynamic and cannot live inside "use cache".
+ * So we call auth() outside the cache boundary, then delegate to the cached
+ * inner function which only touches the database.
+ */
 export async function getCurrentWorkspaceContext(): Promise<WorkspaceContext | null> {
   const userId = await getCurrentUserId();
   if (!userId) return null;
+  return getCachedWorkspaceContext(userId);
+}
+
+/**
+ * Cached workspace lookup — keyed by userId so different members never share
+ * context. 30s stale keeps return navigations instant while still picking up
+ * role changes within a minute.
+ */
+async function getCachedWorkspaceContext(
+  userId: string
+): Promise<WorkspaceContext | null> {
+  "use cache";
+  cacheLife({ stale: 30, revalidate: 60, expire: 300 });
+  cacheTag(`workspace-ctx:${userId}`);
 
   const membership = await prisma.workspaceMember.findFirst({
     where: { userId },

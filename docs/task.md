@@ -16,8 +16,8 @@ This checklist tracks all ongoing bugs, optimizations, setup items, and new feat
 ## ⚡ 3. Performance & Structural Optimizations
 
 - [ ] **Add Missing Database Indexes**: Update [`prisma/schema.prisma`](/prisma/schema.prisma) with composite indexes for `DmLog(commenterId, status)`, `WebhookEvent(createdAt, processedAt)`, and `OperationalEvent(workspaceId, createdAt)`.
-- [ ] **Asynchronous Analytics Logging**: Offload `LinkClick` DB insertion in [`app/r/[slug]/route.ts`](/app/r/%5Bslug%5D/route.ts#L30) using Next.js `after()` or `waitUntil()`.
-- [ ] **Batch Webhook DB Updates**: Consolidate repeated single-record updates for `webhookEvent.id` in [`app/api/webhook/route.ts`](/app/api/webhook/route.ts#L110).
+- [x] **Asynchronous Analytics Logging**: Offload `LinkClick` DB insertion in [`app/r/[slug]/route.ts`](/app/r/%5Bslug%5D/route.ts#L30) using Next.js `after()` or `waitUntil()`.
+- [x] **Batch Webhook DB Updates**: Consolidate repeated single-record updates for `webhookEvent.id` in [`app/api/webhook/route.ts`](/app/api/webhook/route.ts#L110).
 - [ ] **Tune BullMQ Memory Settings**: Adjust Redis completed/failed job retention counts in [`lib/queue/client.ts`](/lib/queue/client.ts#L83) to optimize Redis memory footprint.
 
 ### 🚦 Dashboard Performance Overhaul (detailed plan — phases 1→4)

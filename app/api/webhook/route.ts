@@ -98,7 +98,7 @@ export async function POST(request: NextRequest) {
       commentAccounts.map((a) => [a.instagramId, a.workspaceId])
     );
 
-    let firstCommentWorkspaceId: string | null = null;
+    let webhookWorkspaceId: string | null = null;
     for (const event of commentEvents) {
       await queue.add(
         "process-comment",
@@ -117,16 +117,9 @@ export async function POST(request: NextRequest) {
       );
 
       const wsId = commentAccountMap.get(event.instagramAccountId);
-      if (wsId && !firstCommentWorkspaceId) {
-        firstCommentWorkspaceId = wsId;
+      if (wsId && !webhookWorkspaceId) {
+        webhookWorkspaceId = wsId;
       }
-    }
-
-    if (firstCommentWorkspaceId) {
-      await prisma.webhookEvent.update({
-        where: { id: webhookEvent.id },
-        data: { workspaceId: firstCommentWorkspaceId },
-      });
     }
 
     // Button taps from opening DMs → deliver the reveal message.
@@ -172,7 +165,6 @@ export async function POST(request: NextRequest) {
       messageAccounts.map((a) => [a.instagramId, a.workspaceId])
     );
 
-    let firstMessageWorkspaceId: string | null = null;
     for (const event of messageEvents) {
       await queue.add(
         MESSAGE_JOB_NAME,
@@ -194,16 +186,9 @@ export async function POST(request: NextRequest) {
       );
 
       const wsId = messageAccountMap.get(event.instagramAccountId);
-      if (wsId && !firstMessageWorkspaceId) {
-        firstMessageWorkspaceId = wsId;
+      if (wsId && !webhookWorkspaceId) {
+        webhookWorkspaceId = wsId;
       }
-    }
-
-    if (firstMessageWorkspaceId) {
-      await prisma.webhookEvent.update({
-        where: { id: webhookEvent.id },
-        data: { workspaceId: firstMessageWorkspaceId },
-      });
     }
 
     // If a user reads the opening DM and never taps the button, deliver the
@@ -290,6 +275,7 @@ export async function POST(request: NextRequest) {
       data: {
         status: "PROCESSED",
         processedAt: new Date(),
+        ...(webhookWorkspaceId && { workspaceId: webhookWorkspaceId }),
       },
     });
 

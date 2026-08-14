@@ -3,7 +3,8 @@ import { redirect } from "next/navigation";
 import DashboardShell from "@/components/dashboard-shell";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/db/client";
-import { ensureWorkspaceForUser } from "@/lib/workspace";
+import { WorkspaceProvider } from "@/lib/workspace-context";
+import { getPrimaryWorkspace } from "@/lib/workspace";
 
 /**
  * Dashboard layout (Cache Components).
@@ -12,6 +13,10 @@ import { ensureWorkspaceForUser } from "@/lib/workspace";
  * behind a Suspense boundary: the frame streams in once they resolve, and the
  * page content (itself suspended in each page) streams after that. The fallback
  * matches the shell's outer frame so there is no layout jump while auth runs.
+ *
+ * The resolved workspace context is passed to pages via WorkspaceProvider so
+ * they can skip their own auth() + workspace lookups — the layout already did
+ * them.
  */
 export default function DashboardLayout({
   children,
@@ -36,10 +41,14 @@ async function AuthenticatedShell({
     redirect("/login");
   }
 
-  const workspace = await ensureWorkspaceForUser(
-    session.user.id,
-    session.user.email
-  );
+  // Fast path: just look up the membership (one indexed query). The full
+  // ensureWorkspaceForUser (which also checks pending invitations) is only
+  // needed at login time, not on every page navigation.
+  const workspace = await getPrimaryWorkspace(session.user.id);
+  if (!workspace) {
+    redirect("/login");
+  }
+
   const accounts = await prisma.instagramAccount.findMany({
     where: { workspaceId: workspace.id },
     orderBy: { connectedAt: "desc" },
@@ -47,12 +56,20 @@ async function AuthenticatedShell({
   });
 
   return (
-    <DashboardShell
-      workspaceName={workspace.name}
-      instagramUsername={accounts[0]?.username ?? null}
-      instagramAccountCount={accounts.length}
+    <WorkspaceProvider
+      value={{
+        userId: session.user.id,
+        workspaceId: workspace.id,
+        role: "OWNER",
+      }}
     >
-      {children}
-    </DashboardShell>
+      <DashboardShell
+        workspaceName={workspace.name}
+        instagramUsername={accounts[0]?.username ?? null}
+        instagramAccountCount={accounts.length}
+      >
+        {children}
+      </DashboardShell>
+    </WorkspaceProvider>
   );
 }

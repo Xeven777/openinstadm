@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse, after } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { getRequestIp, hashClickIp } from "@/lib/tracking/server";
 
@@ -27,16 +27,22 @@ export async function GET(request: NextRequest, { params }: RedirectRouteProps) 
     return NextResponse.redirect(new URL("/", request.url), { status: 302 });
   }
 
-  await prisma.linkClick.create({
-    data: {
-      workspaceId: trackedLink.workspaceId,
-      automationId: trackedLink.automationId,
-      instagramAccountId: trackedLink.automation.instagramAccountId,
-      trackedLinkId: trackedLink.id,
-      ipHash: hashClickIp(getRequestIp(request)),
-      userAgent: request.headers.get("user-agent"),
-      referrer: request.headers.get("referer"),
-    },
+  after(async () => {
+    try {
+      await prisma.linkClick.create({
+        data: {
+          workspaceId: trackedLink.workspaceId,
+          automationId: trackedLink.automationId,
+          instagramAccountId: trackedLink.automation.instagramAccountId,
+          trackedLinkId: trackedLink.id,
+          ipHash: hashClickIp(getRequestIp(request)),
+          userAgent: request.headers.get("user-agent"),
+          referrer: request.headers.get("referer"),
+        },
+      });
+    } catch (err) {
+      console.error("[LinkTracker] Failed to log click:", err);
+    }
   });
 
   const destination = trackedLink.destinationUrl;

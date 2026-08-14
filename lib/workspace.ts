@@ -1,3 +1,4 @@
+import { cacheLife, cacheTag } from "next/cache";
 import { prisma } from "@/lib/db/client";
 import type { Workspace, WorkspaceRole } from "@/app/generated/prisma/client";
 
@@ -96,6 +97,9 @@ export async function ensureWorkspaceForUser(
 }
 
 export async function getPrimaryWorkspace(userId: string): Promise<Workspace | null> {
+  "use cache";
+  cacheLife({ stale: 30, revalidate: 60, expire: 300 });
+  cacheTag(`workspace:${userId}`);
   const membership = await getWorkspaceMembership(userId);
   return membership?.workspace ?? null;
 }

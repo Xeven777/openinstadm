@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { mockPrisma } = vi.hoisted(() => ({
+const { mockPrisma, mockAfter } = vi.hoisted(() => ({
   mockPrisma: {
     trackedLink: {
       findUnique: vi.fn(),
@@ -9,11 +9,17 @@ const { mockPrisma } = vi.hoisted(() => ({
       create: vi.fn(),
     },
   },
+  mockAfter: vi.fn((fn: () => Promise<void>) => fn()),
 }));
 
 vi.mock("@/lib/db/client", () => ({
   prisma: mockPrisma,
 }));
+
+vi.mock("next/server", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("next/server")>();
+  return { ...actual, after: mockAfter };
+});
 
 import { GET } from "../app/r/[slug]/route";
 
