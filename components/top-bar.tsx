@@ -48,18 +48,23 @@ export default function TopBar({
 
       <div className="flex items-center gap-3 sm:gap-4">
         {instagramAccountCount > 0 ? (
-          <p className="shrink-0 truncate text-sm text-muted-foreground">
+          <a
+            href={"https://instagram.com/" + instagramUsername}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="shrink-0 truncate text-sm bg-linear-to-tl from-fuchsia-500 via-red-600 to-orange-400 text-transparent bg-clip-text dark:brightness-135 font-semibold tracking-tight"
+          >
             {instagramAccountCount > 1
               ? `${instagramAccountCount} accounts`
               : `@${instagramUsername}`}
-          </p>
+          </a>
         ) : (
           <a
-          href="/api/instagram/connect"
-          className={cn(
-            buttonVariants({ variant: "default" }),
-            "shrink-0 whitespace-nowrap",
-          )}
+            href="/api/instagram/connect"
+            className={cn(
+              buttonVariants({ variant: "default" }),
+              "shrink-0 whitespace-nowrap",
+            )}
           >
             <span className="sm:hidden">Connect</span>
             <span className="hidden sm:inline">Connect Instagram</span>

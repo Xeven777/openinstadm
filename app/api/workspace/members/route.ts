@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/db/client";
-import { getWorkspaceMembers } from "@/lib/server/members";
+import { getWorkspaceMembers, invalidateMembersCache } from "@/lib/server/members";
 import {
   generateInvitationToken,
   getInvitationExpiry,
@@ -115,6 +115,8 @@ export async function POST(request: NextRequest) {
     });
   }
 
+  invalidateMembersCache(context.workspaceId);
+
   return NextResponse.json({
     success: true,
     data: await getWorkspaceMembers(context.workspaceId, context.role),
@@ -158,6 +160,8 @@ export async function PATCH(request: NextRequest) {
     where: { id: member.id },
     data: { role: parsed.data.role },
   });
+
+  invalidateMembersCache(context.workspaceId);
 
   return NextResponse.json({
     success: true,
@@ -212,6 +216,8 @@ export async function DELETE(request: NextRequest) {
       data: { status: "REVOKED" },
     });
   }
+
+  invalidateMembersCache(context.workspaceId);
 
   return NextResponse.json({
     success: true,

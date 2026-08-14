@@ -12,8 +12,10 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Separator } from "@/components/ui/separator";
 import {
   Select,
   SelectContent,
@@ -73,110 +75,160 @@ export default function SettingsTeam({
     }
   }
 
+  function getInitials(name: string | null, email: string | null): string {
+    if (name) {
+      return name
+        .split(/\s+/)
+        .map((w) => w[0])
+        .join("")
+        .toUpperCase()
+        .slice(0, 2);
+    }
+    if (email) {
+      return email.slice(0, 2).toUpperCase();
+    }
+    return "??";
+  }
+
   return (
-    <Card size="sm">
-      <CardContent className="gap-0">
-        <h2 className="text-base font-semibold mb-6">Team</h2>
-      <div className="space-y-3">
-        {members.members.map((member) => (
-          <div
-            key={member.id}
-            className="flex items-center justify-between gap-4 border-b border-border py-3 last:border-0"
-          >
-            <div className="min-w-0">
-              <p className="truncate text-sm font-medium text-foreground">
-                {member.user.name ?? member.user.email ?? "Unknown member"}
-              </p>
-              <p className="text-xs text-muted-foreground">
-                {member.user.email}
-              </p>
-            </div>
-            <span className="rounded-full border border-border px-3 py-1 text-xs font-semibold text-muted-foreground">
-              {member.role}
-            </span>
-          </div>
-        ))}
-      </div>
-
-      {members.invitations.length ? (
-        <div className="mt-6 border-t border-border pt-4">
-          <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-zinc-500">
-            Pending invites
+    <Card>
+      <CardContent className="gap-4">
+        <div>
+          <h2 className="text-base font-semibold text-foreground">Team</h2>
+          <p className="text-sm text-muted-foreground">
+            {members.members.length} member{members.members.length === 1 ? "" : "s"}
+            {members.invitations.length > 0 &&
+              ` · ${members.invitations.length} pending invite${members.invitations.length === 1 ? "" : "s"}`}
           </p>
-          <div className="space-y-3">
-            {members.invitations.map((invitation) => (
-              <div
-                key={invitation.id}
-                className="flex flex-col gap-3 rounded border border-border bg-muted/70 p-3 sm:flex-row sm:items-center sm:justify-between"
-              >
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-medium text-foreground">
-                    {invitation.email}
-                  </p>
-                  <p className="truncate text-xs text-muted-foreground">
-                    {invitation.role} · {invitation.inviteUrl}
-                  </p>
-                </div>
-                <div className="flex gap-2">
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    onClick={() =>
-                      void navigator.clipboard?.writeText(invitation.inviteUrl)
-                    }
-                  >
-                    Copy
-                  </Button>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="destructive"
-                    onClick={() => void removeInvitation(invitation.id)}
-                    disabled={busy === `invite:${invitation.id}`}
-                  >
-                    Revoke
-                  </Button>
-                </div>
-              </div>
-            ))}
-          </div>
         </div>
-      ) : null}
 
-      {canManageMembers && (
-        <form
-          onSubmit={inviteMember}
-          className="mt-6 grid gap-3 border-t border-border pt-4 sm:grid-cols-[1fr_140px_auto]"
-        >
-          <Input
-            type="email"
-            value={inviteEmail}
-            onChange={(event) => setInviteEmail(event.target.value)}
-            placeholder="teammate@agency.com"
-            required
-          />
-          <Select
-            value={inviteRole}
-            onValueChange={(value) =>
-              setInviteRole((value ?? "MEMBER") as "ADMIN" | "MEMBER")
-            }
-          >
-            <SelectTrigger className="w-full">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="MEMBER">Member</SelectItem>
-              <SelectItem value="ADMIN">Admin</SelectItem>
-            </SelectContent>
-          </Select>
-          <Button type="submit" disabled={busy === "invite"}>
-            {busy === "invite" ? "Inviting..." : "Invite"}
-          </Button>
-          {error && <p className="sm:col-span-3 text-sm text-destructive">{error}</p>}
-        </form>
-      )}
-    </CardContent>
+        <Separator />
+
+        <div className="space-y-1">
+          {members.members.map((member) => (
+            <div
+              key={member.id}
+              className="flex items-center gap-3 rounded-lg px-3 py-2.5 transition-colors hover:bg-muted/50"
+            >
+              <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary">
+                {getInitials(member.user.name, member.user.email)}
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-medium text-foreground">
+                  {member.user.name}
+                </p>
+                <p className="truncate text-sm text-muted-foreground">
+                  {member.user.email}
+                </p>
+              </div>
+              <Badge
+                variant={
+                  member.role === "OWNER"
+                    ? "default"
+                    : member.role === "ADMIN"
+                      ? "secondary"
+                      : "outline"
+                }
+              >
+                {member.role}
+              </Badge>
+            </div>
+          ))}
+        </div>
+
+        {members.invitations.length > 0 && (
+          <>
+            <Separator />
+            <div>
+              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                Pending invites
+              </p>
+              <div className="space-y-2">
+                {members.invitations.map((invitation) => (
+                  <div
+                    key={invitation.id}
+                    className="flex flex-col gap-2 rounded-lg border border-border bg-muted/50 p-3 sm:flex-row sm:items-center sm:justify-between"
+                  >
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-medium text-foreground">
+                        {invitation.email}
+                      </p>
+                      <p className="truncate text-xs text-muted-foreground">
+                        {invitation.role} · expires{" "}
+                        {new Date(invitation.expiresAt).toLocaleDateString()}
+                      </p>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        onClick={() =>
+                          void navigator.clipboard?.writeText(
+                            invitation.inviteUrl
+                          )
+                        }
+                      >
+                        Copy link
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="destructive"
+                        onClick={() => void removeInvitation(invitation.id)}
+                        disabled={busy === `invite:${invitation.id}`}
+                      >
+                        Revoke
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </>
+        )}
+
+        {canManageMembers && (
+          <>
+            <Separator />
+            <form
+              onSubmit={inviteMember}
+              className="grid gap-3 sm:grid-cols-7 sm:items-center"
+            >
+              <Input
+                type="email"
+                value={inviteEmail}
+                onChange={(event) => setInviteEmail(event.target.value)}
+                placeholder="teammate@agency.com"
+                required
+                className="sm:col-span-4"
+              />
+              <Select
+                value={inviteRole}
+                onValueChange={(value) =>
+                  setInviteRole((value ?? "MEMBER") as "ADMIN" | "MEMBER")
+                }
+              >
+                <SelectTrigger className="w-full sm:col-span-2">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="MEMBER">Member</SelectItem>
+                  <SelectItem value="ADMIN">Admin</SelectItem>
+                </SelectContent>
+              </Select>
+              <Button type="submit" disabled={busy === "invite"} className="">
+                {busy === "invite" ? "Inviting..." : "Invite"}
+              </Button>
+              {error && (
+                <p className="sm:col-span-3 text-sm text-destructive">
+                  {error}
+                </p>
+              )}
+            </form>
+          </>
+        )}
+      </CardContent>
     </Card>
   );
 }

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
+import { invalidateSettingsCache } from "@/lib/server/settings";
 import { invalidateWorkspaceStats } from "@/lib/server/stats";
 import {
   canManageWorkspace,
@@ -36,6 +37,7 @@ export async function POST(request: NextRequest) {
   // The dashboard stats cache includes the account list — drop it so a
   // disconnect shows up immediately instead of lingering for the TTL.
   invalidateWorkspaceStats(context.workspaceId);
+  invalidateSettingsCache(context.workspaceId);
 
   return NextResponse.json({ success: true });
 }

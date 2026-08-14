@@ -1,14 +1,25 @@
 import type { WorkspaceRole } from "@/app/generated/prisma/client";
+import { cacheLife, cacheTag, revalidateTag } from "next/cache";
 import { prisma } from "@/lib/db/client";
 import { buildInvitationUrl } from "@/lib/workspace-invitations";
 
 /**
+ * Invalidate the cached members payload for a workspace.
+ *
+ * Call this from any route that mutates team membership (invite, revoke,
+ * accept) so the next navigation serves fresh data.
+ */
+export function invalidateMembersCache(workspaceId: string): void {
+  revalidateTag(`members:${workspaceId}`, { expire: 0 });
+}
+
+/**
  * Shared server-side query for the workspace team settings.
  *
- * Dates are serialized to ISO strings so the same payload can be JSON-encoded
- * (members API route) and passed straight into the settings page's client
- * islands. Used by both the route handlers and the Server Component so the
- * shape lives in exactly one place.
+ * Cached for 30s stale — fast on return navigations while still picking up
+ * new invites and removals within a minute. Dates are serialized to ISO
+ * strings so the same payload can be JSON-encoded (members API route) and
+ * passed straight into the settings page's client islands.
  */
 
 export interface SettingsMember {
@@ -40,6 +51,10 @@ export async function getWorkspaceMembers(
   workspaceId: string,
   currentUserRole: WorkspaceRole
 ): Promise<WorkspaceMembersPayload> {
+  "use cache";
+  cacheLife({ stale: 300, revalidate: 300, expire: 3600 });
+  cacheTag(`members:${workspaceId}`);
+
   const [members, invitations] = await Promise.all([
     prisma.workspaceMember.findMany({
       where: { workspaceId },

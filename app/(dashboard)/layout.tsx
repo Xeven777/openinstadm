@@ -2,7 +2,7 @@ import { Suspense } from "react";
 import { redirect } from "next/navigation";
 import DashboardShell from "@/components/dashboard-shell";
 import { auth } from "@/lib/auth";
-import { prisma } from "@/lib/db/client";
+import { getSidebarAccounts } from "@/lib/server/settings";
 import { WorkspaceProvider } from "@/lib/workspace-context";
 import { getPrimaryWorkspace } from "@/lib/workspace";
 
@@ -49,11 +49,8 @@ async function AuthenticatedShell({
     redirect("/login");
   }
 
-  const accounts = await prisma.instagramAccount.findMany({
-    where: { workspaceId: workspace.id },
-    orderBy: { connectedAt: "desc" },
-    select: { username: true },
-  });
+  const { username: instagramUsername, count: instagramAccountCount } =
+    await getSidebarAccounts(workspace.id);
 
   return (
     <WorkspaceProvider
@@ -65,8 +62,8 @@ async function AuthenticatedShell({
     >
       <DashboardShell
         workspaceName={workspace.name}
-        instagramUsername={accounts[0]?.username ?? null}
-        instagramAccountCount={accounts.length}
+        instagramUsername={instagramUsername}
+        instagramAccountCount={instagramAccountCount}
       >
         {children}
       </DashboardShell>

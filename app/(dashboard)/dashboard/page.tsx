@@ -86,7 +86,7 @@ async function DashboardContent({
             {stats.contactsCount}{" "}
             {stats.contactsCount === 1 ? "contact" : "contacts"}
             {" · "}
-            <Link href="/logs" className="text-accent hover:underline">
+            <Link href="/logs" className="text-primary hover:underline">
               See activity
             </Link>
           </p>
@@ -187,7 +187,7 @@ async function DashboardContent({
                   <p className="text-sm font-medium text-foreground truncate">
                     @{log.commenterName ?? "unknown"}
                   </p>
-                  <p className="text-xs text-muted-foreground truncate">
+                  <p className="text-xs bg-linear-to-tl from-fuchsia-500 via-red-600 to-orange-400 text-transparent bg-clip-text truncate">
                     {log.instagramAccount
                       ? `@${log.instagramAccount.username} · `
                       : ""}

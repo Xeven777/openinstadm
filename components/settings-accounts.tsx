@@ -12,7 +12,9 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button, buttonVariants } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
+import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
 import type { InstagramAccountStat } from "@/lib/server/stats";
 
@@ -59,71 +61,69 @@ export default function SettingsAccounts({
   }
 
   return (
-    <Card size="sm">
-      <CardContent className="gap-0">
-        <h2 className="text-base font-semibold mb-6">Instagram Connection</h2>
-
-      <div className="space-y-4">
-        <div className="flex items-center justify-between gap-3 py-3 border-b border-border">
+    <Card>
+      <CardContent className="gap-4">
+        <div className="flex items-center justify-between">
           <div>
-            <p className="text-sm font-medium text-foreground">Status</p>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              Comment webhooks and private replies depend on this connection.
-            </p>
-          </div>
-          <span
-            className={`px-3 py-1.5 rounded-full text-xs font-medium ${
-              accounts.length > 0
-                ? "bg-success/10 text-success"
-                : "bg-warning/10 text-warning"
-            }`}
-          >
-            {accounts.length > 0 ? "Connected" : "Not connected"}
-          </span>
-        </div>
-
-        <div className="flex items-center justify-between gap-3 py-3 border-b border-border">
-          <div>
-            <p className="text-sm font-medium text-foreground">Accounts</p>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              {accounts.length} connected Instagram profile
-              {accounts.length === 1 ? "" : "s"}
-            </p>
-          </div>
-          <span className="text-sm text-muted-foreground">
-            {accounts.length > 0 ? `${accounts.length} connected` : "None"}
-          </span>
-        </div>
-
-        <div className="space-y-3 py-3">
-          {error && <p className="text-sm text-destructive">{error}</p>}
-          {accounts.length === 0 && (
+            <h2 className="text-base font-semibold text-foreground">
+              Instagram Connection
+            </h2>
             <p className="text-sm text-muted-foreground">
+              Webhooks and private replies depend on this connection.
+            </p>
+          </div>
+          <Badge variant={accounts.length > 0 ? "success" : "warning"}>
+            {accounts.length > 0 ? "Connected" : "Not connected"}
+          </Badge>
+        </div>
+
+        <Separator />
+
+        <div className="space-y-3">
+          {error && (
+            <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
+              {error}
+            </p>
+          )}
+
+          {accounts.length === 0 && (
+            <p className="py-4 text-center text-sm text-muted-foreground">
               Connect an Instagram professional account to launch campaigns.
             </p>
           )}
+
           {accounts.map((account) => (
             <div
               key={account.id}
-              className="flex flex-col gap-3 rounded border border-border bg-muted/70 p-4 sm:flex-row sm:items-center sm:justify-between"
+              className="flex flex-col gap-3 rounded-lg border border-border bg-muted/50 p-4 sm:flex-row sm:items-center sm:justify-between"
             >
-              <div>
-                <p className="text-sm font-semibold text-foreground">
+              <div className="min-w-0">
+                <p className="font-medium text-foreground">
                   @{account.username}
                 </p>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  Token expires{" "}
-                  {account.tokenExpiresAt
-                    ? new Date(account.tokenExpiresAt).toLocaleDateString()
-                    : "not available"}{" "}
-                  ·{" "}
-                  {account.webhookSubscribed
-                    ? "Webhook ready"
-                    : "Webhook pending"}
-                </p>
+                <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
+                  <span>
+                    Expires{" "}
+                    {account.tokenExpiresAt
+                      ? new Date(account.tokenExpiresAt).toLocaleDateString()
+                      : "unknown"}
+                  </span>
+                  <span aria-hidden="true">·</span>
+                  <Badge
+                    variant={
+                      account.webhookSubscribed ? "success" : "secondary"
+                    }
+                    className="text-[10px]"
+                  >
+                    {account.webhookSubscribed
+                      ? "Webhook ready"
+                      : "Webhook pending"}
+                  </Badge>
+                </div>
               </div>
               <Button
                 variant="destructive"
+                size="sm"
                 onClick={() => void disconnectInstagram(account.id)}
                 disabled={busy === `disconnect:${account.id}`}
               >
@@ -134,19 +134,21 @@ export default function SettingsAccounts({
             </div>
           ))}
         </div>
-      </div>
 
-      <div className="mt-6 pt-4 border-t border-border flex gap-3">
+        <Separator />
+
         <a
           href="/api/instagram/connect"
-          className={cn(buttonVariants({ variant: "default" }))}
+          className={cn(
+            buttonVariants({ variant: "default" }),
+            "bg-linear-to-tl w-fit from-fuchsia-500 via-red-600 to-orange-400 text-white ml-auto",
+          )}
         >
           {accounts.length > 0
             ? "Connect another account"
             : "Connect Instagram"}
         </a>
-      </div>
-    </CardContent>
+      </CardContent>
     </Card>
   );
 }

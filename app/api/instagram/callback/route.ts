@@ -7,6 +7,7 @@ import { getLongLivedToken, getUserInfo, subscribeInstagramAccountToWebhooks } f
   exchangeCodeForToken,
   verifyOAuthState,
 } from "@/lib/meta/oauth";
+import { invalidateSettingsCache } from "@/lib/server/settings";
 import { invalidateWorkspaceStats } from "@/lib/server/stats";
 import { canManageWorkspace } from "@/lib/workspace-access";
 
@@ -106,6 +107,7 @@ export async function GET(request: NextRequest) {
     // New/updated account — drop the dashboard's cached stats so the account
     // list and counts refresh on the landing redirect.
     invalidateWorkspaceStats(state.workspaceId);
+    invalidateSettingsCache(state.workspaceId);
 
     return NextResponse.redirect(`${baseUrl}/dashboard?connected=true`);
   } catch (err) {
