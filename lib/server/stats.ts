@@ -72,32 +72,88 @@ export interface DashboardStatsData {
   recentLogs: DashboardRecentLog[];
 }
 
+export interface DashboardSummaryData {
+  userName: string | null;
+  contactsCount: number;
+  workspace: { name: string; dmsSentThisPeriod: number } | null;
+  instagramAccount: InstagramAccountStat | null;
+  instagramAccounts: InstagramAccountStat[];
+  selectedInstagramAccountId: string | null;
+  totalAutomations: number;
+  activeAutomations: number;
+  dmsSentToday: number;
+  dmsSentWeek: number;
+  dmsSentMonth: number;
+  dmsSkippedMonth: number;
+  dmsFailedMonth: number;
+  totalDMs: number;
+  clicksThisMonth: number;
+  totalClicks: number;
+  ctrThisMonth: number;
+}
+
+export interface DashboardInsightsData {
+  topKeywords: { keyword: string; count: number }[];
+  dailyDMs: { date: string; count: number }[];
+  recentLogs: DashboardRecentLog[];
+}
+
+/**
+ * Cheap half of the dashboard: greeting, account list/filter, and the six tile
+ * counts. All small indexed reads — 120s stale like the old combined TTL.
+ * Cached under the same dash:stats tag as the insights half, so
+ * invalidateWorkspaceStats() busts both. Keyed on (workspace, user, account)
+ * so the per-user greeting name never leaks across members.
+ */
+export async function getDashboardSummary(
+  workspaceId: string,
+  userId: string | null,
+  selectedAccountId: string | null,
+): Promise<DashboardSummaryData> {
+  "use cache";
+  cacheLife({ stale: 120, revalidate: 120, expire: 3600 });
+  cacheTag(`dash:stats:${workspaceId}`);
+  return computeDashboardSummary(workspaceId, userId, selectedAccountId);
+}
+
+/**
+ * Expensive half of the dashboard: 7-day chart series, top keywords, recent
+ * activity. Three heavier reads (a full week of timestamps + grouped keywords +
+ * the 10 latest logs) — 5 min stale, matching the worker-written data cadence.
+ * Shared across workspace members (no per-user data here), so one entry per
+ * workspace instead of one per member.
+ */
+export async function getDashboardInsights(
+  workspaceId: string,
+  selectedAccountId: string | null,
+): Promise<DashboardInsightsData> {
+  "use cache";
+  cacheLife({ stale: 300, revalidate: 300, expire: 7200 });
+  cacheTag(`dash:stats:${workspaceId}`);
+  return computeDashboardInsights(workspaceId, selectedAccountId);
+}
+
+/**
+ * Full dashboard payload for the API route — composes the two cached halves so
+ * the response shape is unchanged.
+ */
 export async function getDashboardStats(
   workspaceId: string,
   userId: string | null,
   selectedAccountId: string | null,
 ): Promise<DashboardStatsData> {
-  "use cache";
-  // Dashboard tiles are fine a bit stale; 120s matches the old in-process TTL.
-  // The cache key is derived from the arguments (workspace + user + account),
-  // so the per-user greeting name never leaks across members. In self-hosted
-  // Node the entry persists across requests in Next's in-memory LRU, exactly
-  // like the Map cache it replaces. Revalidate runs in the background after
-  // the window; mutations call invalidateWorkspaceStats() to force fresh data.
-  cacheLife({
-    stale: 120,
-    revalidate: 120,
-    expire: 3600,
-  });
-  cacheTag(`dash:stats:${workspaceId}`);
-  return computeDashboardStats(workspaceId, userId, selectedAccountId);
+  const [summary, insights] = await Promise.all([
+    getDashboardSummary(workspaceId, userId, selectedAccountId),
+    getDashboardInsights(workspaceId, selectedAccountId),
+  ]);
+  return { ...summary, ...insights };
 }
 
-async function computeDashboardStats(
+async function computeDashboardSummary(
   workspaceId: string,
   userId: string | null,
   selectedAccountId: string | null,
-): Promise<DashboardStatsData> {
+): Promise<DashboardSummaryData> {
   const now = new Date();
   const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const weekStart = new Date(todayStart);
@@ -121,11 +177,8 @@ async function computeDashboardStats(
     dmStatusCountsThisMonth,
     clicksThisMonth,
     totalClicks,
-    topKeywordRows,
-    recentLogs,
     user,
     contactRows,
-    weekLogs,
   ] = await Promise.all([
     prisma.workspace.findUnique({
       where: { id: workspaceId },
@@ -186,20 +239,6 @@ async function computeDashboardStats(
       where: { workspaceId, createdAt: { gte: monthStart }, ...accountFilter },
     }),
     prisma.linkClick.count({ where: { workspaceId, ...accountFilter } }),
-    prisma.dmLog.groupBy({
-      by: ["matchedKeyword"],
-      where: { workspaceId, matchedKeyword: { not: null }, ...accountFilter },
-      _count: { _all: true },
-    }),
-    prisma.dmLog.findMany({
-      where: { workspaceId, ...accountFilter },
-      orderBy: { createdAt: "desc" },
-      take: 10,
-      include: {
-        automation: { select: { name: true } },
-        instagramAccount: { select: { username: true } },
-      },
-    }),
     userId
       ? prisma.user.findUnique({
           where: { id: userId },
@@ -213,48 +252,11 @@ async function computeDashboardStats(
       where: { workspaceId, ...accountFilter },
       _count: { _all: true },
     }),
-    // The 7-day series used to be 7 sequential count queries; now it's a single
-    // lean select of just the timestamps, bucketed per day in JS. Bucketing in
-    // JS (rather than SQL date_trunc) keeps the exact app-local day boundaries
-    // the chart always used, regardless of the database session timezone. Only
-    // createdAt crosses the wire, so the payload stays small. Run inside the
-    // same Promise.all so it doesn't add a sequential round trip.
-    prisma.dmLog.findMany({
-      where: {
-        workspaceId,
-        status: "SENT",
-        createdAt: { gte: weekStart },
-        ...accountFilter,
-      },
-      select: { createdAt: true },
-    }),
   ]);
-
-  const countsByDay = new Map<string, number>();
-  for (const log of weekLogs) {
-    const key = log.createdAt.toDateString();
-    countsByDay.set(key, (countsByDay.get(key) ?? 0) + 1);
-  }
-
-  const dailyDMs: { date: string; count: number }[] = [];
-  for (let i = 6; i >= 0; i--) {
-    const dayStart = new Date(todayStart);
-    dayStart.setDate(dayStart.getDate() - i);
-    dailyDMs.push({
-      date: dayStart.toLocaleDateString("en-US", { weekday: "short" }),
-      count: countsByDay.get(dayStart.toDateString()) ?? 0,
-    });
-  }
 
   const monthlyStatusSummary = summarizeDmStatuses(
     dmStatusCountsThisMonth.map((row) => ({
       status: row.status,
-      _count: row._count._all,
-    })),
-  );
-  const topKeywords = normalizeTopKeywords(
-    topKeywordRows.map((row) => ({
-      matchedKeyword: row.matchedKeyword,
       _count: row._count._all,
     })),
   );
@@ -287,6 +289,75 @@ async function computeDashboardStats(
     clicksThisMonth,
     totalClicks,
     ctrThisMonth: calculateCtr(clicksThisMonth, dmsSentMonth),
+  };
+}
+
+async function computeDashboardInsights(
+  workspaceId: string,
+  selectedAccountId: string | null,
+): Promise<DashboardInsightsData> {
+  const now = new Date();
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const weekStart = new Date(todayStart);
+  weekStart.setDate(weekStart.getDate() - 7);
+  const accountFilter = selectedAccountId
+    ? { instagramAccountId: selectedAccountId }
+    : {};
+
+  const [topKeywordRows, recentLogs, weekLogs] = await Promise.all([
+    prisma.dmLog.groupBy({
+      by: ["matchedKeyword"],
+      where: { workspaceId, matchedKeyword: { not: null }, ...accountFilter },
+      _count: { _all: true },
+    }),
+    prisma.dmLog.findMany({
+      where: { workspaceId, ...accountFilter },
+      orderBy: { createdAt: "desc" },
+      take: 10,
+      include: {
+        automation: { select: { name: true } },
+        instagramAccount: { select: { username: true } },
+      },
+    }),
+    // The 7-day series: a single lean select of just the timestamps, bucketed
+    // per day in JS. Bucketing in JS (rather than SQL date_trunc) keeps the
+    // exact app-local day boundaries the chart always used, regardless of the
+    // database session timezone. Only createdAt crosses the wire.
+    prisma.dmLog.findMany({
+      where: {
+        workspaceId,
+        status: "SENT",
+        createdAt: { gte: weekStart },
+        ...accountFilter,
+      },
+      select: { createdAt: true },
+    }),
+  ]);
+
+  const countsByDay = new Map<string, number>();
+  for (const log of weekLogs) {
+    const key = log.createdAt.toDateString();
+    countsByDay.set(key, (countsByDay.get(key) ?? 0) + 1);
+  }
+
+  const dailyDMs: { date: string; count: number }[] = [];
+  for (let i = 6; i >= 0; i--) {
+    const dayStart = new Date(todayStart);
+    dayStart.setDate(dayStart.getDate() - i);
+    dailyDMs.push({
+      date: dayStart.toLocaleDateString("en-US", { weekday: "short" }),
+      count: countsByDay.get(dayStart.toDateString()) ?? 0,
+    });
+  }
+
+  const topKeywords = normalizeTopKeywords(
+    topKeywordRows.map((row) => ({
+      matchedKeyword: row.matchedKeyword,
+      _count: row._count._all,
+    })),
+  );
+
+  return {
     topKeywords,
     dailyDMs,
     recentLogs: recentLogs.map((log) => ({

@@ -8,7 +8,7 @@ import { Card, CardContent } from "@/components/ui/card";
 
 interface StatCardProps {
   label: string;
-  value: string | number;
+  value: React.ReactNode;
   trend?: string;
   trendUp?: boolean;
 }

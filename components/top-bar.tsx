@@ -43,7 +43,9 @@ export default function TopBar({
         >
           <List weight="bold" />
         </Button>
-        <h1 className="truncate text-base font-semibold sm:text-lg">{title}</h1>
+        <h1 className="truncate text-base font-semibold sm:text-lg lg:hidden">
+          {title}
+        </h1>
       </div>
 
       <div className="flex items-center gap-3 sm:gap-4">

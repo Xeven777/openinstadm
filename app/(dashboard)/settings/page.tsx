@@ -30,7 +30,6 @@ export default function SettingsPage() {
       <Suspense fallback={null}>
         <InstagramConnectNotice />
       </Suspense>
-      <Separator />
 
       {/* The session lookup + workspace/accounts/members reads stream inside
           this boundary under cacheComponents. */}
