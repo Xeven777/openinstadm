@@ -216,3 +216,13 @@
     @apply font-sans;
   }
 }
+::-webkit-scrollbar{
+  width: 5px;
+}
+::-webkit-scrollbar-track{
+  background: transparent;
+}
+::-webkit-scrollbar-thumb{
+  background: var(--color-muted);
+  border-radius: 5px;
+}

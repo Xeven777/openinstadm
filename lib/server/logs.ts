@@ -1,3 +1,4 @@
+import { cacheLife, cacheTag } from "next/cache";
 import { DmStatus } from "@/app/generated/prisma/client";
 import { prisma } from "@/lib/db/client";
 
@@ -40,10 +41,16 @@ export interface LogsPageResult {
 }
 
 export function parseLogsPageParams(params: LogsPageParams) {
-  const page = Math.max(1, params.page && Number.isFinite(params.page) ? params.page : 1);
+  const page = Math.max(
+    1,
+    params.page && Number.isFinite(params.page) ? params.page : 1,
+  );
   const limit = Math.min(
     50,
-    Math.max(1, params.limit && Number.isFinite(params.limit) ? params.limit : 20)
+    Math.max(
+      1,
+      params.limit && Number.isFinite(params.limit) ? params.limit : 20,
+    ),
   );
   const parsedStatus =
     params.status && Object.values(DmStatus).includes(params.status as DmStatus)
@@ -55,8 +62,15 @@ export function parseLogsPageParams(params: LogsPageParams) {
 
 export async function getLogsPage(
   workspaceId: string,
-  params: LogsPageParams
+  params: LogsPageParams,
 ): Promise<LogsPageResult> {
+  "use cache";
+  // 15 min stale / 2 h hard expiry — logs are worker-written and the client
+  // router already holds the page for 4 min, so fresh visits only pay the query
+  // once per window per filter combination.
+  cacheLife({ stale: 900, revalidate: 900, expire: 7200 });
+  cacheTag(`logs:${workspaceId}`);
+
   const { page, limit, parsedStatus } = parseLogsPageParams(params);
   const skip = (page - 1) * limit;
 

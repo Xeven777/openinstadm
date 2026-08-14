@@ -3,9 +3,10 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import AccountUrlFilter from "@/components/account-url-filter";
 import StatusBadge from "@/components/status-badge";
+import { Skeleton } from "@/components/ui/skeleton";
 import { getCurrentWorkspaceId } from "@/lib/auth";
-import { prisma } from "@/lib/db/client";
 import { getLogsPage } from "@/lib/server/logs";
+import { getWorkspaceAccounts } from "@/lib/server/settings";
 
 /**
  * DM Logs Page (Server Component)
@@ -31,10 +32,28 @@ const STATUS_FILTERS = [
   "SKIPPED_DEDUP",
 ];
 
+function LogsSkeleton() {
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-wrap gap-2">
+        {[...Array(6)].map((_, i) => (
+          <Skeleton key={i} className="h-8 w-20 rounded-lg" />
+        ))}
+      </div>
+      <div className="bg-muted rounded overflow-hidden">
+        <Skeleton className="h-12 w-full rounded-none" />
+        {[...Array(6)].map((_, i) => (
+          <Skeleton key={i} className="h-14 w-full rounded-none" />
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export default async function LogsPage(props: PageProps<"/logs">) {
   return (
     <div className="space-y-6">
-      <Suspense fallback={<div className="bg-muted rounded p-8 h-64" />}>
+      <Suspense fallback={<LogsSkeleton />}>
         <LogsContent searchParams={props.searchParams} />
       </Suspense>
     </div>
@@ -60,11 +79,7 @@ async function LogsContent({
       : "all";
 
   const [accounts, result] = await Promise.all([
-    prisma.instagramAccount.findMany({
-      where: { workspaceId },
-      orderBy: { connectedAt: "desc" },
-      select: { id: true, username: true, instagramId: true, name: true },
-    }),
+    getWorkspaceAccounts(workspaceId),
     getLogsPage(workspaceId, {
       page,
       limit: 20,

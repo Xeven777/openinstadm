@@ -4,7 +4,10 @@ import { getCurrentWorkspaceId } from "@/lib/auth";
 import { prisma } from "@/lib/db/client";
 import { generateTrackedLinkSlug } from "@/lib/tracking/server";
 import { generateReportShareSlug } from "@/lib/reports/share";
-import { getCampaignList } from "@/lib/server/automations";
+import {
+  getCampaignList,
+  invalidateCampaignsCache,
+} from "@/lib/server/automations";
 import { invalidateWorkspaceStats } from "@/lib/server/stats";
 import {
   canManageWorkspace,
@@ -314,6 +317,7 @@ export async function POST(request: NextRequest) {
   });
 
   invalidateWorkspaceStats(workspaceId);
+  invalidateCampaignsCache(workspaceId);
 
   return NextResponse.json(
     { success: true, data: automation },
@@ -418,6 +422,7 @@ export async function PATCH(request: NextRequest) {
   });
 
   invalidateWorkspaceStats(workspaceId);
+  invalidateCampaignsCache(workspaceId);
 
   // Update, create, or clear the campaign's primary tracked link when a
   // destination URL was supplied. `undefined` means "leave it alone".
@@ -525,6 +530,7 @@ export async function DELETE(request: NextRequest) {
   await prisma.automation.delete({ where: { id: automationId } });
 
   invalidateWorkspaceStats(workspaceId);
+  invalidateCampaignsCache(workspaceId);
 
   return NextResponse.json({ success: true, data: { deleted: true } });
 }

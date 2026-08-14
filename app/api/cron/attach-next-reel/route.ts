@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { getUserMedia, type InstagramMedia } from "@/lib/meta/client";
 import { decryptToken } from "@/lib/meta/oauth";
+import { invalidateCampaignsCache } from "@/lib/server/automations";
 
 /**
  * Binds "next reel" campaigns to a real post.
@@ -48,6 +49,7 @@ export async function GET(request: NextRequest) {
   let bound = 0;
   let checked = 0;
   const failures: string[] = [];
+  const touchedWorkspaces = new Set<string>();
 
   for (const { account, automations } of byAccount.values()) {
     checked += automations.length;
@@ -84,8 +86,15 @@ export async function GET(request: NextRequest) {
           pendingNextReel: false,
         },
       });
+      touchedWorkspaces.add(account.workspaceId);
       bound += 1;
     }
+  }
+
+  // Bound campaigns appear in the list with a post attached — drop the cached
+  // lists for the affected workspaces so the next visit shows them live.
+  for (const workspaceId of touchedWorkspaces) {
+    invalidateCampaignsCache(workspaceId);
   }
 
   return NextResponse.json({

@@ -40,6 +40,34 @@ export async function getSidebarAccounts(
 }
 
 /**
+ * Cached account list shared by the /logs and /campaigns account filters.
+ *
+ * Same connection data as getSettingsData's account rows (the fields the
+ * filter dropdowns need), cached under the sidebar-accounts tag so the
+ * existing connect/disconnect invalidation covers it too.
+ */
+export interface WorkspaceAccountOption {
+  id: string;
+  username: string;
+  instagramId: string;
+  name: string | null;
+}
+
+export async function getWorkspaceAccounts(
+  workspaceId: string
+): Promise<WorkspaceAccountOption[]> {
+  "use cache";
+  cacheLife({ stale: 300, revalidate: 300, expire: 3600 });
+  cacheTag(`sidebar-accounts:${workspaceId}`);
+
+  return prisma.instagramAccount.findMany({
+    where: { workspaceId },
+    orderBy: { connectedAt: "desc" },
+    select: { id: true, username: true, instagramId: true, name: true },
+  });
+}
+
+/**
  * Shared server-side query for the settings page.
  *
  * Cached for 30s stale — fast on return navigations while still picking up

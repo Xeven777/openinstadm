@@ -15,9 +15,18 @@ export const authConfig = {
     }),
   ],
   callbacks: {
-    async session({ session, user }) {
+    async jwt({ token, user }) {
+      // On sign-in, embed the user ID in the JWT so session lookups never
+      // touch the database (JWT strategy validates the HMAC signature
+      // locally instead of querying the Session table).
+      if (user?.id) {
+        token.id = user.id;
+      }
+      return token;
+    },
+    async session({ session, token }) {
       if (session.user) {
-        session.user.id = user.id;
+        session.user.id = token.id as string;
       }
       return session;
     },
@@ -34,7 +43,7 @@ export const authConfig = {
     verifyRequest: "/verify-request",
   },
   session: {
-    strategy: "database",
+    strategy: "jwt",
   },
   trustHost: true,
   secret: process.env.NEXTAUTH_SECRET,

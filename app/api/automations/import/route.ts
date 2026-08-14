@@ -3,6 +3,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/db/client";
 import { getWorkspaceInstagramAccount } from "@/lib/instagram-accounts";
 import { generateReportShareSlug } from "@/lib/reports/share";
+import { invalidateCampaignsCache } from "@/lib/server/automations";
 import { invalidateWorkspaceStats } from "@/lib/server/stats";
 import { generateTrackedLinkSlug } from "@/lib/tracking/server";
 import {
@@ -126,6 +127,7 @@ export async function POST(request: NextRequest) {
   // Imported campaigns change the dashboard's campaign counts — drop the
   // cached stats so the next visit reflects them immediately.
   invalidateWorkspaceStats(context.workspaceId);
+  invalidateCampaignsCache(context.workspaceId);
 
   return NextResponse.json({
     success: true,

@@ -1,4 +1,5 @@
 import { after } from "next/server";
+import { cacheLife, cacheTag, revalidateTag } from "next/cache";
 import { prisma } from "@/lib/db/client";
 import { calculateCtr, normalizeTopKeywords } from "@/lib/tracking/analytics";
 import { buildTrackedUrl } from "@/lib/tracking/message";
@@ -192,10 +193,27 @@ function serializeCampaign(
   };
 }
 
+/**
+ * Invalidate the cached campaign list for a workspace.
+ *
+ * Call from every route that writes automations (create/update/delete/import,
+ * next-reel cron) so the next read regenerates fresh. `{ expire: 0 }` is
+ * route-handler-safe and expires the entry so the following read is a miss.
+ */
+export function invalidateCampaignsCache(workspaceId: string): void {
+  revalidateTag(`campaigns:${workspaceId}`, { expire: 0 });
+}
+
 export async function getCampaignList(
   workspaceId: string,
   instagramAccountId?: string | null
 ): Promise<CampaignListItem[]> {
+  "use cache";
+  // 15 min stale / 2 h hard expiry — heavy aggregation (includes + 3 groupBy)
+  // runs at most once per window; every mutation route invalidates the tag.
+  cacheLife({ stale: 900, revalidate: 900, expire: 7200 });
+  cacheTag(`campaigns:${workspaceId}`);
+
   const accountFilter =
     instagramAccountId && instagramAccountId !== "all"
       ? { instagramAccountId }
