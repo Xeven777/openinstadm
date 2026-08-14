@@ -14,12 +14,15 @@
 
 import { useState } from "react";
 import {
+  BookmarkSimple,
   ChatCircle,
   Eye,
   GridFour,
   Heart,
   ImageSquare,
   ListDashes,
+  ShareNetwork,
+  Users,
 } from "@phosphor-icons/react";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -104,7 +107,7 @@ function PostsTable({ posts }: { posts: OverviewPost[] }) {
     // Eight metric columns can't compress into a phone; let the table keep its
     // natural width and scroll inside the panel instead.
     <div className="-mx-6 overflow-x-auto px-6">
-      <table className="w-full min-w-[760px] text-sm">
+      <table className="w-full min-w-190 text-sm">
         <thead>
           <tr className="border-b border-border text-left text-xs uppercase tracking-wide text-muted-foreground">
             <th className="py-2 pr-4 font-medium">Post</th>
@@ -203,7 +206,7 @@ function PostsGrid({ posts }: { posts: OverviewPost[] }) {
 function PostCard({ post: p }: { post: OverviewPost }) {
   const body = (
     <>
-      <div className="relative aspect-[4/5] overflow-hidden bg-muted">
+      <div className="relative aspect-4/5 overflow-hidden bg-muted">
         {p.thumbnailUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
@@ -225,15 +228,23 @@ function PostCard({ post: p }: { post: OverviewPost }) {
         >
           {mediaTypeLabel(p.mediaType)}
         </Badge>
+        <span className="absolute right-2 bottom-2 rounded-md bg-background/85 px-1.5 py-0.5 text-[11px] font-medium shadow-xs backdrop-blur-md tabular-nums text-foreground">
+          {formatDate(p.timestamp)}
+        </span>
       </div>
       <div className="flex flex-1 flex-col p-3">
         <p className="line-clamp-2 text-sm font-medium text-foreground">
           {p.caption || "Untitled post"}
         </p>
-        <div className="mt-auto flex items-center gap-3 pt-2 text-xs text-muted-foreground">
+        {/* Same metric set as the table view, in the same order */}
+        <div className="mt-auto flex flex-wrap items-center gap-x-3 gap-y-1.5 pt-2 text-xs text-muted-foreground">
           <span className="inline-flex items-center gap-1" title="Views">
             <Eye className="size-3.5" />
             {formatNumber(p.views)}
+          </span>
+          <span className="inline-flex items-center gap-1" title="Reach">
+            <Users className="size-3.5" />
+            {formatNumber(p.reach)}
           </span>
           <span className="inline-flex items-center gap-1" title="Likes">
             <Heart className="size-3.5" />
@@ -243,8 +254,13 @@ function PostCard({ post: p }: { post: OverviewPost }) {
             <ChatCircle className="size-3.5" />
             {formatNumber(p.comments)}
           </span>
-          <span className="ml-auto whitespace-nowrap tabular-nums">
-            {formatDate(p.timestamp)}
+          <span className="inline-flex items-center gap-1" title="Saved">
+            <BookmarkSimple className="size-3.5" />
+            {formatNumber(p.saved)}
+          </span>
+          <span className="inline-flex items-center gap-1" title="Shares">
+            <ShareNetwork className="size-3.5" />
+            {formatNumber(p.shares)}
           </span>
         </div>
       </div>

@@ -20,8 +20,20 @@
  */
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  ArrowLeft,
+  ChatCircle,
+  InstagramLogo,
+  PaperPlaneTilt,
+} from "@phosphor-icons/react";
 import AccountSelect, { type AccountOption } from "@/components/account-select";
+import { Button, buttonVariants } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Textarea } from "@/components/ui/textarea";
+import { cn } from "@/lib/utils";
 import { queryKeys } from "@/lib/query/keys";
 import {
   fetchAccountList,
@@ -45,6 +57,33 @@ function formatTime(iso: string | null): string {
   return sameDay
     ? d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })
     : d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+}
+
+function ConversationListSkeleton() {
+  return (
+    <div className="space-y-1 p-3">
+      {[...Array(6)].map((_, i) => (
+        <div key={i} className="flex items-center gap-3 px-1 py-2">
+          <Skeleton className="size-8 shrink-0 rounded-full" />
+          <div className="flex-1 space-y-1.5">
+            <Skeleton className="h-3 w-24" />
+            <Skeleton className="h-3 w-40" />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function ThreadSkeleton() {
+  return (
+    <div className="space-y-3">
+      <Skeleton className="h-10 w-2/3 rounded-lg" />
+      <Skeleton className="ml-auto h-10 w-1/2 rounded-lg" />
+      <Skeleton className="h-10 w-3/5 rounded-lg" />
+      <Skeleton className="ml-auto h-10 w-1/3 rounded-lg" />
+    </div>
+  );
 }
 
 export default function InboxPage() {
@@ -205,8 +244,16 @@ export default function InboxPage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-end justify-between gap-4">
-        <h1 className="text-lg font-semibold text-foreground">Inbox</h1>
+      {/* Header */}
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+        <div className="min-w-0">
+          <h1 className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
+            Inbox
+          </h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Direct messages from commenters — read and reply in real time.
+          </p>
+        </div>
         {accounts.length > 1 && (
           <AccountSelect
             accounts={accounts}
@@ -217,150 +264,206 @@ export default function InboxPage() {
         )}
       </div>
 
-      <div className="grid h-[calc(100dvh-11rem)] grid-cols-1 overflow-hidden rounded border border-border sm:grid-cols-[300px_1fr]">
-        {/* Conversation list. On mobile it takes the full pane and is hidden
-            once a thread is open (ManyChat-style); on sm+ it is always shown. */}
-        <div
-          className={`min-h-0 flex-col border-b border-border sm:flex sm:border-b-0 sm:border-r ${
-            openConversation ? "hidden" : "flex"
-          }`}
-        >
-          <div className="shrink-0 border-b border-border px-4 py-3 text-sm font-semibold text-foreground">
-            Conversations
+      <Card className="h-[calc(100dvh-12.5rem)] p-0">
+        {accountsQuery.isSuccess && accounts.length === 0 ? (
+          <div className="flex h-full flex-col items-center justify-center gap-2 p-8 text-center">
+            <span className="flex size-10 items-center justify-center rounded-full bg-muted text-muted-foreground">
+              <InstagramLogo className="size-5" />
+            </span>
+            <p className="text-sm font-medium text-foreground">
+              No Instagram account connected
+            </p>
+            <p className="max-w-sm text-sm text-muted-foreground">
+              Connect an account to read and reply to your direct messages.
+            </p>
+            <Link
+              href="/api/instagram/connect"
+              className={cn(
+                buttonVariants({ variant: "default", size: "sm" }),
+                "mt-2",
+              )}
+            >
+              Connect Instagram
+            </Link>
           </div>
-          <div className="min-h-0 flex-1 overflow-y-auto">
-            {convLoading ? (
-              <p className="px-4 py-6 text-sm text-muted-foreground">
-                Loading…
-              </p>
-            ) : convError ? (
-              <p className="px-4 py-6 text-sm text-destructive">{convError}</p>
-            ) : conversations.length === 0 ? (
-              <p className="px-4 py-6 text-sm text-muted-foreground">
-                No conversations yet.
-              </p>
-            ) : (
-              conversations.map((c) => {
-                const isActive = c.id === activeId;
-                return (
-                  <button
-                    key={c.id}
-                    type="button"
-                    onClick={() => setActiveId(c.id)}
-                    className={`block w-full border-b border-border px-4 py-3 text-left ${
-                      isActive ? "bg-muted" : "hover:bg-muted"
-                    }`}
-                  >
-                    <div className="flex items-baseline justify-between gap-2">
-                      <span className="truncate text-sm font-medium text-foreground">
-                        @{c.contact.username ?? "unknown"}
-                      </span>
-                      <span className="shrink-0 text-[11px] text-zinc-500">
-                        {formatTime(c.updatedTime)}
-                      </span>
-                    </div>
-                    {c.lastMessage && (
-                      <p className="mt-0.5 truncate text-xs text-muted-foreground">
-                        {c.lastMessage.fromMe ? "You: " : ""}
-                        {c.lastMessage.text || "(no text)"}
-                      </p>
-                    )}
-                  </button>
-                );
-              })
-            )}
-          </div>
-        </div>
-
-        {/* Thread. On mobile it is only shown once a conversation is open and
-            fills the pane; on sm+ it always sits beside the list. */}
-        <div
-          className={`min-h-0 flex-col w-[70%] ${openConversation ? "flex" : "hidden sm:flex"}`}
-        >
-          {!openConversation ? (
-            <div className="flex flex-1 items-center justify-center p-6 text-sm text-muted-foreground">
-              Select a conversation to read and reply.
-            </div>
-          ) : (
-            <>
-              <div className="flex shrink-0 items-center gap-2 border-b border-border px-4 py-3 text-sm font-semibold text-foreground">
-                <button
-                  type="button"
-                  onClick={() => setActiveId(null)}
-                  className="-ml-1 rounded px-2 py-1 text-muted-foreground hover:text-foreground sm:hidden"
-                  aria-label="Back to conversations"
-                >
-                  Back
-                </button>
-                <span className="truncate">
-                  @{openConversation.contact.username ?? "unknown"}
+        ) : (
+          <div className="grid h-full grid-cols-1 sm:grid-cols-[300px_1fr]">
+            {/* Conversation list. On mobile it takes the full pane and is hidden
+                once a thread is open (ManyChat-style); on sm+ it is always
+                shown. */}
+            <div
+              className={`min-h-0 flex-col border-b border-border sm:flex sm:border-b-0 sm:border-r ${
+                openConversation ? "hidden" : "flex"
+              }`}
+            >
+              <div className="flex shrink-0 items-center justify-between border-b border-border px-4 py-3">
+                <span className="inline-flex items-center gap-2 text-sm font-semibold text-foreground">
+                  <ChatCircle weight="fill" className="size-4 text-primary" />
+                  Conversations
+                </span>
+                <span className="text-xs tabular-nums text-muted-foreground">
+                  {conversations.length}
                 </span>
               </div>
-
-              <div
-                ref={scrollRef}
-                className="min-h-0 flex-1 space-y-2 overflow-y-auto p-4"
-              >
-                {threadLoading && messages.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">Loading…</p>
-                ) : messages.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">No messages.</p>
+              <div className="min-h-0 flex-1 overflow-y-auto">
+                {convLoading ? (
+                  <ConversationListSkeleton />
+                ) : convError ? (
+                  <p className="px-4 py-6 text-sm text-destructive">{convError}</p>
+                ) : conversations.length === 0 ? (
+                  <p className="px-4 py-6 text-sm text-muted-foreground">
+                    No conversations yet.
+                  </p>
                 ) : (
-                  messages.map((m) => (
-                    <div
-                      key={m.id}
-                      className={`flex ${m.fromMe ? "justify-end" : "justify-start"}`}
-                    >
-                      <div
-                        className={`max-w-[75%] rounded-lg px-3 py-2 text-sm ${
-                          m.fromMe
-                            ? "bg-accent text-white"
-                            : "bg-muted text-foreground border border-border"
-                        }`}
+                  conversations.map((c) => {
+                    const isActive = c.id === activeId;
+                    return (
+                      <button
+                        key={c.id}
+                        type="button"
+                        onClick={() => setActiveId(c.id)}
+                        aria-current={isActive ? "true" : undefined}
+                        className={cn(
+                          "relative block w-full border-b border-border px-4 py-3 text-left transition-colors",
+                          isActive
+                            ? "bg-primary/5 hover:bg-primary/5"
+                            : "hover:bg-muted/60",
+                        )}
                       >
-                        <p className="whitespace-pre-wrap wrap-break-word">
-                          {m.text}
-                        </p>
-                        <p
-                          className={`mt-1 text-[10px] ${
-                            m.fromMe ? "text-white/70" : "text-zinc-500"
-                          }`}
-                        >
-                          {formatTime(m.createdTime)}
-                        </p>
-                      </div>
-                    </div>
-                  ))
+                        {isActive && (
+                          <span
+                            aria-hidden="true"
+                            className="absolute inset-y-0 left-0 w-0.5 bg-primary"
+                          />
+                        )}
+                        <div className="flex items-baseline justify-between gap-2">
+                          <span className="truncate text-sm font-medium text-foreground">
+                            @{c.contact.username ?? "unknown"}
+                          </span>
+                          <span className="shrink-0 text-[11px] text-muted-foreground">
+                            {formatTime(c.updatedTime)}
+                          </span>
+                        </div>
+                        {c.lastMessage && (
+                          <p className="mt-0.5 truncate text-xs text-muted-foreground">
+                            {c.lastMessage.fromMe ? "You: " : ""}
+                            {c.lastMessage.text || "(no text)"}
+                          </p>
+                        )}
+                      </button>
+                    );
+                  })
                 )}
               </div>
+            </div>
 
-              <div className="shrink-0 border-t border-border p-3">
-                {sendError && (
-                  <p className="mb-2 text-xs text-destructive">{sendError}</p>
-                )}
-                <div className="flex items-end gap-2">
-                  <textarea
-                    value={draft}
-                    onChange={(e) => setDraft(e.target.value)}
-                    onKeyDown={handleKeyDown}
-                    rows={1}
-                    placeholder="Write a reply…  (Enter to send, Shift+Enter for a new line)"
-                    className="max-h-32 min-h-10 flex-1 resize-none rounded-lg border border-border bg-muted px-3 py-2 text-sm text-foreground placeholder:text-zinc-500 focus:border-accent/40 focus:outline-none"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => void handleSend()}
-                    disabled={sending || !draft.trim()}
-                    className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/80 disabled:opacity-50"
-                  >
-                    {sending ? "Sending…" : "Send"}
-                  </button>
+            {/* Thread. On mobile it is only shown once a conversation is open
+                and fills the pane; on sm+ it always sits beside the list. */}
+            <div
+              className={`min-h-0 w-[70%] flex-col ${openConversation ? "flex" : "hidden sm:flex"}`}
+            >
+              {!openConversation ? (
+                <div className="flex flex-1 items-center justify-center p-6 text-sm text-muted-foreground">
+                  Select a conversation to read and reply.
                 </div>
-              </div>
-            </>
-          )}
-        </div>
-      </div>
+              ) : (
+                <>
+                  <div className="flex shrink-0 items-center gap-2 border-b border-border px-4 py-3">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon-sm"
+                      onClick={() => setActiveId(null)}
+                      className="-ml-1 shrink-0 sm:hidden"
+                      aria-label="Back to conversations"
+                    >
+                      <ArrowLeft weight="bold" className="size-4" />
+                    </Button>
+                    <span className="truncate text-sm font-semibold text-foreground">
+                      @{openConversation.contact.username ?? "unknown"}
+                    </span>
+                  </div>
+
+                  <div
+                    ref={scrollRef}
+                    className="min-h-0 flex-1 space-y-2 overflow-y-auto p-4"
+                  >
+                    {threadLoading && messages.length === 0 ? (
+                      <ThreadSkeleton />
+                    ) : messages.length === 0 ? (
+                      <p className="text-sm text-muted-foreground">No messages.</p>
+                    ) : (
+                      messages.map((m) => (
+                        <div
+                          key={m.id}
+                          className={`flex ${m.fromMe ? "justify-end" : "justify-start"}`}
+                        >
+                          <div
+                            className={cn(
+                              "max-w-[75%] rounded-lg px-3 py-2 text-sm",
+                              m.fromMe
+                                ? "bg-primary text-primary-foreground"
+                                : "border border-border bg-muted text-foreground",
+                            )}
+                          >
+                            <p className="whitespace-pre-wrap wrap-break-word">
+                              {m.text}
+                            </p>
+                            <p
+                              className={`mt-1 text-[10px] ${
+                                m.fromMe
+                                  ? "text-primary-foreground/70"
+                                  : "text-muted-foreground"
+                              }`}
+                            >
+                              {formatTime(m.createdTime)}
+                            </p>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+
+                  <div className="shrink-0 border-t border-border p-3">
+                    {sendError && (
+                      <p className="mb-2 text-xs text-destructive">{sendError}</p>
+                    )}
+                    <div className="flex items-end gap-2">
+                      <Textarea
+                        value={draft}
+                        onChange={(e) => setDraft(e.target.value)}
+                        onKeyDown={handleKeyDown}
+                        rows={1}
+                        placeholder="Write a reply…  (Enter to send, Shift+Enter for a new line)"
+                        className="max-h-32 min-h-10 flex-1 resize-none rounded-lg bg-muted dark:bg-input/30"
+                      />
+                      <Button
+                        type="button"
+                        onClick={() => void handleSend()}
+                        disabled={sending || !draft.trim()}
+                        className="shrink-0"
+                      >
+                        {sending ? (
+                          "Sending…"
+                        ) : (
+                          <>
+                            <PaperPlaneTilt
+                              data-icon="inline-start"
+                              weight="fill"
+                              className="size-4"
+                            />
+                            Send
+                          </>
+                        )}
+                      </Button>
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        )}
+      </Card>
     </div>
   );
 }
