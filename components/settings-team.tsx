@@ -75,6 +75,20 @@ export default function SettingsTeam({
     }
   }
 
+  async function resendInvitation(invitationId: string) {
+    setBusy(`invite:${invitationId}`);
+    try {
+      await fetch("/api/workspace/invitations/resend", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ invitationId }),
+      });
+      router.refresh();
+    } finally {
+      setBusy(null);
+    }
+  }
+
   function getInitials(name: string | null, email: string | null): string {
     if (name) {
       return name
@@ -170,6 +184,15 @@ export default function SettingsTeam({
                         }
                       >
                         Copy link
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        onClick={() => void resendInvitation(invitation.id)}
+                        disabled={busy === `invite:${invitation.id}`}
+                      >
+                        Resend
                       </Button>
                       <Button
                         type="button"

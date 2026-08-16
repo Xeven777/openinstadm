@@ -1,5 +1,6 @@
 import { cacheLife, cacheTag } from "next/cache";
 import { prisma } from "@/lib/db/client";
+import { invalidateMembersCache } from "@/lib/server/members";
 import type { Workspace, WorkspaceRole } from "@/app/generated/prisma/client";
 
 function normalizeInviteEmail(email: string) {
@@ -48,6 +49,7 @@ export async function acceptPendingInvitationsForUser(
         },
       }),
     ]);
+    invalidateMembersCache(invitation.workspaceId);
   }
 }
 

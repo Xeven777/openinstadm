@@ -1,8 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/db/client";
+import {
+  sendInviteEmail,
+  sendMemberAddedEmail,
+} from "@/lib/server/invite-email";
 import { getWorkspaceMembers, invalidateMembersCache } from "@/lib/server/members";
 import {
+  buildInvitationUrl,
   generateInvitationToken,
   getInvitationExpiry,
   normalizeInvitationEmail,
@@ -67,10 +72,32 @@ export async function POST(request: NextRequest) {
   }
 
   const email = normalizeInvitationEmail(parsed.data.email);
-  const existingUser = await prisma.user.findUnique({
-    where: { email },
-    select: { id: true },
-  });
+  const [existingUser, inviter, workspace] = await Promise.all([
+    prisma.user.findUnique({
+      where: { email },
+      select: { id: true, email: true },
+    }),
+    prisma.user.findUnique({
+      where: { id: context.userId },
+      select: { name: true, email: true },
+    }),
+    prisma.workspace.findUnique({
+      where: { id: context.workspaceId },
+      select: { name: true },
+    }),
+  ]);
+
+  const workspaceName = workspace?.name ?? "your workspace";
+  const invitedBy =
+    inviter?.name || inviter?.email || "A workspace admin";
+  // Origin of the app (server-side; the dashboard link for added members).
+  const signInUrl = `${
+    (process.env.NEXTAUTH_URL ?? "http://localhost:3000").replace(/\/$/, "")
+  }/dashboard`;
+
+  // Email delivery is best-effort — a failed send never fails the invite.
+  // The inviter still gets the copyable link in the UI as a fallback.
+  let emailSent = false;
 
   if (existingUser) {
     await prisma.workspaceMember.upsert({
@@ -89,8 +116,15 @@ export async function POST(request: NextRequest) {
         role: parsed.data.role,
       },
     });
+
+    emailSent = await sendMemberAddedEmail({
+      to: email,
+      workspaceName,
+      role: parsed.data.role,
+      signInUrl,
+    });
   } else {
-    await prisma.workspaceInvitation.upsert({
+    const invitation = await prisma.workspaceInvitation.upsert({
       where: {
         workspaceId_email: {
           workspaceId: context.workspaceId,
@@ -113,12 +147,21 @@ export async function POST(request: NextRequest) {
         expiresAt: getInvitationExpiry(),
       },
     });
+
+    emailSent = await sendInviteEmail({
+      to: email,
+      workspaceName,
+      role: parsed.data.role,
+      inviteUrl: buildInvitationUrl(invitation.token),
+      invitedBy,
+    });
   }
 
   invalidateMembersCache(context.workspaceId);
 
   return NextResponse.json({
     success: true,
+    emailSent,
     data: await getWorkspaceMembers(context.workspaceId, context.role),
   });
 }

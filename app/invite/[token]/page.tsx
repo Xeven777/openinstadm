@@ -3,8 +3,12 @@ import { Suspense } from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import InvitationAcceptCard from "@/components/invitation-accept-card";
+import { buttonVariants } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/db/client";
+import { cn } from "@/lib/utils";
+import { normalizeInvitationEmail } from "@/lib/workspace-invitations";
 
 type InvitePageProps = {
   params: Promise<{ token: string }>;
@@ -24,6 +28,50 @@ export default function InvitePage({ params }: InvitePageProps) {
   );
 }
 
+function InviteShell({ children }: { children: React.ReactNode }) {
+  return (
+    <main className="flex min-h-screen items-center justify-center bg-background px-6">
+      <div className="w-full max-w-md">
+        <div className="mb-8 text-center">
+          <Link
+            href="/"
+            className="text-2xl font-semibold text-foreground transition-opacity hover:opacity-80"
+          >
+            OpenInstaDM
+          </Link>
+        </div>
+        <Card>
+          <CardContent className="gap-4">{children}</CardContent>
+        </Card>
+      </div>
+    </main>
+  );
+}
+
+function InviteHeading({
+  workspaceName,
+  role,
+  email,
+}: {
+  workspaceName: string;
+  role: string;
+  email: string;
+}) {
+  return (
+    <>
+      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+        Workspace invitation
+      </p>
+      <h1 className="mt-2 text-xl font-semibold text-foreground">
+        Join {workspaceName}
+      </h1>
+      <p className="text-sm leading-6 text-muted-foreground">
+        You were invited as {role.toLowerCase()} for {email}.
+      </p>
+    </>
+  );
+}
+
 async function InviteContent({ params }: InvitePageProps) {
   const { token } = await params;
   const [session, invitation] = await Promise.all([
@@ -36,45 +84,88 @@ async function InviteContent({ params }: InvitePageProps) {
     }),
   ]);
 
-  if (!invitation || invitation.status !== "PENDING") {
+  // Missing or revoked links get no content — don't leak workspace names.
+  if (!invitation || invitation.status === "REVOKED") {
     notFound();
   }
 
+  const signedInEmail = session?.user?.email ?? null;
+  const emailMatches = Boolean(
+    signedInEmail &&
+      normalizeInvitationEmail(signedInEmail) === invitation.email
+  );
+
   const expired = invitation.expiresAt <= new Date();
+  // Land on an expired link: persist the state so the inviter's settings list
+  // reflects it instead of a perpetually-pending invite.
+  if (expired && invitation.status === "PENDING") {
+    void prisma.workspaceInvitation.update({
+      where: { id: invitation.id },
+      data: { status: "EXPIRED" },
+    });
+  }
+
+  const workspaceName = invitation.workspace.name;
+
+  // Already accepted — only the invitee sees this; anyone else gets a 404.
+  if (invitation.status === "ACCEPTED") {
+    if (!emailMatches) notFound();
+    return (
+      <InviteShell>
+        <InviteHeading
+          workspaceName={workspaceName}
+          role={invitation.role}
+          email={invitation.email}
+        />
+        <p className="text-sm text-muted-foreground">
+          You&apos;re already a member of {workspaceName}. Head to the
+          dashboard to get started.
+        </p>
+        <div>
+          <Link
+            href="/dashboard"
+            className={cn(buttonVariants({ variant: "default", size: "lg" }), "w-fit")}
+          >
+            Open dashboard
+          </Link>
+        </div>
+      </InviteShell>
+    );
+  }
+
+  if (invitation.status === "EXPIRED" || expired) {
+    return (
+      <InviteShell>
+        <InviteHeading
+          workspaceName={workspaceName}
+          role={invitation.role}
+          email={invitation.email}
+        />
+        <p className="text-sm text-destructive">
+          This invitation has expired. Ask the workspace owner to resend it
+          from Settings → Team.
+        </p>
+      </InviteShell>
+    );
+  }
 
   return (
-    <main className="min-h-screen bg-background text-foreground">
-      <div className="mx-auto flex min-h-screen w-full max-w-xl flex-col justify-center px-5 py-12">
-        <Link href="/" className="mb-8 text-sm font-bold text-cyan-100">
-          OpenInstaDM
-        </Link>
-        <section className="border border-white/10 bg-white/[0.035] p-8">
-          <p className="text-xs font-semibold uppercase tracking-wide text-cyan-100">
-            Workspace invitation
-          </p>
-          <h1 className="mt-4 text-3xl font-black leading-tight text-white">
-            Join {invitation.workspace.name}
-          </h1>
-          <p className="mt-4 text-sm leading-6 text-zinc-400">
-            You were invited as {invitation.role.toLowerCase()} for{" "}
-            {invitation.email}.
-          </p>
-          <div className="mt-8">
-            {expired ? (
-              <p className="text-sm text-destructive">
-                This invitation has expired. Ask the workspace owner to resend it.
-              </p>
-            ) : (
-              <InvitationAcceptCard
-                token={token}
-                isSignedIn={Boolean(session?.user?.id)}
-                invitedEmail={invitation.email}
-              />
-            )}
-          </div>
-        </section>
+    <InviteShell>
+      <InviteHeading
+        workspaceName={workspaceName}
+        role={invitation.role}
+        email={invitation.email}
+      />
+      <div className="pt-1">
+        <InvitationAcceptCard
+          token={token}
+          isSignedIn={Boolean(session?.user?.id)}
+          invitedEmail={invitation.email}
+          signedInEmail={signedInEmail}
+          emailMatches={emailMatches}
+          workspaceName={workspaceName}
+        />
       </div>
-    </main>
+    </InviteShell>
   );
 }
-

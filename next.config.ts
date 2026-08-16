@@ -18,6 +18,7 @@ const nextConfig: NextConfig = {
       dynamic: 240,
       static: 300,
     },
+    cachedNavigations: true,
   },
   reactCompiler: true,
   turbopack: {

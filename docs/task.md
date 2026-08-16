@@ -118,6 +118,18 @@ The earlier checklist above reflected the intended end state. A fresh code audit
 - [x] **Reduce Meta Graph API traffic sharply**: Long Postgres snapshot TTLs now prevent repeated Meta hits for profile, posts, and overview across navigation, refreshes, tabs, devices, and serverless instances.
 - [x] **Keep UI fast on repeat visits**: IndexedDB-persisted TanStack Query should paint cached client-island data immediately in the same browser.
 - [ ] **Keep production dependency footprint small**: Postgres remains the only durable cache dependency; Redis is still only needed for BullMQ queueing.
+
+---
+
+### 📜 Virtualized Big Lists (TanStack Virtual)
+
+Big lists should render only visible items plus intentional overscan, measure dynamic content, and restore scroll anchors on prepends/streaming. `@tanstack/react-virtual` is installed; the dashboard's only scroll surface is the `<main>` element owned by `DashboardShell` (exposed to islands via `useDashboardScrollElement()` in `components/dashboard-scroll.tsx`) — the window never scrolls on dashboard pages.
+
+- [x] **Virtualize overview posts (table + grid)**: [`components/overview-posts-view.tsx`](/components/overview-posts-view.tsx) now virtualizes both views against the dashboard `<main>` scroller (`useVirtualizer` + `scrollMargin`, since the posts card is not the first child — offset is recomputed via `ResizeObserver` when the lazy follower chart / window resizes). Table = fixed-height estimate rows; grid = responsive rows (2/3/4 cols mirrored from the Tailwind breakpoints) measured with `measureElement`. Up to 500 posts (`OVERVIEW_MAX_POSTS`) are no longer mounted at once. Scroll position is snapshotted per post-set signature (length + newest post id) in-memory and sessionStorage, and restored on account/range switch and table↔grid toggle. Semantic table markup kept via ARIA `role` attributes.
+- [ ] **Virtualize inbox thread messages**: [`app/(dashboard)/inbox/page.tsx`](/app/(dashboard)/inbox/page.tsx#L387) — dynamic-height messages measured with `measureElement`, element-scroll on the thread pane, pinned-to-bottom on new/streaming messages and optimistic sends (replace the current `el.scrollTop = el.scrollHeight` in the `[messages]` effect at L176 with `scrollToIndex`/snapshot offset). Stable anchors needed because messages are appended by polling.
+- [ ] **Virtualize inbox conversation list**: [`app/(dashboard)/inbox/page.tsx`](/app/(dashboard)/inbox/page.tsx#L308) — fixed-height rows, element-scroll on the conversation pane, `overscan` for smooth near-bottom scrolling.
+- [ ] **Reconsider campaigns list**: [`components/campaigns-list.tsx`](/components/campaigns-list.tsx) — only worth virtualizing if a workspace can hold hundreds of campaigns; currently filtered client-side and typically small.
+
 ---
 
 ## 🎨 3.5. UI Migration (shadcn/ui + Phosphor Icons)
@@ -141,3 +153,4 @@ Tracked in detail in [`docs/ui-task.md`](docs/ui-task.md).
 - [ ] **AI-Powered Intent Matching & Smart Replies**: Replace exact keyword matching with LLM intent classification for natural conversation.
 - [ ] **Outbound Webhook Integrations**: Forward leads and link clicks to external endpoints (Zapier, Make, HubSpot, Notion).
 - [ ] **Facebook Page Comment Support**: Add Facebook login OAuth permissions, database tables/columns for Facebook Pages, parse `object: "page"` webhook comment events, and integrate Facebook Page-scoped Messaging API (PSID replies).
+- [x] **Workspace invite flow overhaul**: invites are now delivered by email via Resend (same REST-API approach as the magic links) — both new invitees (accept link) and existing users added directly (dashboard link); pending invites can be **resent** from Settings → Team (same token, expiry pushed out 14 days, re-emails); the `/invite/[token]` page was rebuilt on the shadcn theme with dedicated states for expired (persists `EXPIRED` status on the row), already-accepted (dashboard CTA, only shown to the invitee), and signed-in-with-wrong-email (sign out + switch account); the “Sign in to accept” CTA now carries `callbackUrl` back to the invite so the magic-link round-trip lands back here; both the accept route and the auto-accept path invalidate the members cache so the inviter's settings list updates immediately.
