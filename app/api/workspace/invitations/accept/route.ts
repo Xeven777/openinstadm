@@ -2,6 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/db/client";
 import { invalidateMembersCache } from "@/lib/server/members";
+import { invalidateUserWorkspaces } from "@/lib/workspace";
+import {
+  WORKSPACE_COOKIE,
+  workspaceCookieOptions,
+} from "@/lib/workspace-cookie";
 import { normalizeInvitationEmail } from "@/lib/workspace-invitations";
 
 export async function POST(request: NextRequest) {
@@ -73,12 +78,21 @@ export async function POST(request: NextRequest) {
   ]);
 
   invalidateMembersCache(invitation.workspaceId);
+  invalidateUserWorkspaces(session.user.id);
 
-  return NextResponse.json({
+  // Land the invitee in the workspace they just joined — the dashboard layout
+  // resolves the active workspace from this cookie.
+  const response = NextResponse.json({
     success: true,
     data: {
       workspaceName: invitation.workspace.name,
     },
   });
+  response.cookies.set(
+    WORKSPACE_COOKIE,
+    invitation.workspaceId,
+    workspaceCookieOptions()
+  );
+  return response;
 }
 

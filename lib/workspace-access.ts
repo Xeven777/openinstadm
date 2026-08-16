@@ -1,8 +1,10 @@
 import type { Workspace, WorkspaceRole } from "@/app/generated/prisma/client";
 import { cacheLife, cacheTag } from "next/cache";
+import { cookies } from "next/headers";
 import { getCurrentUserId } from "@/lib/auth";
 import { prisma } from "@/lib/db/client";
 import { ensureWorkspaceForUser } from "@/lib/workspace";
+import { WORKSPACE_COOKIE } from "@/lib/workspace-cookie";
 
 export type WorkspaceContext = {
   userId: string;
@@ -42,26 +44,39 @@ export function canManageBilling(role: WorkspaceRole) {
 export async function getCurrentWorkspaceContext(): Promise<WorkspaceContext | null> {
   const userId = await getCurrentUserId();
   if (!userId) return null;
-  return getCachedWorkspaceContext(userId);
+
+  // Honor the active-workspace cookie so a member of several workspaces
+  // resolves the one they switched to instead of always their oldest.
+  const cookieStore = await cookies();
+  const requestedWorkspaceId = cookieStore.get(WORKSPACE_COOKIE)?.value ?? null;
+  return getCachedWorkspaceContext(userId, requestedWorkspaceId);
 }
 
 /**
- * Cached workspace lookup — keyed by userId so different members never share
- * context. 30s stale keeps return navigations instant while still picking up
- * role changes within a minute.
+ * Cached workspace lookup — keyed by userId + requested workspace so different
+ * members (and a member switching workspaces) never share context. 30s stale
+ * keeps return navigations instant while still picking up role changes within
+ * a minute.
  */
 async function getCachedWorkspaceContext(
-  userId: string
+  userId: string,
+  requestedWorkspaceId: string | null
 ): Promise<WorkspaceContext | null> {
   "use cache";
   cacheLife({ stale: 30, revalidate: 60, expire: 300 });
-  cacheTag(`workspace-ctx:${userId}`);
+  cacheTag(`workspace-ctx:${userId}:${requestedWorkspaceId ?? "primary"}`);
 
-  const membership = await prisma.workspaceMember.findFirst({
+  const memberships = await prisma.workspaceMember.findMany({
     where: { userId },
     include: { workspace: true },
     orderBy: { createdAt: "asc" },
   });
+
+  // The cookie wins when it names a workspace the user still belongs to;
+  // otherwise fall back to the oldest membership.
+  const membership =
+    memberships.find((m) => m.workspaceId === requestedWorkspaceId) ??
+    memberships[0];
 
   if (membership) {
     return {

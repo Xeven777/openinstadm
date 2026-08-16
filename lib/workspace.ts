@@ -1,4 +1,4 @@
-import { cacheLife, cacheTag } from "next/cache";
+import { cacheLife, cacheTag, revalidateTag } from "next/cache";
 import { prisma } from "@/lib/db/client";
 import { invalidateMembersCache } from "@/lib/server/members";
 import type { Workspace, WorkspaceRole } from "@/app/generated/prisma/client";
@@ -50,7 +50,45 @@ export async function acceptPendingInvitationsForUser(
       }),
     ]);
     invalidateMembersCache(invitation.workspaceId);
+    invalidateUserWorkspaces(userId);
   }
+}
+
+export interface UserWorkspace {
+  id: string;
+  name: string;
+  role: WorkspaceRole;
+}
+
+/**
+ * All workspaces the user belongs to, oldest first. Powers the workspace
+ * switcher and lets the layout/API context honor the active-workspace cookie.
+ */
+export async function getUserWorkspaces(userId: string): Promise<UserWorkspace[]> {
+  "use cache";
+  cacheLife({ stale: 30, revalidate: 60, expire: 300 });
+  cacheTag(`workspaces:${userId}`);
+
+  const memberships = await prisma.workspaceMember.findMany({
+    where: { userId },
+    include: { workspace: { select: { id: true, name: true } } },
+    orderBy: { createdAt: "asc" },
+  });
+
+  return memberships.map((membership) => ({
+    id: membership.workspaceId,
+    name: membership.workspace.name,
+    role: membership.role,
+  }));
+}
+
+/**
+ * Invalidate the cached workspace list for a user. Call whenever a membership
+ * is added or removed (invite accept, direct-add, removal) so the switcher and
+ * the layout's workspace resolution pick the change up immediately.
+ */
+export function invalidateUserWorkspaces(userId: string): void {
+  revalidateTag(`workspaces:${userId}`, { expire: 0 });
 }
 
 export async function getWorkspaceMembership(userId: string): Promise<{

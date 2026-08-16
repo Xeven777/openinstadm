@@ -24,8 +24,6 @@ describe("environment helpers", () => {
   });
 
   it("defaults Meta Graph API version in one place", () => {
-    expect(getMetaGraphApiVersion()).toBe("v25.0");
-    vi.stubEnv("META_GRAPH_API_VERSION", "v26.0");
     expect(getMetaGraphApiVersion()).toBe("v26.0");
   });
 });

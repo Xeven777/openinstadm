@@ -12,6 +12,7 @@ import {
   getInvitationExpiry,
   normalizeInvitationEmail,
 } from "@/lib/workspace-invitations";
+import { invalidateUserWorkspaces } from "@/lib/workspace";
 import {
   canManageWorkspace,
   getCurrentWorkspaceContext,
@@ -116,6 +117,8 @@ export async function POST(request: NextRequest) {
         role: parsed.data.role,
       },
     });
+
+    invalidateUserWorkspaces(existingUser.id);
 
     emailSent = await sendMemberAddedEmail({
       to: email,
@@ -247,6 +250,7 @@ export async function DELETE(request: NextRequest) {
     }
 
     await prisma.workspaceMember.delete({ where: { id: member.id } });
+    invalidateUserWorkspaces(member.userId);
   }
 
   if (parsed.data.invitationId) {

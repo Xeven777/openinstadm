@@ -8,11 +8,14 @@
  * get a filled weight icon on a primary-tinted pill.
  */
 
+import { useState } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import {
+  CaretUpDown,
   ChartLine,
   ChatCircle,
+  Check,
   Gear,
   ListDashes,
   Megaphone,
@@ -23,6 +26,14 @@ import {
 } from "@phosphor-icons/react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { buttonVariants } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 
 interface NavItem {
@@ -67,14 +78,38 @@ interface SidebarProps {
   isOpen: boolean;
   onClose: () => void;
   workspaceName: string;
+  /** Active workspace id — drives the switcher highlight. */
+  workspaceId: string;
+  /** All workspaces the user belongs to. */
+  workspaces: Array<{ id: string; name: string; role: string }>;
 }
 
 export default function Sidebar({
   isOpen,
   onClose,
   workspaceName,
+  workspaceId,
+  workspaces,
 }: SidebarProps) {
   const pathname = usePathname();
+  const router = useRouter();
+  const [switching, setSwitching] = useState(false);
+
+  async function switchWorkspace(nextWorkspaceId: string) {
+    if (nextWorkspaceId === workspaceId || switching) return;
+    setSwitching(true);
+    try {
+      await fetch("/api/workspace/switch", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ workspaceId: nextWorkspaceId }),
+      });
+    } finally {
+      setSwitching(false);
+      onClose();
+      router.push("/dashboard");
+    }
+  }
 
   return (
     <>
@@ -150,19 +185,59 @@ export default function Sidebar({
         </nav>
 
         <div className="px-4 py-4 border-t border-border">
-          <div className="flex items-center gap-3">
-            <Avatar>
-              <AvatarFallback className="bg-primary/10 text-primary text-xs font-bold">
-                {workspaceInitials(workspaceName)}
-              </AvatarFallback>
-            </Avatar>
-            <div className="min-w-0">
-              <p className="truncate text-sm font-medium text-foreground">
-                {workspaceName}
-              </p>
-              <p className="text-xs text-muted-foreground">Self-hosted</p>
-            </div>
-          </div>
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              aria-label="Switch workspace"
+              className="flex w-full items-center gap-3 rounded-lg px-2 py-1.5 text-left outline-none transition-colors hover:bg-muted/50 data-popup-open:bg-muted/50"
+            >
+              <Avatar>
+                <AvatarFallback className="bg-primary/10 text-primary text-xs font-bold">
+                  {workspaceInitials(workspaceName)}
+                </AvatarFallback>
+              </Avatar>
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-medium text-foreground">
+                  {workspaceName}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {workspaces.length} workspace
+                  {workspaces.length === 1 ? "" : "s"}
+                </p>
+              </div>
+              <CaretUpDown className="size-4 shrink-0 text-muted-foreground" />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent
+              align="start"
+              side="top"
+              sideOffset={8}
+              className="w-(--anchor-width)"
+            >
+              <DropdownMenuGroup>
+                <DropdownMenuLabel>Workspaces</DropdownMenuLabel>
+              </DropdownMenuGroup>
+              {workspaces.map((workspace) => {
+                const isActive = workspace.id === workspaceId;
+                return (
+                  <DropdownMenuItem
+                    key={workspace.id}
+                    onClick={() => void switchWorkspace(workspace.id)}
+                    disabled={switching}
+                  >
+                    <span className="flex size-6 shrink-0 items-center justify-center rounded-md bg-muted text-xs font-bold text-muted-foreground">
+                      {workspaceInitials(workspace.name)}
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate">{workspace.name}</span>
+                      <span className="block text-xs text-muted-foreground">
+                        {workspace.role.toLowerCase()}
+                      </span>
+                    </span>
+                    {isActive && <Check className="size-4 shrink-0" />}
+                  </DropdownMenuItem>
+                );
+              })}
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </aside>
     </>

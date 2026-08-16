@@ -5,9 +5,19 @@ import { DashboardScrollProvider } from "@/components/dashboard-scroll";
 import Sidebar from "@/components/sidebar";
 import TopBar from "@/components/top-bar";
 
+export interface ShellWorkspace {
+  id: string;
+  name: string;
+  role: string;
+}
+
 interface DashboardShellProps {
   children: React.ReactNode;
   workspaceName: string;
+  /** Active workspace id (drives the switcher highlight). */
+  workspaceId: string;
+  /** All workspaces the user belongs to, for the sidebar switcher. */
+  workspaces: ShellWorkspace[];
   instagramUsername: string | null;
   instagramAccountCount: number;
 }
@@ -15,6 +25,8 @@ interface DashboardShellProps {
 export default function DashboardShell({
   children,
   workspaceName,
+  workspaceId,
+  workspaces,
   instagramUsername,
   instagramAccountCount,
 }: DashboardShellProps) {
@@ -30,6 +42,8 @@ export default function DashboardShell({
           isOpen={sidebarOpen}
           onClose={() => setSidebarOpen(false)}
           workspaceName={workspaceName}
+          workspaceId={workspaceId}
+          workspaces={workspaces}
         />
 
         <div className="flex min-w-0 flex-1 flex-col overflow-hidden">

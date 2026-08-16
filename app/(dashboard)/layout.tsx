@@ -1,10 +1,12 @@
 import { Suspense } from "react";
+import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import DashboardShell from "@/components/dashboard-shell";
 import { auth } from "@/lib/auth";
 import { getSidebarAccounts } from "@/lib/server/settings";
 import { WorkspaceProvider } from "@/lib/workspace-context";
-import { getPrimaryWorkspace } from "@/lib/workspace";
+import { WORKSPACE_COOKIE } from "@/lib/workspace-cookie";
+import { getUserWorkspaces } from "@/lib/workspace";
 
 /**
  * Dashboard layout (Cache Components).
@@ -41,27 +43,33 @@ async function AuthenticatedShell({
     redirect("/login");
   }
 
-  // Fast path: just look up the membership (one indexed query). The full
-  // ensureWorkspaceForUser (which also checks pending invitations) is only
-  // needed at login time, not on every page navigation.
-  const workspace = await getPrimaryWorkspace(session.user.id);
-  if (!workspace) {
+  // Resolve the active workspace: the workspace_id cookie (set by the switch
+  // route / invite acceptance) when it names a membership, else the oldest.
+  const cookieStore = await cookies();
+  const requestedWorkspaceId = cookieStore.get(WORKSPACE_COOKIE)?.value ?? null;
+  const workspaces = await getUserWorkspaces(session.user.id);
+  if (workspaces.length === 0) {
     redirect("/login");
   }
+  const selected =
+    workspaces.find((workspace) => workspace.id === requestedWorkspaceId) ??
+    workspaces[0];
 
   const { username: instagramUsername, count: instagramAccountCount } =
-    await getSidebarAccounts(workspace.id);
+    await getSidebarAccounts(selected.id);
 
   return (
     <WorkspaceProvider
       value={{
         userId: session.user.id,
-        workspaceId: workspace.id,
-        role: "OWNER",
+        workspaceId: selected.id,
+        role: selected.role,
       }}
     >
       <DashboardShell
-        workspaceName={workspace.name}
+        workspaceName={selected.name}
+        workspaceId={selected.id}
+        workspaces={workspaces}
         instagramUsername={instagramUsername}
         instagramAccountCount={instagramAccountCount}
       >
