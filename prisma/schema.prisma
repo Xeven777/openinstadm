@@ -262,6 +262,9 @@ model DmLog {
   @@unique([automationId, commentId])
   @@index([workspaceId])
   @@index([workspaceId, status, createdAt])
+  // Diagnostics: failure list is ordered by last activity (updatedAt), not
+  // creation time, so it needs its own composite.
+  @@index([workspaceId, status, updatedAt])
   @@index([automationId])
   @@index([instagramAccountId])
   @@index([status])
@@ -339,6 +342,8 @@ model WebhookEvent {
 
   @@index([workspaceId])
   @@index([status])
+  // Diagnostics: failed events per workspace, newest first.
+  @@index([workspaceId, status, createdAt])
 }
 
 model OperationalEvent {
@@ -357,6 +362,8 @@ model OperationalEvent {
   @@index([source])
   @@index([level])
   @@index([createdAt])
+  // Diagnostics: token-refresh failures per workspace, newest first.
+  @@index([workspaceId, source, level, createdAt])
 }
 
 enum WorkspaceRole {

@@ -8,13 +8,17 @@
  * snapshot-backed posts down as plain serializable props, so switching views
  * is pure client state — no refetch, no server round-trip.
  *
- * Both views are virtualized with TanStack Virtual (`@tanstack/react-virtual`)
- * against the dashboard's own scroll surface (the `<main>` element, exposed
- * via `useDashboardScrollElement`) — the window never scrolls on dashboard
- * pages. Only the visible items plus an intentional overscan are mounted:
- * - the table virtualizes fixed-height rows (estimate only),
+ * The posts list lives in its own scroll surface: a `max-h-[800px]` box that
+ * scrolls internally while the rest of the page scrolls normally. Both views
+ * are virtualized against that box with TanStack Virtual
+ * (`@tanstack/react-virtual`) — only the visible rows plus an intentional
+ * overscan are mounted:
+ * - the table virtualizes fixed-height rows (estimate only) under a sticky
+ *   header; the virtual rows start below the header, so a `scrollMargin` equal
+ *   to the header height anchors their offsets,
  * - the grid virtualizes responsive rows (2/3/4 columns) with `measureElement`
- *   so dynamic caption/metric heights are measured, not guessed.
+ *   so dynamic caption/metric heights are measured, not guessed; its rows are
+ *   the first child of the box, so no `scrollMargin` is needed.
  *
  * Scroll position is snapshotted per post-set (keyed by length + first post
  * id) in memory and sessionStorage, and restored when the dataset or view
@@ -35,7 +39,6 @@ import {
   Users,
 } from "@phosphor-icons/react";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { useDashboardScrollElement } from "@/components/dashboard-scroll";
 import { Badge } from "@/components/ui/badge";
 import {
   Card,
@@ -73,6 +76,9 @@ function mediaTypeLabel(mediaType: string): string {
 
 type ViewMode = "table" | "grid";
 
+/** The posts list is contained in a self-scrolling box of this max height. */
+const POSTS_BOX_MAX_H = "max-h-[800px]";
+
 /** Session-scoped key for the last-viewed posts scroll snapshot. */
 const SESSION_SNAPSHOT_KEY = "overview:posts:scroll";
 
@@ -88,14 +94,12 @@ function postsSignature(posts: OverviewPost[]): string {
 /**
  * Shared virtualization + scroll-snapshot logic for both posts views.
  *
- * The dashboard scrolls inside `<main>` (not the window), and the posts card is
- * not the first child of that scroller — the follower chart and stat tiles sit
- * above it. `scrollMargin` is therefore the offset from the scroller's content
- * origin to the virtual container, recomputed whenever content above resizes
- * (lazy chart, window width). It is invariant to scroll position, so it only
- * needs re-measuring on layout changes, not on every scroll.
+ * Each view renders its own `max-h-[800px]` scroll box and passes its ref in
+ * as `scrollRef`, so the virtualizer scrolls with that element directly. The
+ * table passes a `scrollMargin` (its sticky header height) because its virtual
+ * rows aren't the first child of the box; the grid passes none.
  *
- * Visible items are positioned with `translateY(start - scrollMargin)` and the
+ * Visible rows are positioned with `translateY(start - scrollMargin)` and the
  * container reserves `getTotalSize()` of space, so only mounted rows exist in
  * the DOM. `measureElement` reports each row's real height to keep the layout
  * exact even when estimates are wrong.
@@ -106,50 +110,22 @@ function useOverviewVirtualizer({
   estimateSize,
   overscan,
   getItemKey,
-  containerRef,
+  scrollRef,
   scrollSnapshotsRef,
+  scrollMargin = 0,
 }: {
   posts: OverviewPost[];
   count: number;
   estimateSize: (index: number) => number;
   overscan: number;
   getItemKey?: (index: number) => string | number;
-  containerRef: React.RefObject<HTMLDivElement | null>;
+  scrollRef: React.RefObject<HTMLDivElement | null>;
   scrollSnapshotsRef: React.RefObject<Map<string, number>>;
+  scrollMargin?: number;
 }) {
-  const scrollElementRef = useDashboardScrollElement();
-  const [scrollMargin, setScrollMargin] = useState(0);
-
-  useLayoutEffect(() => {
-    const scroller = scrollElementRef?.current;
-    const el = containerRef.current;
-    if (!scroller || !el) return;
-    const update = () => {
-      // offset from the scroller's content origin to this container — constant
-      // under scroll because both rects move together.
-      setScrollMargin(
-        el.getBoundingClientRect().top -
-          scroller.getBoundingClientRect().top +
-          scroller.scrollTop
-      );
-    };
-    update();
-    // Re-measure if content above the card resizes (e.g. the lazy-loaded
-    // follower chart) or the window does.
-    const content = scroller.firstElementChild as HTMLElement | null;
-    const observer = new ResizeObserver(update);
-    if (content) observer.observe(content);
-    observer.observe(el);
-    window.addEventListener("resize", update);
-    return () => {
-      observer.disconnect();
-      window.removeEventListener("resize", update);
-    };
-  }, [scrollElementRef, containerRef]);
-
   const virtualizer = useVirtualizer({
     count,
-    getScrollElement: () => scrollElementRef?.current ?? null,
+    getScrollElement: () => scrollRef.current,
     estimateSize,
     overscan,
     scrollMargin,
@@ -164,12 +140,11 @@ function useOverviewVirtualizer({
   signatureRef.current = signature;
   const previousSignatureRef = useRef(signature);
 
-  const scroller = scrollElementRef?.current;
-
   // Record the offset under the current signature as the user scrolls, both
   // in-memory (survives view toggles) and in sessionStorage (survives leaving
   // and returning to the overview within the tab).
   useEffect(() => {
+    const scroller = scrollRef.current;
     if (!scroller) return;
     const onScroll = () => {
       const snapshot = {
@@ -185,7 +160,7 @@ function useOverviewVirtualizer({
     };
     scroller.addEventListener("scroll", onScroll, { passive: true });
     return () => scroller.removeEventListener("scroll", onScroll);
-  }, [scroller, scrollSnapshotsRef]);
+  }, [scrollRef, scrollSnapshotsRef]);
 
   // Restore on dataset change (account/range switch) or on mount when the new
   // post set has a saved anchor. Unknown post sets reset to the top; the
@@ -193,7 +168,7 @@ function useOverviewVirtualizer({
   useEffect(() => {
     const previous = previousSignatureRef.current;
     previousSignatureRef.current = signature;
-    const el = scrollElementRef?.current;
+    const el = scrollRef.current;
     if (!el) return;
 
     let saved = scrollSnapshotsRef.current.get(signature);
@@ -285,7 +260,7 @@ export default function OverviewPostsView({ posts }: { posts: OverviewPost[] }) 
 }
 
 // ---------------------------------------------------------------------------
-// Table view — virtualized fixed-height rows.
+// Table view — virtualized fixed-height rows inside a max-height scroll box.
 // ---------------------------------------------------------------------------
 
 // Post takes the flexible share; the seven metric/date columns split the rest
@@ -297,7 +272,23 @@ function VirtualPostsTable({
   posts,
   scrollSnapshotsRef,
 }: VirtualViewProps) {
-  const containerRef = useRef<HTMLDivElement>(null);
+  // The box that scrolls vertically; the virtualizer's scroll element.
+  const scrollRef = useRef<HTMLDivElement>(null);
+  // The virtual rows container. It starts below the sticky header, so the
+  // virtualizer's scrollMargin must equal the header's height.
+  const bodyRef = useRef<HTMLDivElement>(null);
+  const [scrollMargin, setScrollMargin] = useState(0);
+
+  useLayoutEffect(() => {
+    const scroller = scrollRef.current;
+    const body = bodyRef.current;
+    if (!scroller || !body) return;
+    // Distance from the box's content top to the virtual rows (the sticky
+    // header above them). Static after mount — no re-measure needed.
+    setScrollMargin(
+      body.getBoundingClientRect().top - scroller.getBoundingClientRect().top
+    );
+  }, []);
 
   const virtualizer = useOverviewVirtualizer({
     posts,
@@ -305,152 +296,156 @@ function VirtualPostsTable({
     estimateSize: () => 64,
     overscan: 12,
     getItemKey: (index) => posts[index]?.id ?? index,
-    containerRef,
+    scrollRef,
     scrollSnapshotsRef,
+    scrollMargin,
   });
 
   return (
-    // The eight columns can't compress into a phone; the table keeps its
-    // natural width (min-w-190) and scrolls horizontally inside the panel.
-    <div className="-mx-6 overflow-x-auto px-6">
-      <div role="table" aria-label="Posts" className="w-full min-w-190 text-sm">
-        {/* Header row */}
-        <div
-          role="row"
-          className={`${TABLE_COLS_CLASS} border-b border-border text-left text-xs uppercase tracking-wide text-muted-foreground`}
-        >
-          <div role="columnheader" className="py-2 pr-4 font-medium">
-            Post
+    // Vertical scroll lives here (max height 800px); the eight columns can't
+    // compress into a phone, so the table also keeps its natural width
+    // (min-w-190) and scrolls horizontally inside the box.
+    <div ref={scrollRef} className={`${POSTS_BOX_MAX_H} overflow-y-auto`}>
+      <div className="-mx-6 overflow-x-auto px-6">
+        <div role="table" aria-label="Posts" className="w-full min-w-190 text-sm">
+          {/* Sticky header — stays pinned while virtual rows scroll under it. */}
+          <div
+            role="row"
+            className={`sticky top-0 z-10 bg-card ${TABLE_COLS_CLASS} border-b border-border text-left text-xs uppercase tracking-wide text-muted-foreground`}
+          >
+            <div role="columnheader" className="py-2 pr-4 font-medium">
+              Post
+            </div>
+            <div role="columnheader" className="px-3 py-2 text-right font-medium">
+              Views
+            </div>
+            <div role="columnheader" className="px-3 py-2 text-right font-medium">
+              Reach
+            </div>
+            <div role="columnheader" className="px-3 py-2 text-right font-medium">
+              Likes
+            </div>
+            <div role="columnheader" className="px-3 py-2 text-right font-medium">
+              Comments
+            </div>
+            <div role="columnheader" className="px-3 py-2 text-right font-medium">
+              Saved
+            </div>
+            <div role="columnheader" className="px-3 py-2 text-right font-medium">
+              Shares
+            </div>
+            <div role="columnheader" className="py-2 pl-3 text-right font-medium">
+              Date
+            </div>
           </div>
-          <div role="columnheader" className="px-3 py-2 text-right font-medium">
-            Views
-          </div>
-          <div role="columnheader" className="px-3 py-2 text-right font-medium">
-            Reach
-          </div>
-          <div role="columnheader" className="px-3 py-2 text-right font-medium">
-            Likes
-          </div>
-          <div role="columnheader" className="px-3 py-2 text-right font-medium">
-            Comments
-          </div>
-          <div role="columnheader" className="px-3 py-2 text-right font-medium">
-            Saved
-          </div>
-          <div role="columnheader" className="px-3 py-2 text-right font-medium">
-            Shares
-          </div>
-          <div role="columnheader" className="py-2 pl-3 text-right font-medium">
-            Date
-          </div>
-        </div>
 
-        {/* Virtualized body — only visible rows (plus overscan) are mounted. */}
-        <div
-          ref={containerRef}
-          className="relative min-w-190"
-          style={{ height: virtualizer.getTotalSize() }}
-        >
-          {virtualizer.getVirtualItems().map((virtualRow) => {
-            const p = posts[virtualRow.index];
-            return (
-              <div
-                key={virtualRow.key}
-                ref={virtualizer.measureElement}
-                data-index={virtualRow.index}
-                role="row"
-                style={{
-                  position: "absolute",
-                  top: 0,
-                  left: 0,
-                  width: "100%",
-                  transform: `translateY(${virtualRow.start - virtualizer.options.scrollMargin}px)`,
-                }}
-                className={`${TABLE_COLS_CLASS} border-b border-border transition-colors hover:bg-muted/50`}
-              >
-                <div role="cell" className="max-w-xs py-3 pr-4">
-                  <div className="flex items-center gap-3">
-                    <span className="flex size-9 shrink-0 items-center justify-center overflow-hidden rounded-md bg-muted text-muted-foreground ring-1 ring-foreground/5">
-                      {p.thumbnailUrl ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img
-                          src={p.thumbnailUrl}
-                          alt=""
-                          referrerPolicy="no-referrer"
-                          loading="lazy"
-                          decoding="async"
-                          className="size-full object-cover"
-                        />
-                      ) : (
-                        <ImageSquare weight="fill" className="size-4" />
-                      )}
-                    </span>
-                    <div className="min-w-0">
-                      {p.permalink ? (
-                        <a
-                          href={p.permalink}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="block truncate text-foreground transition-colors hover:text-primary"
-                        >
-                          {p.caption || "Untitled post"}
-                        </a>
-                      ) : (
-                        <span className="block truncate text-foreground">
-                          {p.caption || "Untitled post"}
-                        </span>
-                      )}
-                      <Badge variant="muted" className="mt-1">
-                        {mediaTypeLabel(p.mediaType)}
-                      </Badge>
+          {/* Virtualized body — only visible rows (plus overscan) are mounted. */}
+          <div
+            ref={bodyRef}
+            className="relative"
+            style={{ height: virtualizer.getTotalSize() }}
+          >
+            {virtualizer.getVirtualItems().map((virtualRow) => {
+              const p = posts[virtualRow.index];
+              return (
+                <div
+                  key={virtualRow.key}
+                  ref={virtualizer.measureElement}
+                  data-index={virtualRow.index}
+                  role="row"
+                  style={{
+                    position: "absolute",
+                    top: 0,
+                    left: 0,
+                    width: "100%",
+                    transform: `translateY(${virtualRow.start - virtualizer.options.scrollMargin}px)`,
+                  }}
+                  className={`${TABLE_COLS_CLASS} border-b border-border transition-colors hover:bg-muted/50`}
+                >
+                  <div role="cell" className="max-w-xs py-3 pr-4">
+                    <div className="flex items-center gap-3">
+                      <span className="flex size-9 shrink-0 items-center justify-center overflow-hidden rounded-md bg-muted text-muted-foreground ring-1 ring-foreground/5">
+                        {p.thumbnailUrl ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={p.thumbnailUrl}
+                            alt=""
+                            referrerPolicy="no-referrer"
+                            loading="lazy"
+                            decoding="async"
+                            className="size-full object-cover"
+                          />
+                        ) : (
+                          <ImageSquare weight="fill" className="size-4" />
+                        )}
+                      </span>
+                      <div className="min-w-0">
+                        {p.permalink ? (
+                          <a
+                            href={p.permalink}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="block truncate text-foreground transition-colors hover:text-primary"
+                          >
+                            {p.caption || "Untitled post"}
+                          </a>
+                        ) : (
+                          <span className="block truncate text-foreground">
+                            {p.caption || "Untitled post"}
+                          </span>
+                        )}
+                        <Badge variant="muted" className="mt-1">
+                          {mediaTypeLabel(p.mediaType)}
+                        </Badge>
+                      </div>
                     </div>
                   </div>
+                  <div
+                    role="cell"
+                    className="px-3 py-3 text-right tabular-nums text-muted-foreground"
+                  >
+                    {formatNumber(p.views)}
+                  </div>
+                  <div
+                    role="cell"
+                    className="px-3 py-3 text-right tabular-nums text-muted-foreground"
+                  >
+                    {formatNumber(p.reach)}
+                  </div>
+                  <div
+                    role="cell"
+                    className="px-3 py-3 text-right tabular-nums text-muted-foreground"
+                  >
+                    {formatNumber(p.likes)}
+                  </div>
+                  <div
+                    role="cell"
+                    className="px-3 py-3 text-right tabular-nums text-muted-foreground"
+                  >
+                    {formatNumber(p.comments)}
+                  </div>
+                  <div
+                    role="cell"
+                    className="px-3 py-3 text-right tabular-nums text-muted-foreground"
+                  >
+                    {formatNumber(p.saved)}
+                  </div>
+                  <div
+                    role="cell"
+                    className="px-3 py-3 text-right tabular-nums text-muted-foreground"
+                  >
+                    {formatNumber(p.shares)}
+                  </div>
+                  <div
+                    role="cell"
+                    className="py-3 pl-3 text-right whitespace-nowrap text-muted-foreground"
+                  >
+                    {formatDate(p.timestamp)}
+                  </div>
                 </div>
-                <div
-                  role="cell"
-                  className="px-3 py-3 text-right tabular-nums text-muted-foreground"
-                >
-                  {formatNumber(p.views)}
-                </div>
-                <div
-                  role="cell"
-                  className="px-3 py-3 text-right tabular-nums text-muted-foreground"
-                >
-                  {formatNumber(p.reach)}
-                </div>
-                <div
-                  role="cell"
-                  className="px-3 py-3 text-right tabular-nums text-muted-foreground"
-                >
-                  {formatNumber(p.likes)}
-                </div>
-                <div
-                  role="cell"
-                  className="px-3 py-3 text-right tabular-nums text-muted-foreground"
-                >
-                  {formatNumber(p.comments)}
-                </div>
-                <div
-                  role="cell"
-                  className="px-3 py-3 text-right tabular-nums text-muted-foreground"
-                >
-                  {formatNumber(p.saved)}
-                </div>
-                <div
-                  role="cell"
-                  className="px-3 py-3 text-right tabular-nums text-muted-foreground"
-                >
-                  {formatNumber(p.shares)}
-                </div>
-                <div
-                  role="cell"
-                  className="py-3 pl-3 text-right whitespace-nowrap text-muted-foreground"
-                >
-                  {formatDate(p.timestamp)}
-                </div>
-              </div>
-            );
-          })}
+              );
+            })}
+          </div>
         </div>
       </div>
     </div>
@@ -458,7 +453,8 @@ function VirtualPostsTable({
 }
 
 // ---------------------------------------------------------------------------
-// Grid view — virtualized responsive rows with measured dynamic heights.
+// Grid view — virtualized responsive rows in a max-height scroll box, with
+// measured dynamic heights. Rows are the box's first child, so no scrollMargin.
 // ---------------------------------------------------------------------------
 
 /** Mirror of the grid's responsive columns: 2 (base) / 3 (sm ≥640) / 4 (lg ≥1024). */
@@ -476,7 +472,8 @@ function VirtualPostsGrid({
   posts,
   scrollSnapshotsRef,
 }: VirtualViewProps) {
-  const containerRef = useRef<HTMLDivElement>(null);
+  // The box that scrolls vertically; the virtualizer's scroll element.
+  const scrollRef = useRef<HTMLDivElement>(null);
   const [columns, setColumns] = useState(getColumns);
 
   // Keep the JS column count in sync with the CSS breakpoints on resize.
@@ -498,38 +495,39 @@ function VirtualPostsGrid({
     estimateSize: () => 400,
     overscan: 3,
     getItemKey: (index) => posts[index * columns]?.id ?? index,
-    containerRef,
+    scrollRef,
     scrollSnapshotsRef,
   });
 
   return (
-    <div
-      ref={containerRef}
-      className="relative"
-      style={{ height: virtualizer.getTotalSize() }}
-    >
-      {virtualizer.getVirtualItems().map((virtualRow) => {
-        const start = virtualRow.index * columns;
-        return (
-          <div
-            key={virtualRow.key}
-            ref={virtualizer.measureElement}
-            data-index={virtualRow.index}
-            style={{
-              position: "absolute",
-              top: 0,
-              left: 0,
-              width: "100%",
-              transform: `translateY(${virtualRow.start - virtualizer.options.scrollMargin}px)`,
-            }}
-            className={GRID_COLS_CLASS}
-          >
-            {posts.slice(start, start + columns).map((p) => (
-              <PostCard key={p.id} post={p} />
-            ))}
-          </div>
-        );
-      })}
+    <div ref={scrollRef} className={`${POSTS_BOX_MAX_H} overflow-y-auto`}>
+      <div
+        className="relative"
+        style={{ height: virtualizer.getTotalSize() }}
+      >
+        {virtualizer.getVirtualItems().map((virtualRow) => {
+          const start = virtualRow.index * columns;
+          return (
+            <div
+              key={virtualRow.key}
+              ref={virtualizer.measureElement}
+              data-index={virtualRow.index}
+              style={{
+                position: "absolute",
+                top: 0,
+                left: 0,
+                width: "100%",
+                transform: `translateY(${virtualRow.start - virtualizer.options.scrollMargin}px)`,
+              }}
+              className={GRID_COLS_CLASS}
+            >
+              {posts.slice(start, start + columns).map((p) => (
+                <PostCard key={p.id} post={p} />
+              ))}
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }

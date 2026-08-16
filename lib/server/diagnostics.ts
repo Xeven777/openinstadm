@@ -3,26 +3,37 @@ import { getDMQueue } from "@/lib/queue/client";
 import { getWorkerAlerts, getWorkerHealth } from "@/lib/ops/worker-health";
 
 /**
- * Shared server-side query for the production diagnostics page.
+ * Shared server-side queries for the production diagnostics page.
  *
- * Used by both the API route handler and the server-rendered Diagnostics page so
- * the health aggregation lives in exactly one place. Returns plain serializable
- * objects (Dates converted to ISO strings).
+ * The page is split into two Suspense regions so the fast Redis reads (queue
+ * counts, worker health, worker alerts) paint before the slower Postgres
+ * sections stream in:
+ *
+ *   - getDiagnosticsOverview() — Redis only (no DB round-trip)
+ *   - getDiagnosticsSections() — Postgres failure tables
+ *   - getDiagnosticsData()     — both combined, for the admin API route
+ *
+ * All functions return plain serializable objects (Dates converted to ISO
+ * strings).
  */
 
-export async function getDiagnosticsData(workspaceId: string) {
+export async function getDiagnosticsOverview() {
+  const [queueCounts, workerHealth, workerAlerts] = await Promise.all([
+    getDMQueue().getJobCounts("waiting", "active", "delayed", "failed"),
+    getWorkerHealth(),
+    getWorkerAlerts(10),
+  ]);
+
+  return { queueCounts, workerHealth, workerAlerts };
+}
+
+export async function getDiagnosticsSections(workspaceId: string) {
   const [
-    queueCounts,
-    workerHealth,
-    workerAlerts,
     webhookFailures,
     dmFailures,
     tokenRefreshFailures,
     operationalEvents,
   ] = await Promise.all([
-    getDMQueue().getJobCounts("waiting", "active", "delayed", "failed"),
-    getWorkerHealth(),
-    getWorkerAlerts(10),
     prisma.webhookEvent.findMany({
       where: { workspaceId, status: "FAILED" },
       orderBy: { createdAt: "desc" },
@@ -88,9 +99,6 @@ export async function getDiagnosticsData(workspaceId: string) {
   ]);
 
   return {
-    queueCounts,
-    workerHealth,
-    workerAlerts,
     webhookFailures: webhookFailures.map((event) => ({
       ...event,
       createdAt: event.createdAt.toISOString(),
@@ -110,4 +118,13 @@ export async function getDiagnosticsData(workspaceId: string) {
       resolvedAt: event.resolvedAt?.toISOString() ?? null,
     })),
   };
+}
+
+export async function getDiagnosticsData(workspaceId: string) {
+  const [overview, sections] = await Promise.all([
+    getDiagnosticsOverview(),
+    getDiagnosticsSections(workspaceId),
+  ]);
+
+  return { ...overview, ...sections };
 }
