@@ -78,7 +78,7 @@ async function SettingsContent() {
     <>
       <SettingsAccounts accounts={settings.instagramAccounts} />
 
-      <SettingsTeam members={members} />
+      <SettingsTeam members={members} currentUserId={context.userId} />
 
       <Card>
         <CardContent className="gap-4">

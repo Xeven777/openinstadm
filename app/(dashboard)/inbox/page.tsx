@@ -22,6 +22,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { gooeyToast } from "goey-toast";
 import {
   ArrowLeft,
   ChatCircle,
@@ -208,6 +209,10 @@ export default function InboxPage() {
       }
       setDraft(vars.text);
       setSendError(err instanceof Error ? err.message : "Failed to send message");
+      gooeyToast.error("Message not sent");
+    },
+    onSuccess: () => {
+      gooeyToast.success("Message sent");
     },
     onSettled: () => {
       // Refresh both the list (last message + ordering) and the thread.

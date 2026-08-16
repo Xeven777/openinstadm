@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import "goey-toast/styles.css";
 import { Geist } from "next/font/google";
+import GooeyToasterMount from "@/components/goey-toaster";
 import QueryProvider from "@/lib/query/provider";
 import { ThemeProvider } from "@/components/theme-provider";
 
@@ -35,6 +37,8 @@ export default function RootLayout({
             disableTransitionOnChange
           >
             {children}
+            {/* Toast mount — must be inside ThemeProvider so it follows the theme. */}
+            <GooeyToasterMount />
           </ThemeProvider>
         </QueryProvider>
       </body>

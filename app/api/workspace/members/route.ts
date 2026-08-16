@@ -1,11 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
+import { cookies } from "next/headers";
 import { prisma } from "@/lib/db/client";
 import {
   sendInviteEmail,
   sendMemberAddedEmail,
 } from "@/lib/server/invite-email";
 import { getWorkspaceMembers, invalidateMembersCache } from "@/lib/server/members";
+import { WORKSPACE_COOKIE } from "@/lib/workspace-cookie";
 import {
   buildInvitationUrl,
   generateInvitationToken,
@@ -165,6 +167,7 @@ export async function POST(request: NextRequest) {
   return NextResponse.json({
     success: true,
     emailSent,
+    addedExistingMember: Boolean(existingUser),
     data: await getWorkspaceMembers(context.workspaceId, context.role),
   });
 }
@@ -223,12 +226,6 @@ export async function DELETE(request: NextRequest) {
       { status: 401 }
     );
   }
-  if (!canManageWorkspace(context.role)) {
-    return NextResponse.json(
-      { success: false, error: "Only owners and admins can remove members" },
-      { status: 403 }
-    );
-  }
 
   const parsed = deleteSchema.safeParse(await request.json().catch(() => ({})));
   if (!parsed.success || (!parsed.data.memberId && !parsed.data.invitationId)) {
@@ -242,10 +239,20 @@ export async function DELETE(request: NextRequest) {
     const member = await prisma.workspaceMember.findFirst({
       where: { id: parsed.data.memberId, workspaceId: context.workspaceId },
     });
-    if (!member || member.role === "OWNER" || member.userId === context.userId) {
+    if (!member || member.role === "OWNER") {
       return NextResponse.json(
         { success: false, error: "Member cannot be removed" },
         { status: 400 }
+      );
+    }
+
+    const isSelf = member.userId === context.userId;
+    // Anyone can leave a workspace they belong to; removing someone else stays
+    // a manage action (owner/admin).
+    if (!isSelf && !canManageWorkspace(context.role)) {
+      return NextResponse.json(
+        { success: false, error: "Only owners and admins can remove members" },
+        { status: 403 }
       );
     }
 
@@ -254,11 +261,17 @@ export async function DELETE(request: NextRequest) {
   }
 
   if (parsed.data.invitationId) {
+    if (!canManageWorkspace(context.role)) {
+      return NextResponse.json(
+        { success: false, error: "Only owners and admins can revoke invites" },
+        { status: 403 }
+      );
+    }
     await prisma.workspaceInvitation.updateMany({
       where: {
         id: parsed.data.invitationId,
         workspaceId: context.workspaceId,
-        status: "PENDING",
+        status: { in: ["PENDING", "EXPIRED"] },
       },
       data: { status: "REVOKED" },
     });
@@ -266,8 +279,17 @@ export async function DELETE(request: NextRequest) {
 
   invalidateMembersCache(context.workspaceId);
 
-  return NextResponse.json({
+  const response = NextResponse.json({
     success: true,
     data: await getWorkspaceMembers(context.workspaceId, context.role),
   });
+
+  // Leaving the currently-active workspace: clear the selection so the next
+  // navigation resolves a workspace the user is still a member of.
+  const cookieStore = await cookies();
+  if (cookieStore.get(WORKSPACE_COOKIE)?.value === context.workspaceId) {
+    response.cookies.delete(WORKSPACE_COOKIE);
+  }
+
+  return response;
 }

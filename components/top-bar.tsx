@@ -1,7 +1,8 @@
 "use client";
 
 import { usePathname } from "next/navigation";
-import { List } from "@phosphor-icons/react";
+import { signOut } from "next-auth/react";
+import { List, SignOut } from "@phosphor-icons/react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { ModeToggle } from "./theme-toggle";
@@ -73,6 +74,15 @@ export default function TopBar({
           </a>
         )}
         <ModeToggle />
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => void signOut({ callbackUrl: "/login" })}
+          aria-label="Sign out"
+          title="Sign out"
+        >
+          <SignOut className="text-muted-foreground" />
+        </Button>
       </div>
     </header>
   );

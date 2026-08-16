@@ -17,9 +17,10 @@ const resendSchema = z.object({
 });
 
 /**
- * Resend a pending invite: re-sends the email for the same token (the link
- * the invitee already has keeps working) and pushes the expiry out another
- * 14 days from today.
+ * Resend an invite: re-sends the email for the same token (the link the
+ * invitee already has keeps working) and pushes the expiry out another 14
+ * days from today. An expired invite is reactivated (status back to PENDING),
+ * so the same row is reused instead of creating a duplicate.
  */
 export async function POST(request: NextRequest) {
   const context = await getCurrentWorkspaceContext();
@@ -48,7 +49,7 @@ export async function POST(request: NextRequest) {
     where: {
       id: parsed.data.invitationId,
       workspaceId: context.workspaceId,
-      status: "PENDING",
+      status: { in: ["PENDING", "EXPIRED"] },
     },
     include: { workspace: { select: { name: true } } },
   });
@@ -59,22 +60,13 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  if (invitation.expiresAt <= new Date()) {
-    await prisma.workspaceInvitation.update({
-      where: { id: invitation.id },
-      data: { status: "EXPIRED" },
-    });
-    invalidateMembersCache(context.workspaceId);
-    return NextResponse.json(
-      { success: false, error: "Invitation has expired" },
-      { status: 410 }
-    );
-  }
-
-  // Refresh the expiry window so the resent link stays valid long enough.
+  // Reactivate expired invites: same token (stable link), fresh expiry window.
   const updated = await prisma.workspaceInvitation.update({
     where: { id: invitation.id },
-    data: { expiresAt: getInvitationExpiry() },
+    data: {
+      status: "PENDING",
+      expiresAt: getInvitationExpiry(),
+    },
   });
 
   const inviter = await prisma.user.findUnique({

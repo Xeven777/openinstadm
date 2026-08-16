@@ -15,6 +15,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
+import { gooeyToast } from "goey-toast";
 import { Plus, Warning, X } from "@phosphor-icons/react";
 import AccountSelect from "@/components/account-select";
 import PostPicker from "@/components/post-picker";
@@ -459,6 +460,9 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
         }
         // refresh() busts the router cache so the list reflects the save
         // instead of landing on a stale (empty) campaigns page.
+        gooeyToast.success(
+          mode === "new" ? "Campaign created" : "Campaign saved"
+        );
         router.push("/campaigns");
         router.refresh();
       } else {
@@ -475,9 +479,11 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
         );
         if (typeof window !== "undefined")
           window.scrollTo({ top: 0, behavior: "smooth" });
+        gooeyToast.error("Could not save campaign");
       }
     } catch {
       setError("Failed to save campaign");
+      gooeyToast.error("Failed to save campaign");
     } finally {
       setSaving(false);
     }

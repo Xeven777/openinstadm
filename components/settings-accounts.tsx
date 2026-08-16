@@ -11,6 +11,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { gooeyToast } from "goey-toast";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -48,8 +49,11 @@ export default function SettingsAccounts({
 
       if (!payload?.success) {
         setError(payload?.error ?? "Could not disconnect account");
+        gooeyToast.error(payload?.error ?? "Could not disconnect account");
         return;
       }
+
+      gooeyToast.success("Instagram account disconnected");
 
       // Re-render the server component: the account list, the sidebar shell,
       // and the dashboard stats cache (invalidated by the disconnect route)

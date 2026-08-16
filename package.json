@@ -27,6 +27,7 @@
     "bullmq": "^5.81.3",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "goey-toast": "^0.5.0",
     "ioredis": "^5.11.1",
     "motion": "^13.1.0",
     "next": "^16.3.0",

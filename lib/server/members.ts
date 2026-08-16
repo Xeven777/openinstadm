@@ -37,6 +37,7 @@ export interface SettingsInvitation {
   id: string;
   email: string;
   role: WorkspaceRole;
+  status: "PENDING" | "EXPIRED";
   inviteUrl: string;
   expiresAt: string;
 }
@@ -73,12 +74,13 @@ export async function getWorkspaceMembers(
       },
     }),
     prisma.workspaceInvitation.findMany({
-      where: { workspaceId, status: "PENDING" },
+      where: { workspaceId, status: { in: ["PENDING", "EXPIRED"] } },
       orderBy: { createdAt: "desc" },
       select: {
         id: true,
         email: true,
         role: true,
+        status: true,
         token: true,
         expiresAt: true,
         createdAt: true,
@@ -96,6 +98,8 @@ export async function getWorkspaceMembers(
       id: invitation.id,
       email: invitation.email,
       role: invitation.role,
+      // The query above restricts to PENDING/EXPIRED, so the enum narrows safely.
+      status: invitation.status as "PENDING" | "EXPIRED",
       inviteUrl: buildInvitationUrl(invitation.token),
       expiresAt: invitation.expiresAt.toISOString(),
     })),

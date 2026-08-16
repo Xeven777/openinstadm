@@ -11,6 +11,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { gooeyToast } from "goey-toast";
 import { ArrowsClockwise } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 
@@ -39,7 +40,14 @@ export default function OverviewRefresh({
       const res = await fetch(`/api/instagram/overview?${params}`);
       // Only re-render on success — a failed refetch would just paint the same
       // snapshot back, and the button state must not imply fresh data.
-      if (res.ok) router.refresh();
+      if (res.ok) {
+        gooeyToast.success("Overview refreshed");
+        router.refresh();
+      } else {
+        gooeyToast.error("Could not refresh overview");
+      }
+    } catch {
+      gooeyToast.error("Could not refresh overview");
     } finally {
       setRefreshing(false);
     }

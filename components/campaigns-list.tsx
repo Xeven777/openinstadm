@@ -13,6 +13,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery } from "@tanstack/react-query";
+import { gooeyToast } from "goey-toast";
 import {
   ArrowSquareOut,
   Copy,
@@ -157,6 +158,14 @@ export default function CampaignsList({ campaigns, accounts }: CampaignsListProp
         delete next[id];
         return next;
       });
+      gooeyToast.error("Could not update campaign");
+    },
+    onSuccess: (_data, { id, isActive }) => {
+      const campaign = automations.find((a) => a.id === id);
+      const name = campaign?.name ?? "Campaign";
+      gooeyToast.success(
+        isActive ? `${name} paused` : `${name} activated`
+      );
     },
   });
 
@@ -174,6 +183,11 @@ export default function CampaignsList({ campaigns, accounts }: CampaignsListProp
         next.delete(id);
         return next;
       });
+      gooeyToast.error("Could not delete campaign");
+    },
+    onSuccess: (_data, id) => {
+      const campaign = automations.find((a) => a.id === id);
+      gooeyToast.success(`${campaign?.name ?? "Campaign"} deleted`);
     },
   });
 
@@ -183,12 +197,14 @@ export default function CampaignsList({ campaigns, accounts }: CampaignsListProp
     try {
       await navigator.clipboard.writeText(auto.postUrl);
       setCopiedId(auto.id);
+      gooeyToast.success("Reel URL copied");
       window.setTimeout(
         () => setCopiedId((cur) => (cur === auto.id ? null : cur)),
         1500
       );
     } catch (err) {
       console.error("Failed to copy reel URL:", err);
+      gooeyToast.error("Could not copy reel URL");
     }
   }
 
@@ -235,12 +251,15 @@ export default function CampaignsList({ campaigns, accounts }: CampaignsListProp
       });
       const data = await res.json();
       if (data.success) {
+        gooeyToast.success(`${auto.name} duplicated`);
         router.refresh();
       } else {
         console.error("Duplicate failed:", data.error);
+        gooeyToast.error(data.error ?? "Could not duplicate campaign");
       }
     } catch (err) {
       console.error("Failed to duplicate:", err);
+      gooeyToast.error("Could not duplicate campaign");
     }
   }
 

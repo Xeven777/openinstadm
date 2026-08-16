@@ -14,6 +14,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery } from "@tanstack/react-query";
+import { gooeyToast } from "goey-toast";
 import { ArrowLeft } from "@phosphor-icons/react";
 import CampaignPreview, { type PreviewTab } from "@/components/campaign-preview";
 import StatCard from "@/components/stat-card";
@@ -79,9 +80,13 @@ export default function CampaignDetail({ campaign }: CampaignDetailProps) {
       // data instead of diverging until the next full reload.
       if (!res.ok) return;
       setToggledActive(!isActive);
+      gooeyToast.success(isActive ? "Campaign paused" : "Campaign activated");
       // Re-render the server component so the fresh toggle state streams back
       // from the page instead of a client fetch.
       router.refresh();
+    },
+    onError: () => {
+      gooeyToast.error("Could not update campaign");
     },
   });
 
