@@ -1,0 +1,40 @@
+# syntax=docker/dockerfile:1
+
+FROM node:22-bookworm-slim AS builder
+
+WORKDIR /app
+
+COPY package.json package-lock.json ./
+RUN npm ci --no-audit --no-fund
+
+# Generate the custom Prisma Client at app/generated/prisma.
+COPY prisma ./prisma
+COPY prisma.config.ts tsconfig.json ./
+RUN npm run db:generate
+
+# Keep only production dependencies for the final image.
+RUN npm prune --omit=dev \
+    && npm cache clean --force
+
+
+FROM node:22-bookworm-slim AS runtime
+
+WORKDIR /app
+
+ENV NODE_ENV=production
+ENV NODE_OPTIONS="--enable-source-maps --network-family-autoselection-attempt-timeout=2000"
+
+# Production dependencies and generated Prisma Client.
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/app/generated/prisma ./app/generated/prisma
+
+# Only the worker's runtime source.
+COPY package.json tsconfig.json ./
+COPY worker ./worker
+COPY lib ./lib
+
+# The official Node image includes this unprivileged user.
+USER node
+
+# Direct Node execution keeps Node as PID 1 for proper SIGTERM handling.
+CMD ["node", "--import", "tsx", "worker/dm-worker.ts"]
