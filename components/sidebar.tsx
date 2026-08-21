@@ -96,20 +96,30 @@ export default function Sidebar({
   const [switching, setSwitching] = useState(false);
 
   async function switchWorkspace(nextWorkspaceId: string) {
-    if (nextWorkspaceId === workspaceId || switching) return;
-    setSwitching(true);
-    try {
-      await fetch("/api/workspace/switch", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ workspaceId: nextWorkspaceId }),
-      });
-    } finally {
-      setSwitching(false);
-      onClose();
-      router.push("/dashboard");
+  if (nextWorkspaceId === workspaceId || switching) return;
+
+  setSwitching(true);
+
+  try {
+    const response = await fetch("/api/workspace/switch", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ workspaceId: nextWorkspaceId }),
+    });
+
+    const result = await response.json();
+
+    if (!response.ok) {
+      throw new Error(result.error ?? "Failed to switch workspace");
     }
+
+    // Force a new server request so the dashboard layout reads the new cookie.
+    window.location.assign("/dashboard");
+  } catch (error) {
+    console.error("Failed to switch workspace:", error);
+    setSwitching(false);
   }
+}
 
   return (
     <>
