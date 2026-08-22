@@ -1,0 +1,26 @@
+{
+  "name": "openinstadm-worker-runtime",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "build": "node deploy/worker/build-worker.mjs",
+    "db:generate": "prisma generate --config prisma.config.ts",
+    "start": "node dist/worker.mjs"
+  },
+  "dependencies": {
+    "@prisma/adapter-pg": "7.9.1",
+    "@prisma/client": "7.9.1",
+    "bullmq": "^5.81.3",
+    "dotenv": "^17.4.2",
+    "ioredis": "^5.11.1",
+    "pg": "^8.23.0",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/node": "^20.19.43",
+    "@types/pg": "^8.21.0",
+    "esbuild": "^0.28.2",
+    "prisma": "7.9.1",
+    "typescript": "^5.9.3"
+  }
+}

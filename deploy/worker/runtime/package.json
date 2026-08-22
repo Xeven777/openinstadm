@@ -1,0 +1,10 @@
+{
+  "name": "openinstadm-worker-runtime-externals",
+  "version": "0.1.0",
+  "private": true,
+  "dependencies": {
+    "@prisma/adapter-pg": "7.9.1",
+    "@prisma/client": "7.9.1",
+    "pg": "^8.23.0"
+  }
+}

@@ -4,16 +4,31 @@ FROM node:22-bookworm-slim AS builder
 
 WORKDIR /app
 
-COPY package.json package-lock.json ./
+COPY deploy/worker/package.json ./package.json
+COPY deploy/worker/package-lock.json ./package-lock.json
 RUN npm ci --no-audit --no-fund
 
-# Generate the custom Prisma Client at app/generated/prisma.
 COPY prisma ./prisma
 COPY prisma.config.ts tsconfig.json ./
-RUN npm run db:generate
+COPY deploy/worker/build-worker.mjs ./deploy/worker/build-worker.mjs
 
-# Keep only production dependencies for the final image.
-RUN npm prune --omit=dev \
+RUN DATABASE_URL="postgresql://build:build@localhost:5432/build" \
+    npm run db:generate
+
+COPY worker ./worker
+COPY lib ./lib
+
+RUN npm run build
+
+
+FROM node:22-bookworm-slim AS runtime-dependencies
+
+WORKDIR /app
+
+COPY deploy/worker/runtime/package.json ./package.json
+COPY deploy/worker/runtime/package-lock.json ./package-lock.json
+
+RUN npm ci --omit=dev --no-audit --no-fund \
     && npm cache clean --force
 
 
@@ -24,17 +39,12 @@ WORKDIR /app
 ENV NODE_ENV=production
 ENV NODE_OPTIONS="--enable-source-maps --network-family-autoselection-attempt-timeout=2000"
 
-# Production dependencies and generated Prisma Client.
-COPY --from=builder /app/node_modules ./node_modules
-COPY --from=builder /app/app/generated/prisma ./app/generated/prisma
+COPY --from=runtime-dependencies /app/node_modules ./node_modules
+COPY --from=runtime-dependencies /app/package.json ./package.json
 
-# Only the worker's runtime source.
-COPY package.json tsconfig.json ./
-COPY worker ./worker
-COPY lib ./lib
+COPY --from=builder /app/dist/worker.mjs ./dist/worker.mjs
+COPY --from=builder /app/dist/worker.mjs.map ./dist/worker.mjs.map
 
-# The official Node image includes this unprivileged user.
 USER node
 
-# Direct Node execution keeps Node as PID 1 for proper SIGTERM handling.
-CMD ["node", "--import", "tsx", "worker/dm-worker.ts"]
+CMD ["node", "dist/worker.mjs"]
