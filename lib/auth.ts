@@ -2,7 +2,7 @@ import NextAuth, { type NextAuthConfig } from "next-auth";
 import Resend from "next-auth/providers/resend";
 import { PrismaAdapter } from "@auth/prisma-adapter";
 import { prisma } from "@/lib/db/client";
-import { ensureWorkspaceForUser, getPrimaryWorkspace } from "@/lib/workspace";
+import { ensureWorkspaceForUser } from "@/lib/workspace";
 
 type AdapterPrismaClient = Parameters<typeof PrismaAdapter>[0];
 
@@ -56,18 +56,4 @@ export async function getCurrentUserId(): Promise<string | null> {
   return session?.user?.id ?? null;
 }
 
-export async function getCurrentWorkspaceId(): Promise<string | null> {
-  const userId = await getCurrentUserId();
-  if (!userId) return null;
 
-  const workspace = await getPrimaryWorkspace(userId);
-  if (workspace) return workspace.id;
-
-  const user = await prisma.user.findUnique({
-    where: { id: userId },
-    select: { email: true },
-  });
-
-  const createdWorkspace = await ensureWorkspaceForUser(userId, user?.email);
-  return createdWorkspace.id;
-}

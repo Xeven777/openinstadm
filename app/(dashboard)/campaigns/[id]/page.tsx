@@ -2,7 +2,7 @@ import { Suspense } from "react";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import CampaignDetail from "@/components/campaign-detail";
-import { getCurrentWorkspaceId } from "@/lib/auth";
+import { getCurrentWorkspaceId } from "@/lib/workspace-access";
 import { getCampaignDetail } from "@/lib/server/automations";
 
 /**

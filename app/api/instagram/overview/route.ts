@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { revalidateTag } from "next/cache";
-import { getCurrentWorkspaceId } from "@/lib/auth";
+import { getCurrentWorkspaceId } from "@/lib/workspace-access";
 import { getWorkspaceInstagramAccount } from "@/lib/instagram-accounts";
 import { snapshotHeaders } from "@/lib/server/api-snapshots";
 import {

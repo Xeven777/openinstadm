@@ -3,16 +3,16 @@ import { redirect } from "next/navigation";
 // SSR build: plain-SVG icons that render in Server Components. The CSR build
 // calls React.createContext at module scope and breaks the RSC build collector.
 import {
-  BellRinging,
-  Clock,
-  Hourglass,
-  Key,
-  ListBullets,
-  Megaphone,
-  Play,
-  Pulse,
-  WebhooksLogo,
-  XCircle,
+  BellRingingIcon as BellRinging,
+  ClockIcon as Clock,
+  HourglassIcon as Hourglass,
+  KeyIcon as Key,
+  ListBulletsIcon as ListBullets,
+  MegaphoneIcon as Megaphone,
+  PlayIcon as Play,
+  PulseIcon as Pulse,
+  WebhooksLogoIcon as WebhooksLogo,
+  XCircleIcon as XCircle,
 } from "@phosphor-icons/react/dist/ssr";
 import DiagnosticsRefresh from "@/components/diagnostics-refresh";
 import StatusBadge from "@/components/status-badge";
@@ -20,7 +20,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
-import { getCurrentWorkspaceId } from "@/lib/auth";
+import { getCurrentWorkspaceId } from "@/lib/workspace-access";
 import {
   getDiagnosticsOverview,
   getDiagnosticsSections,

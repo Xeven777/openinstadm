@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getCurrentWorkspaceId } from "@/lib/auth";
+import { getCurrentWorkspaceId } from "@/lib/workspace-access";
 import { prisma } from "@/lib/db/client";
 
 /**

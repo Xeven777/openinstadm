@@ -11,7 +11,7 @@ import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
-import { getCurrentWorkspaceId } from "@/lib/auth";
+import { getCurrentWorkspaceId } from "@/lib/workspace-access";
 import { getLogsPage } from "@/lib/server/logs";
 import { getWorkspaceAccounts } from "@/lib/server/settings";
 

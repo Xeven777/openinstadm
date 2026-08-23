@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getCurrentUserId, getCurrentWorkspaceId } from "@/lib/auth";
+import { getCurrentUserId } from "@/lib/auth";
+import { getCurrentWorkspaceId } from "@/lib/workspace-access";
 import { getDashboardStats } from "@/lib/server/stats";
 
 export async function GET(request: NextRequest) {

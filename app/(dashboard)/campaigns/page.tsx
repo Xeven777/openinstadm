@@ -2,7 +2,7 @@ import { Suspense } from "react";
 import { redirect } from "next/navigation";
 import CampaignsList from "@/components/campaigns-list";
 import { Skeleton } from "@/components/ui/skeleton";
-import { getCurrentWorkspaceId } from "@/lib/auth";
+import { getCurrentWorkspaceId } from "@/lib/workspace-access";
 import { getCampaignList } from "@/lib/server/automations";
 import { getWorkspaceAccounts } from "@/lib/server/settings";
 import type { AccountOption } from "@/components/account-select";

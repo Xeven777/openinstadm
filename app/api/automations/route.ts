@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { getCurrentWorkspaceId } from "@/lib/auth";
 import { prisma } from "@/lib/db/client";
 import { generateTrackedLinkSlug } from "@/lib/tracking/server";
 import { generateReportShareSlug } from "@/lib/reports/share";
@@ -12,6 +11,7 @@ import { invalidateWorkspaceStats } from "@/lib/server/stats";
 import {
   canManageWorkspace,
   getCurrentWorkspaceContext,
+  getCurrentWorkspaceId
 } from "@/lib/workspace-access";
 
 // The dashboard's server-side stats cache is keyed per workspace. Any write

@@ -51,7 +51,10 @@ export async function getCurrentWorkspaceContext(): Promise<WorkspaceContext | n
   const requestedWorkspaceId = cookieStore.get(WORKSPACE_COOKIE)?.value ?? null;
   return getCachedWorkspaceContext(userId, requestedWorkspaceId);
 }
-
+export async function getCurrentWorkspaceId(): Promise<string | null> {
+  const context = await getCurrentWorkspaceContext();
+  return context?.workspaceId ?? null;
+}
 /**
  * Cached workspace lookup — keyed by userId + requested workspace so different
  * members (and a member switching workspaces) never share context. 30s stale
