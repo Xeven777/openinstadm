@@ -194,6 +194,42 @@ function serializeCampaign(
 }
 
 /**
+ * Lightweight projection for the campaign post picker's "already used" badge.
+ * Only the 4 columns the picker needs — no trackedLinks, no groupBy analytics.
+ */
+export interface UsedPostInfo {
+  id: string;
+  name: string;
+  postId: string;
+  instagramAccountId: string;
+}
+
+export async function getCampaignUsedPosts(
+  workspaceId: string,
+  instagramAccountId?: string | null
+): Promise<UsedPostInfo[]> {
+  "use cache";
+  cacheLife({ stale: 900, revalidate: 900, expire: 7200 });
+  cacheTag(`campaigns:${workspaceId}`);
+
+  const accountFilter =
+    instagramAccountId && instagramAccountId !== "all"
+      ? { instagramAccountId }
+      : {};
+
+  return prisma.automation.findMany({
+    where: { workspaceId, ...accountFilter, postId: { not: null } },
+    select: {
+      id: true,
+      name: true,
+      postId: true,
+      instagramAccountId: true,
+    },
+    orderBy: { createdAt: "desc" },
+  }) as Promise<UsedPostInfo[]>;
+}
+
+/**
  * Invalidate the cached campaign list for a workspace.
  *
  * Call from every route that writes automations (create/update/delete/import,

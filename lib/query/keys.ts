@@ -27,4 +27,7 @@ export const queryKeys = {
     ["inbox", "messages", accountId, conversationId] as const,
   media: (accountIds: readonly string[]) =>
     ["ig-media", accountIds.join(",")] as const,
+  campaignDetail: (id: string) => ["campaign", "detail", id] as const,
+  usedPosts: (accountId: string | null | undefined) =>
+    ["campaign", "used-posts", accountId ?? "all"] as const,
 };

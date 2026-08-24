@@ -37,7 +37,6 @@ export default function RootLayout({
             disableTransitionOnChange
           >
             {children}
-            {/* Toast mount — must be inside ThemeProvider so it follows the theme. */}
             <GooeyToasterMount />
           </ThemeProvider>
         </QueryProvider>

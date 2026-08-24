@@ -4,6 +4,7 @@ import {
   getAllUserMedia,
   getUserInfo,
   getUserMedia,
+  MEDIA_THUMB_FIELDS,
   type InstagramMedia,
 } from "@/lib/meta/client";
 import { decryptToken } from "@/lib/meta/oauth";
@@ -85,7 +86,7 @@ export async function loadPostsDataImpl(
   const snapshotKey = buildApiSnapshotKey({
     source: "ig:posts",
     accountId: account.id,
-    params: loadAll ? { all: true, max: 300 } : { limit },
+    params: loadAll ? { all: true, max: 300, v: 2 } : { limit },
   });
 
   const cached = await getApiSnapshot<InstagramMedia[]>(snapshotKey, {
@@ -103,8 +104,12 @@ export async function loadPostsDataImpl(
   }
 
   const accessToken = decryptToken(account.accessToken);
+  // The picker's full-library fetch needs both `thumbnail_url` (VIDEO) and
+  // `media_url` (IMAGE / CAROUSEL). `thumbnail_url` is null for images, so
+  // omitting `media_url` blanks the grid. The picker only renders an <img>
+  // with `thumbnail_url ?? media_url` (no <video> mount).
   const posts = loadAll
-    ? await getAllUserMedia(accessToken, 300)
+    ? await getAllUserMedia(accessToken, 300, MEDIA_THUMB_FIELDS)
     : await getUserMedia(accessToken, limit);
 
   const snapshot = await setApiSnapshot(

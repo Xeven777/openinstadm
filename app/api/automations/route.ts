@@ -4,7 +4,9 @@ import { prisma } from "@/lib/db/client";
 import { generateTrackedLinkSlug } from "@/lib/tracking/server";
 import { generateReportShareSlug } from "@/lib/reports/share";
 import {
+  getCampaignDetail,
   getCampaignList,
+  getCampaignUsedPosts,
   invalidateCampaignsCache,
 } from "@/lib/server/automations";
 import { invalidateWorkspaceStats } from "@/lib/server/stats";
@@ -138,8 +140,32 @@ export async function GET(request: NextRequest) {
       { status: 401 }
     );
   }
+  const id = request.nextUrl.searchParams.get("id");
+  if (id) {
+    const campaign = await getCampaignDetail(workspaceId, id);
+    if (!campaign) {
+      return NextResponse.json(
+        { success: false, error: "Campaign not found" },
+        { status: 404 }
+      );
+    }
+    return NextResponse.json(
+      { success: true, data: campaign },
+      { headers: { "Cache-Control": "no-store" } }
+    );
+  }
+
+  const fields = request.nextUrl.searchParams.get("fields");
   const instagramAccountId =
     request.nextUrl.searchParams.get("instagramAccountId");
+
+  if (fields === "used-posts") {
+    const data = await getCampaignUsedPosts(workspaceId, instagramAccountId);
+    return NextResponse.json(
+      { success: true, data },
+      { headers: { "Cache-Control": "no-store" } }
+    );
+  }
 
   const data = await getCampaignList(workspaceId, instagramAccountId);
 

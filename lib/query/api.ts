@@ -152,3 +152,49 @@ export function sendDirectMessageApi(input: {
     return payload;
   });
 }
+
+export interface UsedPostInfo {
+  id: string;
+  name: string;
+  postId: string;
+  instagramAccountId: string;
+}
+
+export const fetchUsedPosts = (accountId: string | null | undefined) => {
+  const qs = accountId
+    ? `?fields=used-posts&instagramAccountId=${encodeURIComponent(accountId)}`
+    : "?fields=used-posts";
+  return getData<UsedPostInfo[]>(`/api/automations${qs}`);
+};
+
+export interface CampaignDetail {
+  id: string;
+  name: string;
+  postId: string | null;
+  postUrl: string | null;
+  pendingNextReel: boolean;
+  matchAnyPost: boolean;
+  keywords: string[];
+  matchAnyWord: boolean;
+  dmTriggerEnabled: boolean;
+  dmMessage: string;
+  openingDmEnabled: boolean;
+  openingDmMessage: string | null;
+  openingDmButtonLabel: string | null;
+  linkButtonLabel: string | null;
+  requireFollow: boolean;
+  followPromptMessage: string | null;
+  followPromptButtonLabel: string | null;
+  followUpEnabled: boolean;
+  followUpMessage: string | null;
+  followUpDelayMinutes: number | null;
+  publicReplyEnabled: boolean;
+  publicReplyMessage: string | null;
+  publicReplyMessages: string[];
+  isActive: boolean;
+  instagramAccountId: string;
+  trackedLinks?: { destinationUrl: string; label?: string | null }[];
+}
+
+export const fetchCampaignDetail = (id: string) =>
+  getData<CampaignDetail>(`/api/automations?id=${encodeURIComponent(id)}`);

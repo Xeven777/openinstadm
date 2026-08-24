@@ -556,6 +556,14 @@ export async function getUserInfo(accessToken: string): Promise<InstagramUser> {
 const MEDIA_FIELDS =
   "id,caption,media_type,media_product_type,media_url,thumbnail_url,timestamp,permalink,like_count,comments_count";
 
+// Fields for the campaign post picker (all=true). Includes both
+// `media_url` and `thumbnail_url` so the grid can render a cover for every
+// type: VIDEO/CAROUSEL have `thumbnail_url`, IMAGE has only `media_url`
+// (`thumbnail_url` is null for images). The picker uses
+// `thumbnail_url ?? media_url` and never mounts a <video> tag.
+export const MEDIA_THUMB_FIELDS =
+  "id,caption,media_type,media_url,thumbnail_url,timestamp,permalink";
+
 // Instagram caps a single media page at 100 items.
 const MEDIA_PAGE_SIZE = 100;
 
@@ -581,12 +589,13 @@ export async function getUserMedia(
  */
 export async function getAllUserMedia(
   accessToken: string,
-  max = 500
+  max = 500,
+  fields: string = MEDIA_FIELDS
 ): Promise<InstagramMedia[]> {
   const results: InstagramMedia[] = [];
 
   const first = new URL(`${instagramGraphBase()}/me/media`);
-  first.searchParams.set("fields", MEDIA_FIELDS);
+  first.searchParams.set("fields", fields);
   first.searchParams.set("limit", String(Math.min(MEDIA_PAGE_SIZE, max)));
   first.searchParams.set("access_token", accessToken);
 

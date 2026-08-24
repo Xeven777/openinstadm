@@ -27,7 +27,12 @@ import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { queryKeys } from "@/lib/query/keys";
-import { fetchAccountList, fetchProfile } from "@/lib/query/api";
+import {
+  fetchAccountList,
+  fetchCampaignDetail,
+  fetchProfile,
+  fetchUsedPosts,
+} from "@/lib/query/api";
 import {
   IMPORT_QUEUE_KEY,
   IMPORT_ACCOUNT_KEY,
@@ -220,83 +225,95 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
   }, [accountsQuery.data]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
-  // Prefill when editing.
+  // Prefill when editing — single-row fetch via getCampaignDetail, cached by
+  // TanStack Query (no full-list + 3 groupBy aggregations).
+  const detailQuery = useQuery({
+    queryKey: queryKeys.campaignDetail(campaignId ?? ""),
+    queryFn: () => fetchCampaignDetail(campaignId!),
+    enabled: mode === "edit" && Boolean(campaignId),
+    staleTime: 60_000,
+  });
+
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
-    if (mode !== "edit" || !campaignId) return;
-    fetch("/api/automations", { cache: "no-store" })
-      .then((r) => r.json())
-      .then((payload) => {
-        if (!payload.success) return setNotFound(true);
-        const c = (payload.data as LoadedCampaign[]).find((x) => x.id === campaignId);
-        if (!c) return setNotFound(true);
-        setName(c.name);
-        setSelectedAccountId(c.instagramAccountId);
-        setTriggerScope(
-          c.matchAnyPost ? "any" : c.pendingNextReel ? "next" : "specific"
-        );
-        setPostId(c.postId);
-        setPostUrl(c.postUrl);
-        setMatchMode(c.matchAnyWord ? "any" : "specific");
-        setKeywordText(c.keywords.join(", "));
-        setDmTriggerEnabled(c.dmTriggerEnabled ?? false);
-        setPublicReplyEnabled(c.publicReplyEnabled);
-        setPublicReplyMessages(
-          c.publicReplyMessages?.length
-            ? c.publicReplyMessages
-            : c.publicReplyMessage
-              ? [c.publicReplyMessage]
-              : [""]
-        );
-        setOpeningDmEnabled(c.openingDmEnabled);
-        setOpeningDmMessage(c.openingDmMessage ?? "");
-        setOpeningDmButtonLabel(c.openingDmButtonLabel ?? "");
-        setDmMessage(c.dmMessage);
-        setLinkButtonLabel(c.linkButtonLabel ?? "Open link");
-        setIsActive(c.isActive);
-        const link = c.trackedLinks?.[0]?.destinationUrl ?? "";
-        setTrackedDestinationUrl(link);
-        setLinkOpen(Boolean(link));
-        const secondLink = c.trackedLinks?.[1];
-        setSecondaryDestinationUrl(secondLink?.destinationUrl ?? "");
-        setSecondaryButtonLabel(secondLink?.label ?? "Open link");
-        setSecondLinkOpen(Boolean(secondLink?.destinationUrl));
-        setRequireFollow(c.requireFollow ?? false);
-        setFollowPromptMessage(c.followPromptMessage ?? "");
-        setFollowPromptButtonLabel(
-          c.followPromptButtonLabel ?? "i'm following"
-        );
-        setFollowUpEnabled(c.followUpEnabled ?? false);
-        setFollowUpMessage(c.followUpMessage ?? "");
-        setFollowUpDelayMinutes(c.followUpDelayMinutes ?? 0);
-      })
-      .catch(() => setNotFound(true))
-      .finally(() => setLoading(false));
-  }, [mode, campaignId]);
+    if (mode !== "edit") return;
+    if (detailQuery.isPending) return;
+    if (detailQuery.isError || !detailQuery.data) {
+      setNotFound(true);
+      setLoading(false);
+      return;
+    }
+    const c = detailQuery.data as LoadedCampaign;
+    setName(c.name);
+    setSelectedAccountId(c.instagramAccountId);
+    setTriggerScope(
+      c.matchAnyPost ? "any" : c.pendingNextReel ? "next" : "specific"
+    );
+    setPostId(c.postId);
+    setPostUrl(c.postUrl);
+    setMatchMode(c.matchAnyWord ? "any" : "specific");
+    setKeywordText(c.keywords.join(", "));
+    setDmTriggerEnabled(c.dmTriggerEnabled ?? false);
+    setPublicReplyEnabled(c.publicReplyEnabled);
+    setPublicReplyMessages(
+      c.publicReplyMessages?.length
+        ? c.publicReplyMessages
+        : c.publicReplyMessage
+          ? [c.publicReplyMessage]
+          : [""]
+    );
+    setOpeningDmEnabled(c.openingDmEnabled);
+    setOpeningDmMessage(c.openingDmMessage ?? "");
+    setOpeningDmButtonLabel(c.openingDmButtonLabel ?? "");
+    setDmMessage(c.dmMessage);
+    setLinkButtonLabel(c.linkButtonLabel ?? "Open link");
+    setIsActive(c.isActive);
+    const link = c.trackedLinks?.[0]?.destinationUrl ?? "";
+    setTrackedDestinationUrl(link);
+    setLinkOpen(Boolean(link));
+    const secondLink = c.trackedLinks?.[1];
+    setSecondaryDestinationUrl(secondLink?.destinationUrl ?? "");
+    setSecondaryButtonLabel(secondLink?.label ?? "Open link");
+    setSecondLinkOpen(Boolean(secondLink?.destinationUrl));
+    setRequireFollow(c.requireFollow ?? false);
+    setFollowPromptMessage(c.followPromptMessage ?? "");
+    setFollowPromptButtonLabel(c.followPromptButtonLabel ?? "i'm following");
+    setFollowUpEnabled(c.followUpEnabled ?? false);
+    setFollowUpMessage(c.followUpMessage ?? "");
+    setFollowUpDelayMinutes(c.followUpDelayMinutes ?? 0);
+    setLoading(false);
+  }, [
+    mode,
+    detailQuery.data,
+    detailQuery.isPending,
+    detailQuery.isError,
+  ]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   // Track which posts on the selected account are already assigned to an
-  // automation, so the picker can highlight them. The campaign being edited is
-  // excluded — its own post should read as selected, not "taken".
+  // automation, so the picker can highlight them. Uses the lightweight
+  // `?fields=used-posts` projection (4 columns, no analytics groupBys) cached
+  // by TanStack Query keyed by account — deduped, stale-while-revalidate, no
+  // refetch on every account switch mount.
+  const usedPostsQuery = useQuery({
+    queryKey: queryKeys.usedPosts(selectedAccountId),
+    queryFn: () => fetchUsedPosts(selectedAccountId),
+    enabled: Boolean(selectedAccountId),
+    staleTime: 60_000,
+  });
+
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
-    if (!selectedAccountId) return;
-    let cancelled = false;
-    fetch("/api/automations", { cache: "no-store" })
-      .then((r) => r.json())
-      .then((payload) => {
-        if (cancelled || !payload.success) return;
-        const map: Record<string, string> = {};
-        for (const a of payload.data as LoadedCampaign[]) {
-          if (!a.postId) continue;
-          if (a.instagramAccountId !== selectedAccountId) continue;
-          if (mode === "edit" && a.id === campaignId) continue;
-          map[a.postId] = a.name;
-        }
-        setUsedPosts(map);
-      })
-      .catch(() => {});
-    return () => {
-      cancelled = true;
-    };
-  }, [selectedAccountId, mode, campaignId]);
+    if (!usedPostsQuery.data) return;
+    const map: Record<string, string> = {};
+    for (const a of usedPostsQuery.data) {
+      if (a.postId == null) continue;
+      if (mode === "edit" && a.id === campaignId) continue;
+      map[a.postId] = a.name;
+    }
+    setUsedPosts(map);
+  }, [usedPostsQuery.data, mode, campaignId]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   // Prefill the editable fields from one queued import row. The reel is left
   // unset so the user picks it per row.

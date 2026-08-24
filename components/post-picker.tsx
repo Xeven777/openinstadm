@@ -9,7 +9,7 @@
  * Fetches from /api/instagram/posts.
  */
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { MagnifyingGlass } from "@phosphor-icons/react";
 import RefreshIcon from "@/components/refresh-icon";
@@ -41,8 +41,11 @@ export default function PostPicker({
   onSelect,
 }: PostPickerProps) {
   const [query, setQuery] = useState("");
-  // The post currently hovered — its video (if it's a reel) plays a preview.
-  const [hoveredId, setHoveredId] = useState<string | null>(null);
+  // Thumbnails render in pages of 10; "Show more" reveals the next page. The
+  // full library stays in the TanStack Query cache (IndexedDB-persisted), so
+  // paging and search are instant with no extra requests.
+  const PAGE_SIZE = 10;
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const [refreshing, setRefreshing] = useState(false);
 
   // Load the full library so older posts/reels are selectable, not just the
@@ -93,6 +96,14 @@ export default function PostPicker({
     }
   }
 
+  // Jump back to the first page when the account or search changes, so the
+  // grid starts at the newest posts instead of an arbitrary later page.
+  /* eslint-disable react-hooks/set-state-in-effect */
+  useEffect(() => {
+    setVisibleCount(PAGE_SIZE);
+  }, [instagramAccountId, query]);
+  /* eslint-enable react-hooks/set-state-in-effect */
+
   if (loading) {
     return (
       <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
@@ -122,11 +133,13 @@ export default function PostPicker({
     );
   }
 
-  const visible = query.trim()
+  const matches = query.trim()
     ? posts.filter((p) =>
         (p.caption ?? "").toLowerCase().includes(query.trim().toLowerCase())
       )
     : posts;
+  const visible = matches.slice(0, visibleCount);
+  const hasMore = visibleCount < matches.length;
 
   return (
     <div className="space-y-2">
@@ -164,7 +177,7 @@ export default function PostPicker({
           Last refreshed {formatTimeAgo(lastFetchedAt)}
         </p>
       )}
-      {visible.length === 0 ? (
+      {matches.length === 0 ? (
         <p className="py-6 text-center text-sm text-muted-foreground">
           No posts match &ldquo;{query}&rdquo;
         </p>
@@ -185,19 +198,12 @@ export default function PostPicker({
               const usedByName = usedPostIds?.[post.id];
               const isUsed = Boolean(usedByName) && !isSelected;
               const thumb = post.thumbnail_url ?? post.media_url;
-              const isVideo = post.media_type === "VIDEO";
-              const showVideo =
-                isVideo && hoveredId === post.id && Boolean(post.media_url);
               return (
                 <button
                   key={post.id}
                   type="button"
                   onClick={() =>
                     onSelect(post.id, post.permalink, thumb, post.caption)
-                  }
-                  onMouseEnter={() => setHoveredId(post.id)}
-                  onMouseLeave={() =>
-                    setHoveredId((cur) => (cur === post.id ? null : cur))
                   }
                   aria-pressed={isSelected}
                   title={isUsed ? `Already used by "${usedByName}"` : undefined}
@@ -216,6 +222,8 @@ export default function PostPicker({
                     <img
                       src={thumb}
                       alt={post.caption?.slice(0, 50) ?? "Instagram post"}
+                      loading="lazy"
+                      decoding="async"
                       className={`w-full h-full object-cover ${isUsed ? "opacity-75" : ""}`}
                     />
                   ) : (
@@ -224,20 +232,6 @@ export default function PostPicker({
                         No image
                       </span>
                     </div>
-                  )}
-                  {showVideo && (
-                    <video
-                      src={post.media_url}
-                      poster={thumb}
-                      autoPlay
-                      muted
-                      loop
-                      playsInline
-                      preload="none"
-                      className={`absolute inset-0 h-full w-full object-cover ${
-                        isUsed ? "opacity-60" : ""
-                      }`}
-                    />
                   )}
                   {isSelected && (
                     <span className="absolute bottom-0 inset-x-0 bg-primary py-1 text-center text-xs font-medium text-primary-foreground">
@@ -248,6 +242,17 @@ export default function PostPicker({
               );
             })}
           </div>
+          {hasMore && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setVisibleCount((c) => c + PAGE_SIZE)}
+              className="w-full"
+            >
+              Show {Math.min(PAGE_SIZE, matches.length - visibleCount)} more
+            </Button>
+          )}
         </>
       )}
     </div>
