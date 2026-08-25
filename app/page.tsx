@@ -5,6 +5,8 @@ import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { ModeToggle } from "@/components/theme-toggle";
+import Hero from "@/components/sections/hero";
+import Image from "next/image";
 
 const GITHUB_URL = "https://github.com/xeven777/OpenInstaDM";
 
@@ -377,14 +379,20 @@ export default async function Home() {
   const stars = await getGitHubStars();
   return (
     <main className="min-h-screen bg-background text-foreground">
-      {/* ─── Header ─── */}
-      <header className="sticky top-0 z-40 border-b border-border bg-background/80 backdrop-blur-xl">
-        <div className="mx-auto flex h-16 w-full max-w-7xl items-center justify-between px-5 sm:px-6 lg:px-8">
+      <header className="fixed w-11/12 top-2 z-40 border-b border-border/50 bg-background/80 backdrop-blur-xl rounded-full -translate-x-1/2 left-1/2">
+        <div className="mx-auto flex h-15 w-full max-w-7xl items-center justify-between px-5 sm:px-6 lg:px-8 rounded-full">
           <Link
             href="/"
-            className="flex items-center gap-3"
+            className="flex items-center gap-2"
             aria-label="OpenInstaDM home"
           >
+            <Image
+              src="/logo3.svg"
+              alt="OpenInstaDM logo"
+              width={32}
+              height={32}
+              className="size-8 grayscale-100 brightness-0 hover:brightness-90 transition-all duration-300 hover:grayscale-0" 
+            />
             <span className="text-lg font-bold tracking-tight text-foreground">
               OpenInstaDM
             </span>
@@ -416,76 +424,10 @@ export default async function Home() {
         </div>
       </header>
 
-      {/* ─── Hero ─── */}
-      <section className="relative overflow-hidden min-h-[calc(100vh-4rem)]">
-        <div className="bg-radial from-transparent to-primary/10 absolute inset-0 pointer-events-none" />
-        <div className="relative mx-auto grid w-full max-w-7xl items-center gap-12 px-5 pb-20 pt-16 sm:px-6 sm:pt-20 lg:grid-cols-[1fr_1.1fr] lg:px-8 lg:pb-28 lg:pt-24">
-          <div className="max-w-2xl">
-            <div className="animate-fade-in-up inline-flex items-center gap-2 rounded-full border border-border bg-background/60 px-4 py-1.5 text-xs font-semibold tracking-wide text-muted-foreground backdrop-blur-sm">
-              <span className="size-1.5 rounded-full bg-primary animate-pulse" />
-              Open source · Official Meta API
-            </div>
-
-            <h1 className="mt-8 text-balance text-5xl font-bold leading-[1.05] tracking-tighter text-foreground sm:text-6xl lg:text-7xl">
-              Every comment
-              <br />
-              starts the
-              <br />
-              <span className="text-primary">right DM</span>
-            </h1>
-
-            <p className="mt-7 max-w-xl text-lg leading-relaxed text-muted-foreground">
-              Open-sourced ManyChat. Someone comments your keyword on a reel,
-              they get your DM a second later. Free, self-hosted, built on the
-              official Instagram API.
-            </p>
-
-            <div className="mt-10 flex flex-col gap-3 sm:flex-row">
-              <Link
-                href="/login"
-                className={cn(
-                  buttonVariants({ variant: "default", size: "lg" }),
-                  "px-7",
-                )}
-              >
-                Get started free
-              </Link>
-              <a
-                href="#how"
-                className={cn(
-                  buttonVariants({ variant: "outline", size: "lg" }),
-                  "px-7",
-                )}
-              >
-                See how it works
-              </a>
-            </div>
-
-            <dl className="mt-12 grid max-w-md grid-cols-3 gap-4">
-              {heroStats.map((stat) => (
-                <div key={stat.label}>
-                  <dt className="text-3xl font-bold tracking-tight text-foreground">
-                    {stat.value}
-                  </dt>
-                  <dd className="mt-1 text-xs leading-5 text-muted-foreground">
-                    {stat.label}
-                  </dd>
-                </div>
-              ))}
-            </dl>
-          </div>
-
-          <div className="relative">
-            <OverviewPreview />
-            <div className="absolute -bottom-10 -left-8 hidden lg:block">
-              <MatchedCommentCard />
-            </div>
-          </div>
-        </div>
-      </section>
+      <Hero />
 
       {/* ─── How it works ─── */}
-      <section id="how" className="border-t border-border bg-muted/30">
+      <section id="how">
         <div className="mx-auto w-full max-w-7xl px-5 py-24 sm:px-6 lg:px-8">
           <div className="grid gap-16 lg:grid-cols-[0.85fr_1.15fr] lg:items-center">
             <div>
@@ -623,21 +565,23 @@ export default async function Home() {
                   Free and open source. Star it if it saves you a subscription.
                 </p>
               </div>
-              <div className="flex flex-col gap-3 sm:flex-row lg:flex-col">
+              <div className="flex w-full flex-col gap-3 sm:flex-row lg:w-auto lg:flex-col">
                 <Link
                   href="/login"
                   className={cn(
                     buttonVariants({ variant: "default", size: "lg" }),
-                    "px-7",
+                    "w-full justify-center px-7 sm:w-auto",
                   )}
                 >
                   Get started free
                 </Link>
                 <a
                   href={GITHUB_URL}
+                  target="_blank"
+                  rel="noreferrer"
                   className={cn(
                     buttonVariants({ variant: "outline", size: "lg" }),
-                    "px-7",
+                    "w-full justify-center px-7 sm:w-auto",
                   )}
                 >
                   View on GitHub

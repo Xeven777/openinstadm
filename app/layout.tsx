@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import "goey-toast/styles.css";
-import { Geist } from "next/font/google";
+import { Funnel_Sans } from "next/font/google";
 import GooeyToasterMount from "@/components/goey-toaster";
 import QueryProvider from "@/lib/query/provider";
 import { ThemeProvider } from "@/components/theme-provider";
@@ -19,7 +19,7 @@ export const metadata: Metadata = {
   ],
 };
 
-const geist = Geist({ subsets: ["latin"], variable: "--font-sans" });
+const funnelSans = Funnel_Sans({ subsets: ["latin"], variable: "--font-sans" });
 
 export default function RootLayout({
   children,
@@ -28,7 +28,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className={"min-h-full antialiased " + geist.className}>
+      <body className={"min-h-full antialiased " + funnelSans.className}>
         <QueryProvider>
           <ThemeProvider
             attribute="class"
