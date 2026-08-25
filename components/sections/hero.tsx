@@ -5,6 +5,13 @@ import Image from "next/image";
 import bg from "@/assets/bg.webp";
 import insta from "@/assets/Instagram.webp";
 import chatBubbles from "@/assets/chatbubbles.webp";
+import {
+  CaretDoubleRightIcon,
+  ClockAfternoonIcon,
+  CrownSimpleIcon,
+  FlagBannerIcon,
+  MetaLogoIcon,
+} from "@phosphor-icons/react/dist/ssr";
 
 export default function Hero() {
   return (
@@ -52,9 +59,14 @@ export default function Hero() {
       />
 
       {/* ── Content ── */}
-      <div className="relative mx-auto flex min-h-130 w-full max-w-7xl items-center px-5 py-10 sm:min-h-140 sm:px-6 sm:py-14 lg:min-h-160 lg:px-8 lg:py-24 mt-16 xl:min-h-170">
+      <div className="relative mx-auto flex min-h-130 w-full max-w-8xl items-center px-5 py-10 sm:min-h-140 sm:px-6 sm:py-14 lg:min-h-160 lg:px-8 lg:py-24 mt-15 xl:min-h-170">
         <div className="w-full max-w-160 xl:max-w-170">
-          <h1 className="text-balance font-semibold leading-[0.95] tracking-[-5%] xl:tracking-[-6.5%] text-foreground/90">
+          <p className="text-sm py-1 px-4 text-lime-700 rounded-full bg-primary/15 w-fit tracking-wide shadow-lg border-2 border-white/50 inline-flex items-center gap-2 cursor-pointer">
+            <CrownSimpleIcon size={16} weight="duotone" />
+            Free, Open-Source & Unlimited
+            <CaretDoubleRightIcon size={16} weight="duotone" />
+          </p>
+          <h1 className="text-balance font-medium leading-[0.95] tracking-[-5%] xl:tracking-[-6.5%] text-foreground/90">
             <span className="block text-3xl md:text-5xl lg:text-6xl xl:text-7xl">
               <span className="inline-flex items-baseline">
                 Turn
@@ -81,7 +93,7 @@ export default function Hero() {
               <Image
                 src={chatBubbles}
                 alt="Chat Bubbles"
-                className="size-9 translate-y-0.75 sm:size-12 sm:translate-y-2 sm:translate-x-2.5 lg:size-15 xl:size-20 hover:scale-105 transition-transform duration-500 active:scale-95 active:translate-y-4 cursor-pointer brightness-110"
+                className="size-9 translate-y-0.75 sm:size-12 sm:translate-y-2 sm:translate-x-2.5 lg:size-15 xl:size-20 hover:scale-105 transition-transform duration-500 active:scale-x-95 active:translate-y-4 cursor-pointer brightness-110"
                 width={100}
                 height={100}
                 style={{
@@ -94,14 +106,12 @@ export default function Hero() {
             </span>
           </h1>
 
-          {/* Subtext — smaller like screenshot */}
-          <p className="mt-6 max-w-xl tracking-tight font-thin leading-relaxed text-primary-foreground/80">
-            Someone types &quot;link pls&quot; under your post, OpenInstaDM DMs it to them
-            before you&apos;ve even seen the notification. No monthly fee, nothing to
-            babysit.
+          <p className="mt-6 md:mt-8 max-w-xl tracking-tight font-thin leading-relaxed text-primary-foreground/80 text-base md:text-lg">
+            Someone types &quot;link pls&quot; under your post, OpenInstaDM
+            sends it to them before you&apos;ve even seen the notification. No
+            monthly fee, nothing to babysit.
           </p>
 
-          {/* CTAs — fully responsive, full-width on mobile */}
           <div className="mt-8 flex flex-col gap-3 sm:mt-8 sm:flex-row sm:flex-wrap">
             <Link
               href="/login"
@@ -124,17 +134,24 @@ export default function Hero() {
           </div>
 
           {/* Trust row — responsive, wraps on mobile */}
-          <div className="mt-6 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs font-medium text-[#1e2f0f]/60 sm:mt-7 sm:text-[13px]">
-            <span className="inline-flex items-center gap-1.5">
-              <span className="size-1.5 rounded-full bg-[#3a5a0a] opacity-70" />
+          <div className="mt-6 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs md:mt-8 md:text-sm tracking-tight">
+            <span className="inline-flex items-center gap-1.5 text-blue-600/70">
+              <MetaLogoIcon className="size-5" />
               Official Meta API
             </span>
-            <span className="hidden h-3 w-px bg-[#0f1e04]/15 sm:block" />
-            <span>No scraping · Encrypted tokens</span>
+            <span className="hidden h-3 w-px bg-muted-foreground/50 sm:block" />
+            <span className="inline-flex items-center gap-1.5 text-purple-800/70">
+              <ClockAfternoonIcon className="size-5" />
+              Runs 24/7
+            </span>
+            <span className="hidden h-3 w-px bg-muted-foreground/50 sm:block" />
+            <span className="inline-flex items-center gap-1.5 text-rose-800/70">
+              <FlagBannerIcon className="size-5" />
+              No Bans
+            </span>
           </div>
         </div>
 
-        {/* Right spacer keeps image chair visible on large screens */}
         <div className="hidden flex-1 lg:block" aria-hidden="true" />
       </div>
     </section>

@@ -16,8 +16,12 @@ const navLinks = [
 export default function PublicSiteHeader({ active }: PublicSiteHeaderProps) {
   return (
     <header className="sticky top-0 z-40 border-b border-white/10 bg-background/85">
-      <div className="mx-auto flex h-16 w-full max-w-7xl items-center justify-between px-5 sm:px-6 lg:px-8">
-        <Link href="/" className="flex items-center gap-3" aria-label="OpenInstaDM home">
+      <div className="mx-auto flex h-16 w-full max-w-8xl items-center justify-between px-5 sm:px-6 lg:px-8">
+        <Link
+          href="/"
+          className="flex items-center gap-3"
+          aria-label="OpenInstaDM home"
+        >
           <span className="text-lg font-bold text-white">OpenInstaDM</span>
         </Link>
 
@@ -27,7 +31,9 @@ export default function PublicSiteHeader({ active }: PublicSiteHeaderProps) {
               key={link.key}
               href={link.href}
               className={`text-sm font-medium transition ${
-                active === link.key ? "text-white" : "text-zinc-400 hover:text-white"
+                active === link.key
+                  ? "text-white"
+                  : "text-zinc-400 hover:text-white"
               }`}
             >
               {link.label}
@@ -46,7 +52,7 @@ export default function PublicSiteHeader({ active }: PublicSiteHeaderProps) {
             href="/login"
             className={cn(
               buttonVariants({ variant: "default", size: "sm" }),
-              "bg-cyan-300 text-zinc-950 hover:bg-cyan-200"
+              "bg-cyan-300 text-zinc-950 hover:bg-cyan-200",
             )}
           >
             Start free

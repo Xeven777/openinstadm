@@ -35,7 +35,7 @@ export default function SeoPageShell({ config }: { config: SeoPageConfig }) {
       <PublicSiteHeader />
 
       <section className="border-b border-white/10 bg-zinc-950/70">
-        <div className="mx-auto grid w-full max-w-7xl gap-10 px-5 py-20 sm:px-6 lg:grid-cols-[1.05fr_0.95fr] lg:px-8">
+        <div className="mx-auto grid w-full max-w-8xl gap-10 px-5 py-20 sm:px-6 lg:grid-cols-[1.05fr_0.95fr] lg:px-8">
           <div>
             <p className="text-sm font-bold uppercase text-cyan-200">
               {config.eyebrow}
@@ -51,7 +51,7 @@ export default function SeoPageShell({ config }: { config: SeoPageConfig }) {
                 href="/login"
                 className={cn(
                   buttonVariants({ variant: "default", size: "lg" }),
-                  "bg-cyan-300 text-zinc-950 hover:bg-cyan-200"
+                  "bg-cyan-300 text-zinc-950 hover:bg-cyan-200",
                 )}
               >
                 {config.primaryCta}
@@ -60,7 +60,7 @@ export default function SeoPageShell({ config }: { config: SeoPageConfig }) {
                 href="/templates"
                 className={cn(
                   buttonVariants({ variant: "outline", size: "lg" }),
-                  "border-white/10 bg-white/[0.04] text-white hover:border-white/20 hover:bg-white/[0.08]"
+                  "border-white/10 bg-white/[0.04] text-white hover:border-white/20 hover:bg-white/[0.08]",
                 )}
               >
                 {config.secondaryCta ?? "Browse templates"}
@@ -74,7 +74,10 @@ export default function SeoPageShell({ config }: { config: SeoPageConfig }) {
             </p>
             <ul className="mt-5 space-y-4">
               {config.bullets.map((bullet) => (
-                <li key={bullet} className="flex gap-3 text-sm leading-6 text-zinc-300">
+                <li
+                  key={bullet}
+                  className="flex gap-3 text-sm leading-6 text-zinc-300"
+                >
                   {bullet}
                 </li>
               ))}
@@ -83,20 +86,29 @@ export default function SeoPageShell({ config }: { config: SeoPageConfig }) {
         </div>
       </section>
 
-      <section className="mx-auto w-full max-w-7xl px-5 py-16 sm:px-6 lg:px-8">
+      <section className="mx-auto w-full max-w-8xl px-5 py-16 sm:px-6 lg:px-8">
         <div className="grid gap-4 md:grid-cols-3">
           {config.sections.map((section) => (
-            <article key={section.title} className="border border-white/10 bg-white/[0.035] p-6">
-              <h2 className="text-2xl font-black text-white">{section.title}</h2>
-              <p className="mt-4 text-sm leading-7 text-zinc-400">{section.body}</p>
+            <article
+              key={section.title}
+              className="border border-white/10 bg-white/[0.035] p-6"
+            >
+              <h2 className="text-2xl font-black text-white">
+                {section.title}
+              </h2>
+              <p className="mt-4 text-sm leading-7 text-zinc-400">
+                {section.body}
+              </p>
             </article>
           ))}
         </div>
       </section>
 
       <section className="border-y border-white/10 bg-white/[0.025] py-16">
-        <div className="mx-auto w-full max-w-7xl px-5 sm:px-6 lg:px-8">
-          <h2 className="text-4xl font-black text-white">{config.comparisonTitle}</h2>
+        <div className="mx-auto w-full max-w-8xl px-5 sm:px-6 lg:px-8">
+          <h2 className="text-4xl font-black text-white">
+            {config.comparisonTitle}
+          </h2>
           <div className="mt-8 overflow-hidden border border-white/10">
             <div className="grid grid-cols-[0.8fr_1fr_1fr] border-b border-white/10 bg-zinc-950 text-xs font-bold uppercase tracking-wide text-zinc-500">
               <div className="p-4">Need</div>
@@ -123,7 +135,7 @@ export default function SeoPageShell({ config }: { config: SeoPageConfig }) {
         </div>
       </section>
 
-      <section className="mx-auto grid w-full max-w-7xl gap-8 px-5 py-16 sm:px-6 lg:grid-cols-[0.9fr_1.1fr] lg:px-8">
+      <section className="mx-auto grid w-full max-w-8xl gap-8 px-5 py-16 sm:px-6 lg:grid-cols-[0.9fr_1.1fr] lg:px-8">
         <div>
           <p className="text-sm font-bold uppercase text-emerald-200">
             Start from a template
@@ -150,7 +162,7 @@ export default function SeoPageShell({ config }: { config: SeoPageConfig }) {
       </section>
 
       <section className="border-t border-white/10 bg-zinc-950/70 py-16">
-        <div className="mx-auto grid w-full max-w-7xl gap-8 px-5 sm:px-6 lg:grid-cols-[0.8fr_1.2fr] lg:px-8">
+        <div className="mx-auto grid w-full max-w-8xl gap-8 px-5 sm:px-6 lg:grid-cols-[0.8fr_1.2fr] lg:px-8">
           <div>
             <p className="text-sm font-bold uppercase text-cyan-200">FAQ</p>
             <h2 className="mt-3 text-4xl font-black text-white">
@@ -159,16 +171,21 @@ export default function SeoPageShell({ config }: { config: SeoPageConfig }) {
           </div>
           <div className="grid gap-3">
             {config.faqs.map((faq) => (
-              <article key={faq.title} className="border border-white/10 bg-white/[0.035] p-5">
+              <article
+                key={faq.title}
+                className="border border-white/10 bg-white/[0.035] p-5"
+              >
                 <h3 className="text-lg font-bold text-white">{faq.title}</h3>
-                <p className="mt-2 text-sm leading-6 text-zinc-400">{faq.body}</p>
+                <p className="mt-2 text-sm leading-6 text-zinc-400">
+                  {faq.body}
+                </p>
               </article>
             ))}
           </div>
         </div>
       </section>
 
-      <section className="mx-auto w-full max-w-7xl px-5 py-16 sm:px-6 lg:px-8">
+      <section className="mx-auto w-full max-w-8xl px-5 py-16 sm:px-6 lg:px-8">
         <div className="border border-cyan-200/20 bg-cyan-300/10 p-8 text-center">
           <h2 className="text-4xl font-black text-white">
             Turn the next high-intent comment into a private reply
@@ -181,7 +198,7 @@ export default function SeoPageShell({ config }: { config: SeoPageConfig }) {
             href="/login"
             className={cn(
               buttonVariants({ variant: "default", size: "lg" }),
-              "mt-8 bg-cyan-300 text-zinc-950 hover:bg-cyan-200"
+              "mt-8 bg-cyan-300 text-zinc-950 hover:bg-cyan-200",
             )}
           >
             Start free

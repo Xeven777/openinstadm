@@ -4,18 +4,10 @@ import { GithubLogo } from "@phosphor-icons/react/dist/ssr";
 import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
-import { ModeToggle } from "@/components/theme-toggle";
 import Hero from "@/components/sections/hero";
-import Image from "next/image";
+import Navbar from "@/components/sections/navbar";
 
 const GITHUB_URL = "https://github.com/xeven777/OpenInstaDM";
-
-function formatStars(count: number): string {
-  if (count >= 1000) {
-    return `${(count / 1000).toFixed(1)}K`;
-  }
-  return count.toLocaleString();
-}
 
 const heroStats = [
   { value: "24/7", label: "Comment monitoring" },
@@ -356,79 +348,15 @@ function DashboardPreview() {
   );
 }
 
-async function getGitHubStars(): Promise<number | null> {
-  try {
-    const res = await fetch(
-      "https://api.github.com/repos/xeven777/OpenInstaDM",
-      {
-        headers: { Accept: "application/vnd.github+json" },
-        next: { revalidate: 3600 },
-      },
-    );
-    if (!res.ok) return null;
-    const data = (await res.json()) as { stargazers_count?: number };
-    return typeof data.stargazers_count === "number"
-      ? data.stargazers_count
-      : null;
-  } catch {
-    return null;
-  }
-}
-
 export default async function Home() {
-  const stars = await getGitHubStars();
   return (
     <main className="min-h-screen bg-background text-foreground">
-      <header className="fixed w-11/12 top-2 z-40 border-b border-border/50 bg-background/80 backdrop-blur-xl rounded-full -translate-x-1/2 left-1/2">
-        <div className="mx-auto flex h-15 w-full max-w-7xl items-center justify-between px-5 sm:px-6 lg:px-8 rounded-full">
-          <Link
-            href="/"
-            className="flex items-center gap-2"
-            aria-label="OpenInstaDM home"
-          >
-            <Image
-              src="/logo3.svg"
-              alt="OpenInstaDM logo"
-              width={32}
-              height={32}
-              className="size-8 grayscale-100 brightness-0 hover:brightness-90 transition-all duration-300 hover:grayscale-0" 
-            />
-            <span className="text-lg font-bold tracking-tight text-foreground">
-              OpenInstaDM
-            </span>
-          </Link>
-
-          <div className="flex items-center gap-3">
-            <ModeToggle />
-            <a
-              href={GITHUB_URL}
-              target="_blank"
-              rel="noreferrer"
-              className="inline-flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-              aria-label="View OpenInstaDM on GitHub"
-            >
-              <GithubLogo
-                weight="fill"
-                className="h-4 w-4"
-                aria-hidden="true"
-              />
-              {stars !== null && <span>{formatStars(stars)}</span>}
-            </a>
-            <Link
-              href="/login"
-              className={cn(buttonVariants({ variant: "default" }))}
-            >
-              Get started
-            </Link>
-          </div>
-        </div>
-      </header>
-
+      <Navbar />
       <Hero />
 
       {/* ─── How it works ─── */}
       <section id="how">
-        <div className="mx-auto w-full max-w-7xl px-5 py-24 sm:px-6 lg:px-8">
+        <div className="mx-auto w-full max-w-8xl px-5 py-24 sm:px-6 lg:px-8">
           <div className="grid gap-16 lg:grid-cols-[0.85fr_1.15fr] lg:items-center">
             <div>
               <p className="text-xs font-bold uppercase tracking-widest text-primary">
@@ -477,7 +405,7 @@ export default async function Home() {
 
       {/* ─── Dashboard ─── */}
       <section className="border-y border-border">
-        <div className="mx-auto grid w-full max-w-7xl gap-12 px-5 py-24 sm:px-6 lg:grid-cols-[1.1fr_0.9fr] lg:px-8 lg:items-center">
+        <div className="mx-auto grid w-full max-w-8xl gap-12 px-5 py-24 sm:px-6 lg:grid-cols-[1.1fr_0.9fr] lg:px-8 lg:items-center">
           <DashboardPreview />
 
           <div>
@@ -515,7 +443,7 @@ export default async function Home() {
 
       {/* ─── Features ─── */}
       <section id="features" className="bg-muted/30">
-        <div className="mx-auto w-full max-w-7xl px-5 py-24 sm:px-6 lg:px-8">
+        <div className="mx-auto w-full max-w-8xl px-5 py-24 sm:px-6 lg:px-8">
           <div className="max-w-2xl">
             <p className="text-xs font-bold uppercase tracking-widest text-primary">
               What&rsquo;s included
@@ -551,7 +479,7 @@ export default async function Home() {
 
       {/* ─── CTA ─── */}
       <section className="border-t border-border">
-        <div className="mx-auto w-full max-w-7xl px-5 py-24 sm:px-6 lg:px-8">
+        <div className="mx-auto w-full max-w-8xl px-5 py-24 sm:px-6 lg:px-8">
           <div className="relative overflow-hidden rounded-2xl border border-border bg-background p-8 sm:p-12 lg:p-16">
             <div className="hero-glow absolute inset-0 pointer-events-none opacity-50" />
             <div className="relative grid gap-8 lg:grid-cols-[1fr_auto] lg:items-center">
@@ -594,7 +522,7 @@ export default async function Home() {
 
       {/* ─── Footer ─── */}
       <footer className="border-t border-border">
-        <div className="mx-auto flex w-full max-w-7xl items-center justify-between px-5 py-6 text-sm text-muted-foreground sm:px-6 lg:px-8">
+        <div className="mx-auto flex w-full max-w-8xl items-center justify-between px-5 py-6 text-sm text-muted-foreground sm:px-6 lg:px-8">
           <span className="font-semibold tracking-tight text-foreground">
             OpenInstaDM
           </span>
@@ -610,7 +538,6 @@ export default async function Home() {
                 className="h-4 w-4"
                 aria-hidden="true"
               />
-              {stars !== null && <span>{formatStars(stars)}</span>}
             </a>
           </div>
         </div>

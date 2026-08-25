@@ -49,7 +49,7 @@ export default function DashboardShell({
         />
 
         <main className="flex-1 overflow-y-auto">
-          <div className="px-4 lg:px-8 py-5 sm:py-6 max-w-7xl mx-auto">
+          <div className="px-4 lg:px-8 py-5 sm:py-6 max-w-8xl mx-auto">
             {children}
           </div>
         </main>

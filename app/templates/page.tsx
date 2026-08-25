@@ -22,7 +22,7 @@ export default function TemplatesPage() {
       <PublicSiteHeader active="templates" />
 
       <section className="border-b border-white/10 bg-zinc-950/55">
-        <div className="mx-auto grid w-full max-w-7xl gap-10 px-5 py-16 sm:px-6 lg:grid-cols-[0.88fr_1.12fr] lg:px-8 lg:py-20">
+        <div className="mx-auto grid w-full max-w-8xl gap-10 px-5 py-16 sm:px-6 lg:grid-cols-[0.88fr_1.12fr] lg:px-8 lg:py-20">
           <div>
             <p className="text-sm font-bold uppercase tracking-wide text-cyan-200">
               Public template library
@@ -60,7 +60,7 @@ export default function TemplatesPage() {
 
       <section
         id="template-grid"
-        className="mx-auto w-full max-w-7xl px-5 py-16 sm:px-6 lg:px-8"
+        className="mx-auto w-full max-w-8xl px-5 py-16 sm:px-6 lg:px-8"
       >
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
           {CAMPAIGN_TEMPLATES.map((template) => (

@@ -84,7 +84,7 @@ async function ReportContent({ params }: ReportPageProps) {
   return (
     <main className="min-h-screen bg-background text-foreground">
       <section className="border-b border-white/10 bg-zinc-950/70">
-        <div className="mx-auto w-full max-w-7xl px-5 py-10 sm:px-6 lg:px-8">
+        <div className="mx-auto w-full max-w-8xl px-5 py-10 sm:px-6 lg:px-8">
           <div className="flex flex-col gap-6 md:flex-row md:items-start md:justify-between">
             <div>
               <p className="text-sm font-bold uppercase tracking-wide text-cyan-200">
@@ -133,7 +133,7 @@ async function ReportContent({ params }: ReportPageProps) {
         </div>
       </section>
 
-      <section className="mx-auto w-full max-w-7xl px-5 py-10 sm:px-6 lg:px-8">
+      <section className="mx-auto w-full max-w-8xl px-5 py-10 sm:px-6 lg:px-8">
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
           <MetricCard
             label="DMs sent"
