@@ -14,7 +14,6 @@
 }
 
 @theme inline {
-
   --color-success: oklch(0.627 0.194 149.214);
   --color-warning: #d97706;
 
@@ -199,11 +198,21 @@
     animation: fade-in-up 0.6s ease-out both;
   }
 
-  .animate-delay-100 { animation-delay: 100ms; }
-  .animate-delay-200 { animation-delay: 200ms; }
-  .animate-delay-300 { animation-delay: 300ms; }
-  .animate-delay-400 { animation-delay: 400ms; }
-  .animate-delay-500 { animation-delay: 500ms; }
+  .animate-delay-100 {
+    animation-delay: 100ms;
+  }
+  .animate-delay-200 {
+    animation-delay: 200ms;
+  }
+  .animate-delay-300 {
+    animation-delay: 300ms;
+  }
+  .animate-delay-400 {
+    animation-delay: 400ms;
+  }
+  .animate-delay-500 {
+    animation-delay: 500ms;
+  }
 }
 
 @layer base {
@@ -217,13 +226,13 @@
     @apply font-sans;
   }
 }
-::-webkit-scrollbar{
+::-webkit-scrollbar {
   width: 5px;
 }
-::-webkit-scrollbar-track{
+::-webkit-scrollbar-track {
   background: transparent;
 }
-::-webkit-scrollbar-thumb{
+::-webkit-scrollbar-thumb {
   background: var(--color-muted);
   border-radius: 5px;
 }
@@ -236,6 +245,24 @@
 
 @keyframes shimmer {
   100% {
-    mask-position: left
+    mask-position: left;
   }
+}
+
+.btn-shadow {
+  box-shadow:
+    0px 24px 40.8px rgba(0, 0, 0, 0.15),
+    0px 10px 24px rgba(0, 0, 0, 0.05),
+    0px 25px 18.7px rgba(0, 0, 0, 0.05),
+    inset 0px 4px 4px rgba(107, 107, 107, 0.25),
+    inset 0px 5px 8px rgba(255, 255, 255, 0.05),
+    inset 0px 1px 1px rgba(255, 255, 255, 0.25);
+}
+
+.btn-shadow2 {
+  box-shadow:
+    0px 47px 19px rgba(157, 224, 12, 0.103),
+    0px 26px 16px rgba(143, 197, 25, 0.2),
+    0px 12px 12px rgba(157, 221, 18, 0.3),
+    0px 3px 6px rgba(134, 185, 23, 0.3);
 }

@@ -11,7 +11,9 @@ import {
   CrownSimpleIcon,
   FlagBannerIcon,
   MetaLogoIcon,
+  ArrowRightIcon,
 } from "@phosphor-icons/react/dist/ssr";
+import OpenInstaDMAnimation from "./Animated";
 
 export default function Hero() {
   return (
@@ -19,6 +21,9 @@ export default function Hero() {
       aria-label="Hero — Turn Instagram comments into real conversations"
       className="relative isolate overflow-hidden min-h-lvh mask-b-from-90%"
     >
+      <div className="absolute top-20 right-40 w-[400px] h-[500px] z-20">
+        <OpenInstaDMAnimation />
+      </div>
       {/* ── Background image ── */}
       <div className="absolute inset-0">
         <Image
@@ -117,16 +122,17 @@ export default function Hero() {
               href="/login"
               className={cn(
                 buttonVariants({ variant: "default", size: "lg" }),
-                "h-12 w-full justify-center rounded-full bg-[#0f1e04] px-8 text-[15px] font-semibold text-white shadow-[0_4px_20px_rgba(15,30,4,0.18)] hover:bg-[#1a2f04] sm:w-auto",
+                "h-12 w-full justify-center rounded-full font-semibold sm:w-auto px-6 bg-linear-to-b from-primary to-lime-300 text-black border-2 border-primary/50 hover:opacity-90 hover:scale-101 btn-shadow2",
               )}
             >
-              Start free — no card required
+              Get Started{" "}
+              <ArrowRightIcon className="size-4 ml-2" weight="bold" />
             </Link>
             <Link
               href="#how"
               className={cn(
-                buttonVariants({ variant: "outline", size: "lg" }),
-                "h-12 w-full justify-center rounded-full border-[#0f1e04]/15 bg-white/90 px-8 text-[15px] font-semibold text-[#0f1e04] backdrop-blur hover:bg-white sm:w-auto",
+                buttonVariants({ variant: "secondary", size: "lg" }),
+                "h-12 w-full justify-center rounded-full font-semibold sm:w-auto px-6 bg-linear-to-t from-zinc-950 to-zinc-700 border-2 border-zinc-900/20 text-white hover:opacity-90 hover:scale-101 btn-shadow",
               )}
             >
               See how it works
@@ -134,7 +140,7 @@ export default function Hero() {
           </div>
 
           {/* Trust row — responsive, wraps on mobile */}
-          <div className="mt-6 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs md:mt-8 md:text-sm tracking-tight">
+          <div className="mt-6 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs md:mt-10 md:text-sm tracking-tight">
             <span className="inline-flex items-center gap-1.5 text-blue-600/70">
               <MetaLogoIcon className="size-5" />
               Official Meta API
