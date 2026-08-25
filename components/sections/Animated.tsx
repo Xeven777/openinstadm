@@ -104,7 +104,7 @@ export default function OpenInstaDMHeroAnimation() {
       className="relative w-[310px] sm:w-[330px]"
     >
       {/* Ambient glow */}
-      <div className="pointer-events-none absolute -inset-14 -z-10 rounded-full bg-white/35 blur-3xl" />
+      <div className="pointer-events-none absolute -inset-14 -z-10 rounded-full bg-white/35 blur-3xl dark:bg-lime-400/10 dark:blur-3xl" />
 
       <motion.div
         layout
@@ -121,6 +121,9 @@ export default function OpenInstaDMHeroAnimation() {
           bg-white/[0.94]
           shadow-[0_25px_90px_rgba(0,0,0,0.14)]
           backdrop-blur-2xl
+          dark:border-white/10
+          dark:bg-zinc-900/85
+          dark:shadow-[0_25px_90px_rgba(0,0,0,0.55),0_0_80px_rgba(132,204,22,0.06)]
         "
       >
         <AnimatePresence mode="wait" initial={false}>
