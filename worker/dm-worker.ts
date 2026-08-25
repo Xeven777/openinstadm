@@ -11,11 +11,20 @@ const startedAt = new Date().toISOString();
 const HEARTBEAT_INTERVAL_MS = 30_000;
 // Polling safety net for comments that webhooks miss. Runs in the worker because
 // it must fire every few minutes and Vercel's free crons only run once a day.
+//
+// Neon pooled still needs a query-free window to autosuspend (default 5 min).
+// A 5 min interval restarts the suspend timer on every sweep, so compute stays
+// at 0.02 CU forever (14+ CU-h/mo). 15-30 min gives a 10-25 min idle window
+// where Neon can actually suspend to 0 CU. Override via env for low/high volume.
 const POLL_INTERVAL_MS = Number(
-  process.env.COMMENT_POLL_INTERVAL_MS ?? 5 * 60_000
+  process.env.COMMENT_POLL_INTERVAL_MS ?? 15 * 60_000
 );
+const POLL_DISABLED =
+  process.env.COMMENT_POLL_DISABLED === "true" || POLL_INTERVAL_MS <= 0;
 
-console.log("[DM Worker] Started");
+console.log(
+  `[DM Worker] Started (poll=${POLL_DISABLED ? "disabled" : `${POLL_INTERVAL_MS / 60_000}min`}, heartbeat=30s)`
+);
 
 async function heartbeat() {
   try {
@@ -37,6 +46,7 @@ let pollRunning = false;
 let pollTimer: ReturnType<typeof setTimeout> | null = null;
 
 async function poll() {
+  if (POLL_DISABLED) return;
   if (pollRunning) {
     console.log("[DM Worker] Previous sweep still running, skipping");
     return;
@@ -53,8 +63,12 @@ async function poll() {
   }
 }
 
-// Kick off one sweep shortly after boot.
-setTimeout(() => void poll(), 10_000);
+// Kick off one sweep shortly after boot (unless polling disabled).
+if (!POLL_DISABLED) {
+  setTimeout(() => void poll(), 10_000);
+} else {
+  console.log("[DM Worker] Comment polling disabled — webhook-only mode");
+}
 
 async function shutdown(signal: string) {
   console.log(`[DM Worker] ${signal} received, closing worker`);
