@@ -21,7 +21,7 @@ export default function Hero() {
       aria-label="Hero — Turn Instagram comments into real conversations"
       className="relative isolate overflow-hidden min-h-lvh mask-b-from-90% bg-background"
     >
-      <div className="absolute right-40 w-100 z-20 hidden lg:block">
+      <div className="absolute right-45 w-100 z-20 hidden lg:block">
         <OpenInstaDMAnimation />
       </div>
       {/* ── Background image ── */}

@@ -233,7 +233,7 @@
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: var(--color-muted);
+  background: var(--color-primary);
   border-radius: 5px;
 }
 

@@ -84,10 +84,10 @@ function Section({
   children: React.ReactNode;
 }) {
   return (
-    <div className="space-y-3">
-      <h2 className="text-sm font-semibold text-foreground">{title}</h2>
+    <section className="space-y-4 rounded-xl border border-border bg-card p-4 shadow-xs sm:p-5">
+      <h2 className="text-sm font-semibold tracking-tight text-foreground">{title}</h2>
       {children}
-    </div>
+    </section>
   );
 }
 
@@ -575,7 +575,7 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-7">
       {importQueue && (
         <div className="rounded border border-primary/30 bg-primary/5 px-4 py-3 text-sm">
           <span className="font-medium text-foreground">
@@ -589,23 +589,28 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
         </div>
       )}
 
-      {/* Top bar */}
-      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-3">
-        <div className="flex min-w-0 items-center gap-3">
+      <div className="flex flex-col gap-5 rounded-2xl border border-border bg-card px-5 py-5 sm:px-7 sm:py-6 lg:flex-row lg:items-end lg:justify-between">
+        <div className="min-w-0">
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary">
+            {mode === "new" ? "New automation" : "Campaign editor"}
+          </p>
           {mode === "edit" ? (
-            <>
-              <span className="truncate text-sm font-semibold text-foreground">
+            <div className="mt-2 flex min-w-0 flex-wrap items-center gap-3">
+              <h1 className="truncate text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
                 {name || "Untitled campaign"}
-              </span>
+              </h1>
               <Badge variant={isActive ? "success" : "muted"}>
                 {isActive ? "LIVE" : "PAUSED"}
               </Badge>
-            </>
+            </div>
           ) : (
-            <span className="text-sm text-muted-foreground">New campaign</span>
+            <>
+              <h1 className="mt-2 text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">Build a campaign</h1>
+              <p className="mt-2 text-sm text-muted-foreground">Choose what starts the conversation, then shape every reply that follows.</p>
+            </>
           )}
         </div>
-        <div className="ml-auto flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {importQueue && (
             <Button
               type="button"
@@ -646,9 +651,8 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
         </div>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-[300px_1fr] lg:gap-8">
-        {/* Left: controls */}
-        <div className="space-y-8">
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px] xl:gap-8">
+        <div className="space-y-5">
           {error && (
             <Alert variant="destructive">
               <Warning weight="fill" />
@@ -1016,10 +1020,15 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
           </Section>
         </div>
 
-        {/* Right: preview */}
-        <div>
-          <p className="mb-4 text-sm text-muted-foreground">Preview</p>
-          <div className="flex justify-center lg:sticky lg:top-6 lg:block">
+        <aside className="rounded-2xl border border-border bg-card p-4 shadow-xs sm:p-5 xl:sticky xl:top-6 xl:self-start">
+          <div className="mb-5 flex items-start justify-between gap-3">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary">Live preview</p>
+              <p className="mt-1 text-sm text-muted-foreground">See the message flow as you build it.</p>
+            </div>
+            <Badge variant="outline">@{username}</Badge>
+          </div>
+          <div className="flex justify-center">
             <CampaignPreview
               tab={previewTab}
               onTabChange={setPreviewTab}
@@ -1054,7 +1063,7 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
               followUpDelayMinutes={followUpDelayMinutes}
             />
           </div>
-        </div>
+        </aside>
       </div>
     </div>
   );

@@ -16,10 +16,13 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { gooeyToast } from "goey-toast";
 import {
   ArrowSquareOut,
+  ChatCircle,
   Copy,
   DotsThreeVertical,
+  LinkSimple,
   MagnifyingGlass,
   Plus,
+  Pulse,
   Trash,
   X,
 } from "@phosphor-icons/react";
@@ -274,21 +277,32 @@ export default function CampaignsList({ campaigns, accounts }: CampaignsListProp
       a.dmMessage.toLowerCase().includes(query)
     );
   });
+  const activeCount = automations.filter((campaign) => campaign.isActive).length;
+  const sentCount = automations.reduce(
+    (total, campaign) => total + campaign.analytics.sent,
+    0,
+  );
+  const clickCount = automations.reduce(
+    (total, campaign) => total + campaign.analytics.clicks,
+    0,
+  );
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <p className="text-sm text-muted-foreground">
-            {filtered.length}
-            {filtered.length !== automations.length
-              ? ` of ${automations.length}`
-              : ""}{" "}
-            campaign{automations.length !== 1 ? "s" : ""}
-          </p>
-        </div>
-        <div className="flex flex-wrap items-end gap-3">
+    <div className="space-y-7">
+      <section className="overflow-hidden rounded-2xl border border-border bg-card">
+        <div className="flex flex-col gap-6 px-5 py-6 sm:px-7 sm:py-7 lg:flex-row lg:items-end lg:justify-between">
+          <div className="max-w-2xl">
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary">
+              Automation studio
+            </p>
+            <h1 className="mt-2 text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">
+              Campaigns
+            </h1>
+            <p className="mt-2 text-sm leading-6 text-muted-foreground">
+              Create the exact path from an Instagram comment to a useful DM.
+            </p>
+          </div>
+          <div className="flex flex-wrap items-end gap-3">
           {accounts.length > 1 && (
             <AccountSelect
               accounts={accounts}
@@ -309,17 +323,50 @@ export default function CampaignsList({ campaigns, accounts }: CampaignsListProp
             href="/campaigns/new"
             className={cn(
               buttonVariants({ variant: "default" }),
-              "flex-1 sm:flex-none",
+              "flex-1 shadow-sm sm:flex-none",
             )}
           >
+            <Plus weight="bold" />
             New Campaign
           </Link>
+          </div>
         </div>
-      </div>
+        {automations.length > 0 && (
+          <div className="grid border-t border-border sm:grid-cols-3">
+            <div className="flex items-center gap-3 px-5 py-4 sm:px-7">
+              <span className="grid size-9 place-items-center rounded-full bg-primary/10 text-primary">
+                <Pulse weight="fill" className="size-4" />
+              </span>
+              <div>
+                <p className="text-lg font-semibold tabular-nums">{activeCount}</p>
+                <p className="text-xs text-muted-foreground">live campaigns</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-3 border-t border-border px-5 py-4 sm:border-l sm:border-t-0 sm:px-7">
+              <span className="grid size-9 place-items-center rounded-full bg-muted text-foreground">
+                <ChatCircle weight="fill" className="size-4" />
+              </span>
+              <div>
+                <p className="text-lg font-semibold tabular-nums">{sentCount.toLocaleString()}</p>
+                <p className="text-xs text-muted-foreground">DMs delivered</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-3 border-t border-border px-5 py-4 sm:border-l sm:border-t-0 sm:px-7">
+              <span className="grid size-9 place-items-center rounded-full bg-muted text-foreground">
+                <LinkSimple weight="bold" className="size-4" />
+              </span>
+              <div>
+                <p className="text-lg font-semibold tabular-nums">{clickCount.toLocaleString()}</p>
+                <p className="text-xs text-muted-foreground">tracked clicks</p>
+              </div>
+            </div>
+          </div>
+        )}
+      </section>
 
       {/* Search + status filter */}
       {automations.length > 0 && (
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+        <div className="flex flex-col gap-3 rounded-xl border border-border bg-card p-3 sm:flex-row sm:items-center">
           <div className="relative flex-1">
             <MagnifyingGlass
               weight="bold"
@@ -328,8 +375,8 @@ export default function CampaignsList({ campaigns, accounts }: CampaignsListProp
             <Input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search campaigns by name, keyword, or message…"
-              className="pl-9"
+              placeholder="Search name, keyword, or message"
+              className="border-0 bg-muted/55 pl-9 shadow-none"
             />
           </div>
           <Tabs
@@ -370,8 +417,22 @@ export default function CampaignsList({ campaigns, accounts }: CampaignsListProp
         </div>
       )}
 
-      {/* Campaign cards */}
-      <div className="space-y-3">
+      {automations.length > 0 && filtered.length > 0 && (
+        <div className="flex items-center justify-between gap-4">
+          <p className="text-sm font-medium text-foreground">
+            {filtered.length}
+            {filtered.length !== automations.length
+              ? ` of ${automations.length}`
+              : ""}{" "}
+            campaign{filtered.length === 1 ? "" : "s"}
+          </p>
+          <p className="hidden text-xs text-muted-foreground sm:block">
+            Select a campaign to inspect the full automation.
+          </p>
+        </div>
+      )}
+
+      <div className="space-y-4">
         {filtered.map((auto) => {
           const videoUrl = auto.postId ? videos[auto.postId] : undefined;
           return (
@@ -379,12 +440,12 @@ export default function CampaignsList({ campaigns, accounts }: CampaignsListProp
               key={auto.id}
               size="sm"
               onClick={() => router.push(`/campaigns/${auto.id}`)}
-              className="cursor-pointer transition-colors hover:ring-foreground/20"
+              className="cursor-pointer border-border/80 transition-[box-shadow,transform,ring-color] hover:-translate-y-0.5 hover:shadow-md hover:ring-foreground/20"
             >
-              <CardContent className="gap-3">
+              <CardContent className="gap-4">
                 {/* Wraps rather than compressing: on a phone the action buttons drop
                 to their own line instead of squeezing the campaign summary. */}
-                <div className="flex flex-wrap items-start gap-x-4 gap-y-3">
+                <div className="flex flex-wrap items-start gap-x-5 gap-y-4">
                   {auto.postId &&
                     thumbnails[auto.postId] &&
                     (videoUrl ? (
@@ -404,7 +465,7 @@ export default function CampaignsList({ campaigns, accounts }: CampaignsListProp
                         <img
                           src={thumbnails[auto.postId]}
                           alt="Campaign reel"
-                          className="w-12 h-12 rounded object-cover border border-border hover:border-foreground/20"
+                          className="h-20 w-20 rounded-xl border border-border object-cover transition-transform hover:scale-[1.03]"
                           onError={(e) => {
                             e.currentTarget.style.display = "none";
                           }}
@@ -422,16 +483,16 @@ export default function CampaignsList({ campaigns, accounts }: CampaignsListProp
                         <img
                           src={thumbnails[auto.postId]}
                           alt="Campaign post"
-                          className="w-12 h-12 rounded object-cover border border-border"
+                          className="h-20 w-20 rounded-xl border border-border object-cover transition-transform hover:scale-[1.03]"
                           onError={(e) => {
                             e.currentTarget.style.display = "none";
                           }}
                         />
                       </a>
                     ))}
-                  <div className="min-w-48 flex-1">
-                    <div className="flex flex-wrap items-center gap-2 mb-2">
-                      <h3 className="text-sm font-semibold truncate">
+                  <div className="min-w-52 flex-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h3 className="mr-auto text-base font-semibold tracking-tight">
                         {auto.name}
                       </h3>
                       <Badge variant="outline">
@@ -451,47 +512,55 @@ export default function CampaignsList({ campaigns, accounts }: CampaignsListProp
                       )}
                     </div>
 
-                    {/* Keywords */}
-                    <div className="flex flex-wrap gap-1.5 mb-2">
-                      {auto.keywords.map((kw) => (
-                        <Badge
-                          key={kw}
-                          className="rounded-md border-primary/10 bg-primary/10 text-primary"
-                        >
-                          {kw}
-                        </Badge>
-                      ))}
+                    <div className="mt-3 grid gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)]">
+                      <div className="rounded-lg bg-muted/55 p-3">
+                        <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Trigger</p>
+                        <div className="mt-2 flex flex-wrap gap-1.5">
+                          {auto.matchAnyWord ? (
+                            <Badge variant="secondary">Any comment</Badge>
+                          ) : auto.keywords.length > 0 ? (
+                            auto.keywords.map((kw) => (
+                              <Badge
+                                key={kw}
+                                className="rounded-md border-primary/10 bg-primary/10 text-primary"
+                              >
+                                {kw}
+                              </Badge>
+                            ))
+                          ) : (
+                            <Badge variant="secondary">No keyword set</Badge>
+                          )}
+                        </div>
+                      </div>
+                      <div className="rounded-lg bg-muted/55 p-3">
+                        <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Delivery flow</p>
+                        <div className="mt-2 flex flex-wrap gap-1.5">
+                          {auto.publicReplyEnabled && <Badge variant="secondary">Public reply</Badge>}
+                          {auto.openingDmEnabled && <Badge variant="secondary">Opening DM</Badge>}
+                          {auto.requireFollow && <Badge variant="secondary">Follow gate</Badge>}
+                          {auto.trackedLinks.length > 0 && <Badge variant="secondary">Link delivery</Badge>}
+                          {auto.followUpEnabled && <Badge variant="secondary">Follow-up</Badge>}
+                        </div>
+                      </div>
                     </div>
 
-                    {/* DM preview */}
-                    <p className="text-sm text-muted-foreground truncate">
+                    <p className="mt-3 text-sm text-muted-foreground truncate">
                       &ldquo;{auto.dmMessage}&rdquo;
                     </p>
 
                     {/* Tracked link sent */}
                     {auto.trackedLinks[0]?.trackedUrl && (
-                      <p className="mt-2 truncate font-mono text-xs text-zinc-500">
+                      <p className="mt-2 truncate font-mono text-xs text-muted-foreground">
                         {auto.trackedLinks[0].trackedUrl}
                       </p>
                     )}
 
                     {/* Stats */}
-                    <div className="flex flex-wrap items-center gap-x-4 gap-y-2 mt-3 text-xs text-zinc-500">
-                      <span className="font-medium text-foreground">
-                        {auto._count.dmLogs} runs
-                      </span>
-                      <span>·</span>
-                      <span className="font-medium text-foreground">
-                        {auto.analytics.ctr}% CTR
-                      </span>
-                      <span>·</span>
-                      <span>{auto.analytics.sent} sent</span>
-                      <span>·</span>
-                      <span>{auto.analytics.skipped} skipped</span>
-                      <span>·</span>
-                      <span>{auto.analytics.failed} failed</span>
-                      <span>·</span>
-                      <span>{auto.analytics.clicks} clicks</span>
+                    <div className="mt-4 grid grid-cols-4 divide-x divide-border rounded-lg border border-border bg-card text-center">
+                      <div className="px-2 py-2.5"><p className="text-sm font-semibold tabular-nums">{auto._count.dmLogs}</p><p className="text-[11px] text-muted-foreground">runs</p></div>
+                      <div className="px-2 py-2.5"><p className="text-sm font-semibold tabular-nums">{auto.analytics.sent}</p><p className="text-[11px] text-muted-foreground">sent</p></div>
+                      <div className="px-2 py-2.5"><p className="text-sm font-semibold tabular-nums">{auto.analytics.clicks}</p><p className="text-[11px] text-muted-foreground">clicks</p></div>
+                      <div className="px-2 py-2.5"><p className="text-sm font-semibold tabular-nums">{auto.analytics.ctr}%</p><p className="text-[11px] text-muted-foreground">CTR</p></div>
                     </div>
 
                     {auto.analytics.topKeywords.length > 0 && (

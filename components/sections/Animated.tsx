@@ -1,4 +1,4 @@
-"use client"
+"use client";
 
 import React, {
   useState,
@@ -16,6 +16,8 @@ import {
   useInView,
 } from "motion/react";
 import Image from "next/image";
+import anish from "@/assets/anish.webp";
+import { HeartIcon } from "@phosphor-icons/react/dist/ssr";
 
 // ============================================================================
 // Types & Enums
@@ -165,11 +167,7 @@ export const BotBubble: React.FC<BotBubbleProps> = memo(
 );
 BotBubble.displayName = "BotBubble";
 
-const UserBubble = memo(function UserBubble({
-  text,
-}: {
-  text: string;
-}) {
+const UserBubble = memo(function UserBubble({ text }: { text: string }) {
   return (
     <motion.div
       layout
@@ -180,13 +178,13 @@ const UserBubble = memo(function UserBubble({
       className="self-start max-w-[82%] flex items-end gap-2.5"
     >
       <Image
-        src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80"
+        src={anish}
         alt=""
         aria-hidden="true"
         width={28}
         height={28}
         loading="lazy"
-        className="w-7 h-7 rounded-full object-cover border mb-1"
+        className="size-7 rounded-full object-cover border mb-1 bg-amber-500"
       />
       <div className="bg-muted border text-foreground rounded-3xl rounded-bl-md py-3 px-4 shadow-lg">
         <p className="text-[14px] font-normal leading-relaxed">
@@ -313,13 +311,13 @@ export default function InteractiveChatMorph() {
           />
           <div className="self-start max-w-[82%] flex items-end gap-2.5">
             <Image
-              src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80"
+              src={anish}
               alt=""
               aria-hidden="true"
               width={28}
               height={28}
               loading="lazy"
-              className="w-7 h-7 rounded-full object-cover border mb-1"
+              className="size-7 rounded-full object-cover border mb-1"
             />
             <div className="bg-muted border text-foreground rounded-3xl rounded-bl-md py-3 px-4 shadow-lg">
               <p className="text-[14px]">
@@ -357,36 +355,50 @@ export default function InteractiveChatMorph() {
               initial="hidden"
               animate="visible"
               exit="exit"
-              className="bg-card border p-4 rounded-3xl shadow-2xl flex items-center gap-3.5"
+              className="bg-card border p-4 rounded-3xl shadow-2xl flex items- gap-3.5"
             >
               <Image
-                src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80"
+                src={anish}
                 alt=""
                 aria-hidden="true"
-                width={40}
-                height={40}
+                width={36}
+                height={36}
                 loading="lazy"
-                className="w-10 h-10 rounded-full object-cover border"
+                className="size-9 rounded-full object-cover border"
               />
               <div className="flex-1">
-                <div className="flex items-center gap-2 mb-0.5">
-                  <span className="text-xs font-semibold text-muted-foreground">
-                    @alex_design
+                <a
+                  className="flex items-center gap-2 mb-0.5"
+                  href="https://instagram.com/anish_biswas_7_"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  <span className="text-xs font-semibold text-muted-foreground  hover:underline">
+                    @anish_biswas_7_
                   </span>
-                  <span className="text-[10px] text-muted-foreground/60">Just now</span>
-                </div>
+                  <span className="text-[10px] text-muted-foreground/70">
+                    Just now
+                  </span>
+                </a>
                 <div className="text-sm font-medium text-card-foreground flex items-center gap-1.5">
-                  <AnimatedText text="Send Link 🚀" />
+                  <AnimatedText text="Send Link 🚀!" />
                 </div>
+                <p className="text-[11px] tracking-wide text-muted-foreground">
+                  Reply
+                </p>
               </div>
               <motion.span
                 initial={{ scale: 0 }}
                 animate={{ scale: 1 }}
                 transition={{ delay: 0.4, type: "spring" }}
-                className="px-2.5 py-1 bg-lime-900 text-primary border border-primary/20 rounded-full text-xs font-medium"
+                className="px-2.5 py-1 bg-lime-200 text-lime-900 dark:bg-lime-900 dark:text-primary border border-primary/20 rounded-full text-xs font-medium h-fit my-auto"
               >
                 Triggered
               </motion.span>
+              <div className="flex flex-col items-center text-[10px] font-medium text-muted-foreground pl-2">
+                <HeartIcon size={15} weight="fill" className="text-red-500" />
+                67
+              </div>
             </motion.div>
           )}
 
