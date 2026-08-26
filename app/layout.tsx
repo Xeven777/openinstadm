@@ -5,6 +5,7 @@ import { Funnel_Sans } from "next/font/google";
 import GooeyToasterMount from "@/components/goey-toaster";
 import QueryProvider from "@/lib/query/provider";
 import { ThemeProvider } from "@/components/theme-provider";
+import Script from "next/script";
 
 export const metadata: Metadata = {
   title: "OpenInstaDM - Open source Instagram comment-to-DM automation",
@@ -28,6 +29,13 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning>
+      <head>
+        <Script
+          src="//unpkg.com/react-scan/dist/auto.global.js"
+          crossOrigin="anonymous"
+          strategy="beforeInteractive"
+        />
+      </head>
       <body className={"min-h-full antialiased " + funnelSans.className}>
         <QueryProvider>
           <ThemeProvider

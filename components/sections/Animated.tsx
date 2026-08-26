@@ -1,773 +1,435 @@
-"use client";
+"use client"
 
-import { AnimatePresence, motion } from "framer-motion";
+import React, {
+  useState,
+  useEffect,
+  useRef,
+  useCallback,
+  memo,
+  useMemo,
+} from "react";
 import {
-  ArrowUpRight,
-  CheckCircle,
-  Heart,
-  InstagramLogo,
-  Lightning,
-  ChatCircleDots,
-  PaperPlaneTilt,
-} from "@phosphor-icons/react";
-import { useEffect, useRef, useState } from "react";
+  motion,
+  AnimatePresence,
+  Variants,
+  useReducedMotion,
+  useInView,
+} from "motion/react";
+import Image from "next/image";
 
-type Stage = "comment" | "detecting" | "dm" | "thanks" | "followup";
+// ============================================================================
+// Types & Enums
+// ============================================================================
 
-const EASE = [0.22, 1, 0.36, 1] as const;
+export enum ChatStep {
+  COMMENT = "COMMENT",
+  BOT_EBOOK = "BOT_EBOOK",
+  USER_QUESTION = "USER_QUESTION",
+  BOT_PRODUCT = "BOT_PRODUCT",
+  RESET = "RESET",
+}
 
-const TIMINGS = {
-  comment: 3600,
-  detecting: 1900,
-  dm: 3600,
-  thanks: 2000,
-  followup: 3400,
+export const TIMELINE_MS = {
+  COMMENT_TO_EBOOK: 2200,
+  EBOOK_TO_USER_QUESTION: 4800,
+  USER_QUESTION_TO_PRODUCT: 7600,
+  PRODUCT_TO_RESET: 11000,
+  TOTAL_LOOP_CYCLE: 12000,
+} as const;
+
+export interface AnimatedTextProps {
+  text: string;
+  className?: string;
+  delay?: number;
+}
+
+export interface BotBubbleProps {
+  layoutId?: string;
+  message: string;
+  ctaText: string;
+  ctaDelay?: number;
+}
+
+// ============================================================================
+// Framer Motion Variants — defined outside component to avoid recreation
+// ============================================================================
+
+const textContainerVariants: Variants = {
+  hidden: { opacity: 0 },
+  visible: (delay: number = 0) => ({
+    opacity: 1,
+    transition: { staggerChildren: 0.06, delayChildren: delay },
+  }),
 };
 
-export default function OpenInstaDMHeroAnimation() {
-  const [stage, setStage] = useState<Stage>("comment");
-  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+const textWordVariants: Variants = {
+  hidden: {
+    opacity: 0,
+    y: 8,
+    filter: "blur(4px)",
+  },
+  visible: {
+    opacity: 1,
+    y: 0,
+    filter: "blur(0px)",
+    transition: {
+      type: "spring",
+      damping: 20,
+      stiffness: 150,
+    },
+  },
+};
 
-  useEffect(() => {
-    let cancelled = false;
+const cardVariants: Variants = {
+  hidden: { opacity: 0, y: 35, scale: 0.92 },
+  visible: {
+    opacity: 1,
+    y: 0,
+    scale: 1,
+    transition: { duration: 0.7, ease: [0.16, 1, 0.3, 1] },
+  },
+  exit: {
+    opacity: 0,
+    y: -30,
+    scale: 0.9,
+    filter: "blur(8px)",
+    transition: { duration: 0.5, ease: [0.16, 1, 0.3, 1] },
+  },
+};
 
-    const wait = (ms: number) =>
-      new Promise<void>((resolve) => {
-        timeoutRef.current = setTimeout(resolve, ms);
-      });
+// ============================================================================
+// Sub-Components — memoized to reduce parent step rerenders
+// ============================================================================
 
-    const sequence = async () => {
-      while (!cancelled) {
-        setStage("comment");
-        await wait(TIMINGS.comment);
+export const AnimatedText: React.FC<AnimatedTextProps> = memo(
+  ({ text, className = "", delay = 0 }) => {
+    const words = useMemo(() => text.split(" "), [text]);
 
-        if (cancelled) break;
-
-        setStage("detecting");
-        await wait(TIMINGS.detecting);
-
-        if (cancelled) break;
-
-        setStage("dm");
-        await wait(TIMINGS.dm);
-
-        if (cancelled) break;
-
-        setStage("thanks");
-        await wait(TIMINGS.thanks);
-
-        if (cancelled) break;
-
-        setStage("followup");
-        await wait(TIMINGS.followup);
-      }
-    };
-
-    sequence();
-
-    return () => {
-      cancelled = true;
-
-      if (timeoutRef.current) {
-        clearTimeout(timeoutRef.current);
-      }
-    };
-  }, []);
-
-  return (
-    <motion.div
-      initial={{
-        opacity: 0,
-        y: 20,
-        scale: 0.97,
-      }}
-      animate={{
-        opacity: 1,
-        y: [0, -4, 0],
-        scale: 1,
-      }}
-      transition={{
-        opacity: {
-          duration: 1,
-          ease: EASE,
-        },
-        scale: {
-          duration: 1,
-          ease: EASE,
-        },
-        y: {
-          duration: 6,
-          repeat: Infinity,
-          ease: "easeInOut",
-        },
-      }}
-      className="relative w-[310px] sm:w-[330px]"
-    >
-      {/* Ambient glow */}
-      <div className="pointer-events-none absolute -inset-14 -z-10 rounded-full bg-white/35 blur-3xl dark:bg-lime-400/10 dark:blur-3xl" />
-
-      <motion.div
-        layout
-        transition={{
-          layout: {
-            duration: 1.0,
-            ease: EASE,
-          },
-        }}
-        className="
-          overflow-hidden
-          rounded-[22px]
-          border border-white/80
-          bg-white/[0.94]
-          shadow-[0_25px_90px_rgba(0,0,0,0.14)]
-          backdrop-blur-2xl
-          dark:border-white/10
-          dark:bg-zinc-900/85
-          dark:shadow-[0_25px_90px_rgba(0,0,0,0.55),0_0_80px_rgba(132,204,22,0.06)]
-        "
+    return (
+      <motion.span
+        className={`inline-block ${className}`}
+        variants={textContainerVariants}
+        initial="hidden"
+        animate="visible"
+        custom={delay}
       >
-        <AnimatePresence mode="wait" initial={false}>
-          {stage === "comment" && <CommentView key="comment" />}
-          {stage === "detecting" && <DetectingView key="detecting" />}
-          {stage === "dm" && <DMView key="dm" />}
-          {stage === "thanks" && <ThanksView key="thanks" />}
-          {stage === "followup" && <FollowUpView key="followup" />}
-        </AnimatePresence>
-      </motion.div>
-    </motion.div>
-  );
-}
+        {words.map((word, index) => (
+          <motion.span
+            key={`${word}-${index}`}
+            variants={textWordVariants}
+            className="inline-block mr-[0.25em]"
+          >
+            {word}
+          </motion.span>
+        ))}
+      </motion.span>
+    );
+  },
+);
+AnimatedText.displayName = "AnimatedText";
 
-/* -------------------------------------------------------------------------- */
-/* COMMENT                                                                    */
-/* -------------------------------------------------------------------------- */
-
-function CommentView() {
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 14 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{
-        opacity: 0,
-        y: -8,
-        scale: 0.985,
-      }}
-      transition={{
-        duration: 0.7,
-        ease: EASE,
-      }}
-      className="p-3"
-    >
-      <div className="overflow-hidden rounded-[16px] border border-neutral-200/80 bg-white">
-        {/* Instagram header */}
-        <div className="flex items-center gap-2.5 px-3.5 py-3">
-          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-[#833AB4] via-[#E1306C] to-[#FCAF45]">
-            <InstagramLogo size={17} weight="fill" className="text-white" />
-          </div>
-
-          <div className="flex-1">
-            <p className="text-[11px] font-semibold text-neutral-900">
-              ImanG
-            </p>
-
-            <p className="text-[9px] text-neutral-400">2h</p>
-          </div>
-
-          <span className="text-[11px] tracking-[3px] text-neutral-300">
-            •••
-          </span>
-        </div>
-
-        {/* Post */}
-        <div className="relative h-50 overflow-hidden bg-gradient-to-br from-lime-100 via-green-100 to-sky-100">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src="https://i.ytimg.com/vi/FrPT_I71A7Y/hq720.jpg?sqp=-oaymwEhCK4FEIIDSFryq4qpAxMIARUAAAAAGAElAADIQj0AgKJD&rs=AOn4CLCTOL87Ik30DDSx5lx5wAzaQcyGrw"
-            alt=""
-            loading="lazy"
-            decoding="async"
-            width={400}
-            className="object-cover size-full"
-          />
-        </div>
-
-        {/* Post actions */}
-        <div className="flex items-center gap-3 px-3.5 py-2.5">
-          <Heart size={16} weight="regular" className="text-neutral-800" />
-
-          <ChatCircleDots
-            size={16}
-            weight="regular"
-            className="text-neutral-800"
-          />
-
-          <PaperPlaneTilt
-            size={16}
-            weight="regular"
-            className="text-neutral-800"
-          />
-
-          <span className="ml-auto text-[10px] text-neutral-400">
-            128 likes
-          </span>
-        </div>
-
-        {/* Caption */}
-        <div className="px-3.5 pb-2">
-          <p className="text-[10px] leading-4 text-neutral-600">
-            New guide is finally here.
-          </p>
-
-          <p className="mt-0.5 text-[9px] text-neutral-400">
-            View all 24 comments
-          </p>
-        </div>
-
-        {/* Trigger comment */}
-        <motion.div
+export const BotBubble: React.FC<BotBubbleProps> = memo(
+  ({ layoutId, message, ctaText, ctaDelay = 0.4 }) => {
+    return (
+      <motion.div
+        layoutId={layoutId}
+        layout
+        variants={cardVariants}
+        initial="hidden"
+        animate="visible"
+        exit="exit"
+        className="self-end max-w-[85%] bg-linear-to-br from-purple-600 via-indigo-600 to-purple-700 text-white rounded-3xl rounded-br-md p-4 shadow-xl border border-purple-400/20"
+      >
+        <p className="text-[15px] font-medium leading-snug mb-3">
+          <AnimatedText text={message} />
+        </p>
+        <motion.button
+          type="button"
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{
-            delay: 0.5,
-            duration: 0.7,
-            ease: EASE,
-          }}
-          className="mx-3.5 mb-3.5 rounded-[12px] bg-neutral-50 px-3 py-2.5"
+          transition={{ delay: ctaDelay, duration: 0.5 }}
+          className="w-full py-2.5 px-4 bg-white/20 hover:bg-white/30 active:scale-98 rounded-2xl text-sm font-semibold transition-all border border-white/20 shadow-md flex items-center justify-center gap-2 cursor-pointer focus:outline-none focus:ring-2 focus:ring-purple-300"
         >
-          <div className="flex gap-2.5">
-            <div className="mt-0.5 h-6 w-6 flex-shrink-0 rounded-full bg-neutral-200">
-              <div className="flex h-full w-full items-center justify-center text-[8px] font-semibold text-neutral-500">
-                J
-              </div>
-            </div>
+          <span>{ctaText}</span>
+          <svg
+            className="w-4 h-4 fill-current"
+            viewBox="0 0 20 20"
+            aria-hidden="true"
+          >
+            <path d="M10.293 3.293a1 1 0 011.414 0l6 6a1 1 0 010 1.414l-6 6a1 1 0 01-1.414-1.414L14.586 11H3a1 1 0 110-2h11.586l-4.293-4.293a1 1 0 010-1.414z" />
+          </svg>
+        </motion.button>
+      </motion.div>
+    );
+  },
+);
+BotBubble.displayName = "BotBubble";
 
-            <div className="min-w-0 flex-1">
-              <p className="text-[10px] leading-4 text-neutral-800">
-                <span className="font-semibold">jordan</span> Send Link 👇
-              </p>
-
-              <div className="mt-1 flex items-center gap-2">
-                <span className="text-[8px] text-neutral-400">1m</span>
-
-                <span className="text-[8px] font-medium text-neutral-400">
-                  Reply
-                </span>
-              </div>
-            </div>
-
-            <Heart
-              size={12}
-              weight="regular"
-              className="mt-1 text-neutral-300"
-            />
-          </div>
-        </motion.div>
-      </div>
-    </motion.div>
-  );
-}
-
-/* -------------------------------------------------------------------------- */
-/* DETECTING                                                                  */
-/* -------------------------------------------------------------------------- */
-
-function DetectingView() {
+const UserBubble = memo(function UserBubble({
+  text,
+}: {
+  text: string;
+}) {
   return (
     <motion.div
-      initial={{
-        opacity: 0,
-        scale: 0.985,
-      }}
-      animate={{
-        opacity: 1,
-        scale: 1,
-      }}
-      exit={{
-        opacity: 0,
-        scale: 0.985,
-      }}
-      transition={{
-        duration: 0.7,
-        ease: EASE,
-      }}
-      className="relative flex min-h-[235px] items-center justify-center overflow-hidden px-8 py-10"
+      layout
+      variants={cardVariants}
+      initial="hidden"
+      animate="visible"
+      exit="exit"
+      className="self-start max-w-[82%] flex items-end gap-2.5"
     >
-      {/* Soft background pulse */}
-      <motion.div
-        animate={{
-          scale: [1, 1.2, 1],
-          opacity: [0.18, 0.35, 0.18],
-        }}
-        transition={{
-          duration: 2.2,
-          repeat: Infinity,
-          ease: "easeInOut",
-        }}
-        className="
-          pointer-events-none
-          absolute
-          h-32
-          w-32
-          rounded-full
-          bg-lime-300
-          blur-3xl
-        "
+      <Image
+        src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80"
+        alt=""
+        aria-hidden="true"
+        width={28}
+        height={28}
+        loading="lazy"
+        className="w-7 h-7 rounded-full object-cover border mb-1"
       />
+      <div className="bg-muted border text-foreground rounded-3xl rounded-bl-md py-3 px-4 shadow-lg">
+        <p className="text-[14px] font-normal leading-relaxed">
+          <AnimatedText text={text} />
+        </p>
+      </div>
+    </motion.div>
+  );
+});
 
-      <div className="relative z-10 text-center">
-        {/* Icon */}
-        <div className="relative mx-auto flex h-14 w-14 items-center justify-center">
-          <motion.div
-            animate={{
-              scale: [1, 1.14, 1],
-            }}
-            transition={{
-              duration: 1.8,
-              repeat: Infinity,
-              ease: "easeInOut",
-            }}
-            className="
-              absolute
-              inset-0
-              rounded-full
-              bg-lime-100
-            "
+// ============================================================================
+// Main Component
+// ============================================================================
+
+export default function InteractiveChatMorph() {
+  const [step, setStep] = useState<ChatStep>(ChatStep.COMMENT);
+  const shouldReduceMotion = useReducedMotion();
+
+  // viewport-aware: pause timeline when off-screen
+  const containerRef = useRef<HTMLDivElement>(null);
+  const isInView = useInView(containerRef, {
+    amount: 0.25,
+    margin: "0px 0px 0px 0px",
+  });
+
+  // Typed refs for timer management to prevent memory/state leaks
+  const timeoutsRef = useRef<ReturnType<typeof setTimeout>[]>([]);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const clearAllTimers = useCallback(() => {
+    timeoutsRef.current.forEach((t) => clearTimeout(t));
+    timeoutsRef.current = [];
+    if (intervalRef.current !== null) {
+      clearInterval(intervalRef.current);
+      intervalRef.current = null;
+    }
+  }, []);
+
+  const runTimeline = useCallback(() => {
+    // Clear stale timers before starting a new pass
+    timeoutsRef.current.forEach((t) => clearTimeout(t));
+    timeoutsRef.current = [];
+
+    setStep(ChatStep.COMMENT);
+
+    timeoutsRef.current.push(
+      setTimeout(
+        () => setStep(ChatStep.BOT_EBOOK),
+        TIMELINE_MS.COMMENT_TO_EBOOK,
+      ),
+    );
+
+    timeoutsRef.current.push(
+      setTimeout(
+        () => setStep(ChatStep.USER_QUESTION),
+        TIMELINE_MS.EBOOK_TO_USER_QUESTION,
+      ),
+    );
+
+    timeoutsRef.current.push(
+      setTimeout(
+        () => setStep(ChatStep.BOT_PRODUCT),
+        TIMELINE_MS.USER_QUESTION_TO_PRODUCT,
+      ),
+    );
+
+    timeoutsRef.current.push(
+      setTimeout(() => setStep(ChatStep.RESET), TIMELINE_MS.PRODUCT_TO_RESET),
+    );
+  }, []);
+
+  useEffect(() => {
+    // Static accessible view for users with prefers-reduced-motion active
+    if (shouldReduceMotion) return;
+
+    // Pause when off-screen — saves CPU/GPU and avoids background work
+    if (!isInView) {
+      clearAllTimers();
+      return;
+    }
+
+    const startLoop = () => {
+      runTimeline();
+      intervalRef.current = setInterval(
+        runTimeline,
+        TIMELINE_MS.TOTAL_LOOP_CYCLE,
+      );
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.hidden || !isInView) {
+        clearAllTimers();
+      } else {
+        // restart fresh when tab becomes visible again
+        clearAllTimers();
+        startLoop();
+      }
+    };
+
+    if (!document.hidden) {
+      startLoop();
+    }
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    return () => {
+      clearAllTimers();
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, [runTimeline, clearAllTimers, shouldReduceMotion, isInView]);
+
+  // Reduced motion accessible fallback — no timers, no motion
+  if (shouldReduceMotion) {
+    return (
+      <div className="flex items-center justify-center text-foreground">
+        <div
+          className="w-full max-w-sm space-y-4"
+          role="log"
+          aria-live="polite"
+        >
+          <BotBubble
+            message="Hey 👋 Here's that ebook you requested!"
+            ctaText="Grab Your Guide"
           />
-
-          <motion.div
-            animate={{
-              rotate: [0, 4, -4, 0],
-            }}
-            transition={{
-              duration: 2.2,
-              repeat: Infinity,
-              ease: "easeInOut",
-            }}
-            className="
-              relative
-              flex
-              h-11
-              w-11
-              items-center
-              justify-center
-              rounded-full
-              bg-lime-200
-            "
-          >
-            <Lightning size={20} weight="fill" className="text-lime-800" />
-          </motion.div>
-        </div>
-
-        <motion.p
-          initial={{ opacity: 0, y: 5 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{
-            delay: 0.25,
-            duration: 0.55,
-            ease: EASE,
-          }}
-          className="mt-5 text-[12px] font-semibold text-neutral-900"
-        >
-          Automation triggered
-        </motion.p>
-
-        <motion.p
-          initial={{ opacity: 0, y: 5 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{
-            delay: 0.4,
-            duration: 0.55,
-            ease: EASE,
-          }}
-          className="mt-1.5 text-[10px] leading-4 text-neutral-400"
-        >
-          Comment detected.
-          <br />
-          Preparing your DM...
-        </motion.p>
-
-        {/* Progress indicator */}
-        <div className="mx-auto mt-5 flex items-center gap-1.5">
-          {[0, 1, 2].map((i) => (
-            <motion.span
-              key={i}
-              animate={{
-                opacity: [0.25, 1, 0.25],
-                scale: [0.9, 1, 0.9],
-              }}
-              transition={{
-                duration: 1.1,
-                delay: i * 0.18,
-                repeat: Infinity,
-                ease: "easeInOut",
-              }}
-              className="h-1.5 w-1.5 rounded-full bg-lime-500"
+          <div className="self-start max-w-[82%] flex items-end gap-2.5">
+            <Image
+              src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80"
+              alt=""
+              aria-hidden="true"
+              width={28}
+              height={28}
+              loading="lazy"
+              className="w-7 h-7 rounded-full object-cover border mb-1"
             />
-          ))}
-        </div>
-      </div>
-    </motion.div>
-  );
-}
-
-/* -------------------------------------------------------------------------- */
-/* AUTOMATED DM                                                               */
-/* -------------------------------------------------------------------------- */
-
-function DMView() {
-  return (
-    <motion.div
-      initial={{
-        opacity: 0,
-        y: 14,
-      }}
-      animate={{
-        opacity: 1,
-        y: 0,
-      }}
-      exit={{
-        opacity: 0,
-        y: -8,
-        scale: 0.985,
-      }}
-      transition={{
-        duration: 0.8,
-        ease: EASE,
-      }}
-      className="p-4"
-    >
-      {/* DM header */}
-      <div className="mb-4 flex items-center gap-2.5">
-        <div className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-[#833AB4] via-[#E1306C] to-[#FCAF45]">
-          <InstagramLogo size={18} weight="fill" className="text-white" />
-        </div>
-
-        <div className="flex-1">
-          <p className="text-[12px] font-semibold text-neutral-900">Messages</p>
-
-          <p className="text-[9px] text-neutral-400">ImanG</p>
-        </div>
-
-        <div className="flex items-center gap-1.5">
-          <span className="h-1.5 w-1.5 rounded-full bg-lime-500" />
-
-          <span className="text-[9px] font-medium text-neutral-400">
-            active
-          </span>
-        </div>
-      </div>
-
-      {/* Automated response only */}
-      <motion.div
-        initial={{
-          opacity: 0,
-          y: 10,
-          x: 8,
-        }}
-        animate={{
-          opacity: 1,
-          y: 0,
-          x: 0,
-        }}
-        transition={{
-          delay: 0.25,
-          duration: 0.75,
-          ease: EASE,
-        }}
-        className="flex justify-end"
-      >
-        <div className="max-w-[88%] rounded-[16px] rounded-br-[5px] bg-neutral-950 px-3.5 py-3 text-white">
-          <p className="text-[11px] leading-[1.5]">
-            Hey 👋 Here’s your special link.
-          </p>
-
-          <motion.div
-            initial={{
-              opacity: 0,
-              y: 8,
-            }}
-            animate={{
-              opacity: 1,
-              y: 0,
-            }}
-            transition={{
-              delay: 0.65,
-              duration: 0.7,
-              ease: EASE,
-            }}
-            className="
-              mt-2.5
-              flex
-              h-9
-              items-center
-              justify-center
-              gap-1.5
-              rounded-[10px]
-              bg-white/15
-              px-3
-              text-[9px]
-              font-semibold
-              backdrop-blur
-            "
-          >
-            Grab Your Guide
-            <ArrowUpRight size={11} weight="bold" />
-          </motion.div>
-        </div>
-      </motion.div>
-
-      {/* Delivery status */}
-      <motion.div
-        initial={{
-          opacity: 0,
-          y: 4,
-        }}
-        animate={{
-          opacity: 1,
-          y: 0,
-        }}
-        transition={{
-          delay: 1.4,
-          duration: 0.55,
-          ease: EASE,
-        }}
-        className="mt-3 flex items-center justify-end gap-1.5 px-1"
-      >
-        <CheckCircle size={11} weight="fill" className="text-lime-600" />
-
-        <span className="text-[8px] font-medium text-neutral-400">
-          Sent automatically
-        </span>
-      </motion.div>
-    </motion.div>
-  );
-}
-
-/* -------------------------------------------------------------------------- */
-/* THANK YOU                                                                  */
-/* -------------------------------------------------------------------------- */
-
-function ThanksView() {
-  return (
-    <motion.div
-      initial={{
-        opacity: 0,
-        y: 14,
-      }}
-      animate={{
-        opacity: 1,
-        y: 0,
-      }}
-      exit={{
-        opacity: 0,
-        y: -8,
-        scale: 0.985,
-      }}
-      transition={{
-        duration: 0.8,
-        ease: EASE,
-      }}
-      className="p-4"
-    >
-      <ChatHeader />
-
-      <div className="space-y-2.5">
-        {/* Previous automated DM */}
-        <div className="flex justify-end">
-          <div className="max-w-[82%] rounded-[15px] rounded-br-[5px] bg-neutral-950 px-3.5 py-3 text-white">
-            <p className="text-[11px]">Here’s your special link 👇</p>
-
-            <div className="mt-2 flex h-8 items-center justify-center rounded-[9px] bg-white/15 text-[9px] font-semibold">
-              Grab Your Guide
+            <div className="bg-muted border text-foreground rounded-3xl rounded-bl-md py-3 px-4 shadow-lg">
+              <p className="text-[14px]">
+                Do you have a website where I can see more?
+              </p>
             </div>
           </div>
+          <BotBubble
+            message="Check out our main product showcase!"
+            ctaText="Let's Go!"
+          />
         </div>
-
-        {/* Customer reply */}
-        <motion.div
-          initial={{
-            opacity: 0,
-            x: -10,
-            scale: 0.97,
-          }}
-          animate={{
-            opacity: 1,
-            x: 0,
-            scale: 1,
-          }}
-          transition={{
-            delay: 0.45,
-            duration: 0.8,
-            ease: EASE,
-          }}
-          className="flex items-end gap-2"
-        >
-          <Avatar />
-
-          <div className="rounded-[15px] rounded-bl-[5px] bg-neutral-100 px-3.5 py-2.5">
-            <p className="text-[11px] font-medium text-neutral-700">
-              Thank you! 🙌
-            </p>
-          </div>
-        </motion.div>
       </div>
-    </motion.div>
-  );
-}
+    );
+  }
 
-/* -------------------------------------------------------------------------- */
-/* FOLLOW-UP                                                                  */
-/* -------------------------------------------------------------------------- */
-
-function FollowUpView() {
   return (
-    <motion.div
-      initial={{
-        opacity: 0,
-        y: 14,
-      }}
-      animate={{
-        opacity: 1,
-        y: 0,
-      }}
-      exit={{
-        opacity: 0,
-        y: -10,
-        scale: 0.985,
-      }}
-      transition={{
-        duration: 0.8,
-        ease: EASE,
-      }}
-      className="p-4"
+    <div
+      ref={containerRef}
+      className="relative flex items-center justify-center"
     >
-      <ChatHeader />
-
-      <div className="space-y-2.5">
-        {/* Thank you */}
-        <div className="flex items-end gap-2">
-          <Avatar />
-
-          <div className="rounded-[15px] rounded-bl-[5px] bg-neutral-100 px-3.5 py-2.5">
-            <p className="text-[11px] font-medium text-neutral-700">
-              Thank you! 🙌
-            </p>
-          </div>
-        </div>
-
-        {/* Follow-up */}
-        <motion.div
-          initial={{
-            opacity: 0,
-            x: 10,
-            scale: 0.97,
-          }}
-          animate={{
-            opacity: 1,
-            x: 0,
-            scale: 1,
-          }}
-          transition={{
-            delay: 0.45,
-            duration: 0.85,
-            ease: EASE,
-          }}
-          className="flex justify-end"
-        >
-          <div className="max-w-[88%] rounded-[16px] rounded-br-[5px] bg-neutral-950 px-3.5 py-3 text-white">
-            <p className="text-[11px] leading-[1.5]">
-              Want the full 7-day guide too? 👀
-            </p>
-
+      <div
+        className="w-full max-w-sm min-h-80 flex flex-col justify-end relative z-10"
+        role="log"
+        aria-live="polite"
+        aria-atomic="false"
+      >
+        <AnimatePresence mode="popLayout">
+          {/* STEP 1: SOCIAL COMMENT UI */}
+          {step === ChatStep.COMMENT && (
             <motion.div
-              initial={{
-                opacity: 0,
-                y: 7,
-              }}
-              animate={{
-                opacity: 1,
-                y: 0,
-              }}
-              transition={{
-                delay: 0.9,
-                duration: 0.65,
-                ease: EASE,
-              }}
-              className="
-                mt-2.5
-                flex
-                h-9
-                items-center
-                justify-center
-                gap-1.5
-                rounded-[10px]
-                bg-lime-400
-                px-3
-                text-[9px]
-                font-bold
-                text-neutral-950
-              "
+              key="comment-box"
+              layoutId="shared-card-container"
+              variants={cardVariants}
+              initial="hidden"
+              animate="visible"
+              exit="exit"
+              className="bg-card border p-4 rounded-3xl shadow-2xl flex items-center gap-3.5"
             >
-              Get the 7-Day Guide
-              <ArrowUpRight size={11} weight="bold" />
+              <Image
+                src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80"
+                alt=""
+                aria-hidden="true"
+                width={40}
+                height={40}
+                loading="lazy"
+                className="w-10 h-10 rounded-full object-cover border"
+              />
+              <div className="flex-1">
+                <div className="flex items-center gap-2 mb-0.5">
+                  <span className="text-xs font-semibold text-muted-foreground">
+                    @alex_design
+                  </span>
+                  <span className="text-[10px] text-muted-foreground/60">Just now</span>
+                </div>
+                <div className="text-sm font-medium text-card-foreground flex items-center gap-1.5">
+                  <AnimatedText text="Send Link 🚀" />
+                </div>
+              </div>
+              <motion.span
+                initial={{ scale: 0 }}
+                animate={{ scale: 1 }}
+                transition={{ delay: 0.4, type: "spring" }}
+                className="px-2.5 py-1 bg-lime-900 text-primary border border-primary/20 rounded-full text-xs font-medium"
+              >
+                Triggered
+              </motion.span>
             </motion.div>
-          </div>
-        </motion.div>
+          )}
 
-        {/* Automation label */}
-        <motion.div
-          initial={{
-            opacity: 0,
-          }}
-          animate={{
-            opacity: 1,
-          }}
-          transition={{
-            delay: 1.45,
-            duration: 0.6,
-          }}
-          className="flex justify-end px-1"
-        >
-          <div className="flex items-center gap-1.5">
-            <Lightning size={10} weight="fill" className="text-lime-600" />
+          {/* CHAT MESSAGES STACK */}
+          {step !== ChatStep.COMMENT && step !== ChatStep.RESET && (
+            <div className="flex flex-col space-y-3.5">
+              {/* BOT EBOOK CARD (Morphs smoothly from comment box) */}
+              {(step === ChatStep.BOT_EBOOK ||
+                step === ChatStep.USER_QUESTION) && (
+                <BotBubble
+                  key="msg-bot-ebook"
+                  layoutId={
+                    step === ChatStep.BOT_EBOOK
+                      ? "shared-card-container"
+                      : undefined
+                  }
+                  message="Hey 👋 Here's that ebook you requested!"
+                  ctaText="Grab Your Guide"
+                  ctaDelay={0.5}
+                />
+              )}
 
-            <span className="text-[8px] font-medium text-neutral-400">
-              Automated follow-up
-            </span>
-          </div>
-        </motion.div>
-      </div>
-    </motion.div>
-  );
-}
+              {/* USER QUESTION BUBBLE */}
+              {(step === ChatStep.USER_QUESTION ||
+                step === ChatStep.BOT_PRODUCT) && (
+                <UserBubble
+                  key="msg-user-question"
+                  text="Do you have a website where I can see more?"
+                />
+              )}
 
-/* -------------------------------------------------------------------------- */
-/* SHARED COMPONENTS                                                          */
-/* -------------------------------------------------------------------------- */
-
-function ChatHeader() {
-  return (
-    <div className="mb-4 flex items-center gap-2.5">
-      <div className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-[#833AB4] via-[#E1306C] to-[#FCAF45]">
-        <InstagramLogo size={18} weight="fill" className="text-white" />
-      </div>
-
-      <div className="flex-1">
-        <p className="text-[12px] font-semibold text-neutral-900">Messages</p>
-
-        <p className="text-[9px] text-neutral-400">ImanG</p>
-      </div>
-
-      <span className="h-1.5 w-1.5 rounded-full bg-lime-500" />
-    </div>
-  );
-}
-
-function Avatar() {
-  return (
-    <div className="h-6 w-6 flex-shrink-0 rounded-full bg-neutral-200">
-      <div className="flex h-full w-full items-center justify-center text-[7px] font-semibold text-neutral-500">
-        J
+              {/* BOT PRODUCT CTA CARD */}
+              {step === ChatStep.BOT_PRODUCT && (
+                <BotBubble
+                  key="msg-bot-product"
+                  message="Check out our main product showcase!"
+                  ctaText="Let's Go!"
+                  ctaDelay={0.4}
+                />
+              )}
+            </div>
+          )}
+        </AnimatePresence>
       </div>
     </div>
   );

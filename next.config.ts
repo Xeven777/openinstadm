@@ -20,6 +20,13 @@ const nextConfig: NextConfig = {
     },
     cachedNavigations: true,
   },
+  images: {
+    remotePatterns: [
+      {
+        hostname: "*",
+      },
+    ],
+  },
   reactCompiler: true,
   turbopack: {
     root: process.cwd(),
