@@ -2,8 +2,10 @@
 
 import { usePathname } from "next/navigation";
 import { signOut } from "next-auth/react";
-import { List, SignOut } from "@phosphor-icons/react";
+import { SignOut } from "@phosphor-icons/react";
 import { Button, buttonVariants } from "@/components/ui/button";
+import { SidebarTrigger } from "@/components/ui/sidebar";
+import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
 import { ModeToggle } from "./theme-toggle";
 
@@ -16,16 +18,16 @@ const pageTitles: Record<string, string> = {
   "/logs": "DM Logs",
   "/settings": "Settings",
   "/diagnostics": "Diagnostics",
+  "/overview": "Overview",
+  "/inbox": "Inbox",
 };
 
 interface TopBarProps {
-  onMenuClick: () => void;
   instagramUsername: string | null;
   instagramAccountCount: number;
 }
 
 export default function TopBar({
-  onMenuClick,
   instagramUsername,
   instagramAccountCount,
 }: TopBarProps) {
@@ -33,23 +35,17 @@ export default function TopBar({
   const title = pageTitles[pathname] ?? "Dashboard";
 
   return (
-    <header className="sticky top-0 z-30 flex items-center justify-between gap-3 h-16 px-4 lg:px-8 border-b border-border bg-background">
-      <div className="flex min-w-0 items-center gap-3 sm:gap-4">
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={onMenuClick}
-          className="lg:hidden shrink-0"
-          aria-label="Toggle sidebar"
-        >
-          <List weight="bold" />
-        </Button>
-        <h1 className="truncate text-base font-semibold sm:text-lg lg:hidden">
-          {title}
-        </h1>
+    <header className="flex h-14 shrink-0 items-center gap-2 border-b bg-background px-4 transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-12 lg:px-4">
+      <div className="flex items-center gap-2">
+        <SidebarTrigger className="-ml-1" />
+        <Separator
+          orientation="vertical"
+          className="mr-2 data-[orientation=vertical]:h-4"
+        />
+        <h1 className="text-sm font-semibold sm:text-base">{title}</h1>
       </div>
 
-      <div className="flex items-center gap-3 sm:gap-4">
+      <div className="ml-auto flex items-center gap-2 sm:gap-3">
         {instagramAccountCount > 0 ? (
           <a
             href={"https://instagram.com/" + instagramUsername}
@@ -65,7 +61,7 @@ export default function TopBar({
           <a
             href="/api/instagram/connect"
             className={cn(
-              buttonVariants({ variant: "default" }),
+              buttonVariants({ variant: "default", size: "sm" }),
               "shrink-0 whitespace-nowrap",
             )}
           >
@@ -76,7 +72,7 @@ export default function TopBar({
         <ModeToggle />
         <Button
           variant="ghost"
-          size="icon"
+          size="icon-sm"
           onClick={() => void signOut({ callbackUrl: "/login" })}
           aria-label="Sign out"
           title="Sign out"

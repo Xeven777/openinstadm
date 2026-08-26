@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
-import Sidebar from "@/components/sidebar";
+import AppSidebar from "@/components/sidebar";
 import TopBar from "@/components/top-bar";
+import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
+import { TooltipProvider } from "./ui/tooltip";
 
 export interface ShellWorkspace {
   id: string;
@@ -13,12 +14,12 @@ export interface ShellWorkspace {
 interface DashboardShellProps {
   children: React.ReactNode;
   workspaceName: string;
-  /** Active workspace id (drives the switcher highlight). */
   workspaceId: string;
-  /** All workspaces the user belongs to, for the sidebar switcher. */
   workspaces: ShellWorkspace[];
   instagramUsername: string | null;
   instagramAccountCount: number;
+  /** Initial open state derived from the `sidebar_state` cookie on the server. */
+  defaultOpen?: boolean;
 }
 
 export default function DashboardShell({
@@ -28,32 +29,26 @@ export default function DashboardShell({
   workspaces,
   instagramUsername,
   instagramAccountCount,
+  defaultOpen = true,
 }: DashboardShellProps) {
-  const [sidebarOpen, setSidebarOpen] = useState(false);
-
   return (
-    <div className="flex h-dvh overflow-hidden bg-background">
-      <Sidebar
-        isOpen={sidebarOpen}
-        onClose={() => setSidebarOpen(false)}
-        workspaceName={workspaceName}
-        workspaceId={workspaceId}
-        workspaces={workspaces}
-      />
-
-      <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
-        <TopBar
-          onMenuClick={() => setSidebarOpen(true)}
-          instagramUsername={instagramUsername}
-          instagramAccountCount={instagramAccountCount}
+    <SidebarProvider defaultOpen={defaultOpen}>
+      <TooltipProvider>
+        <AppSidebar
+          workspaceName={workspaceName}
+          workspaceId={workspaceId}
+          workspaces={workspaces}
         />
-
-        <main className="flex-1 overflow-y-auto">
-          <div className="px-4 lg:px-8 py-5 sm:py-6 max-w-8xl mx-auto">
+        <SidebarInset>
+          <TopBar
+            instagramUsername={instagramUsername}
+            instagramAccountCount={instagramAccountCount}
+          />
+          <div className="flex flex-1 flex-col gap-4 p-4 lg:p-8">
             {children}
           </div>
-        </main>
-      </div>
-    </div>
+        </SidebarInset>
+      </TooltipProvider>
+    </SidebarProvider>
   );
 }

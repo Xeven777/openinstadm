@@ -47,6 +47,8 @@ async function AuthenticatedShell({
   // route / invite acceptance) when it names a membership, else the oldest.
   const cookieStore = await cookies();
   const requestedWorkspaceId = cookieStore.get(WORKSPACE_COOKIE)?.value ?? null;
+  const sidebarState = cookieStore.get("sidebar_state")?.value;
+  const defaultOpen = sidebarState ? sidebarState === "true" : true;
   const workspaces = await getUserWorkspaces(session.user.id);
   if (workspaces.length === 0) {
     redirect("/login");
@@ -72,6 +74,7 @@ async function AuthenticatedShell({
         workspaces={workspaces}
         instagramUsername={instagramUsername}
         instagramAccountCount={instagramAccountCount}
+        defaultOpen={defaultOpen}
       >
         {children}
       </DashboardShell>
