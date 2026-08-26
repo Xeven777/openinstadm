@@ -6,6 +6,7 @@ import GooeyToasterMount from "@/components/goey-toaster";
 import QueryProvider from "@/lib/query/provider";
 import { ThemeProvider } from "@/components/theme-provider";
 import Script from "next/script";
+import Clarity from "@/components/Clarity";
 
 export const metadata: Metadata = {
   title: "OpenInstaDM - Open source Instagram comment-to-DM automation",
@@ -39,6 +40,7 @@ export default function RootLayout({
           />
         )}
       </head>
+      {process.env.NODE_ENV === "production" && <Clarity />}
       <body className={"min-h-full antialiased " + funnelSans.className}>
         <QueryProvider>
           <ThemeProvider

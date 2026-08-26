@@ -68,7 +68,7 @@
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.145 0 0);
   --primary: oklch(0.841 0.238 128.85);
-  --primary-foreground: oklch(0.405 0.101 131.063);
+  --primary-foreground: oklch(31.743% 0.08197 130.75);
   --secondary: oklch(0.967 0.001 286.375);
   --secondary-foreground: oklch(0.21 0.006 285.885);
   --muted: oklch(0.97 0 0);
@@ -265,4 +265,70 @@
     0px 26px 16px rgba(143, 197, 25, 0.2),
     0px 12px 12px rgba(157, 221, 18, 0.3),
     0px 3px 6px rgba(134, 185, 23, 0.3);
+}
+
+.gradient-glow {
+  --glow-light: color-mix(in srgb, var(--glow-color) 35%, white);
+  --glow-dark: color-mix(in srgb, var(--glow-color) 85%, black);
+
+  position: relative;
+  isolation: isolate;
+
+  background: linear-gradient(
+    to bottom,
+    var(--glow-light),
+    var(--glow-color)
+  );
+
+  box-shadow:
+    0 10px 25px
+    color-mix(in srgb, var(--glow-color) 30%, transparent);
+
+  transition: all 0.3s ease;
+}
+
+.gradient-glow::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+
+  padding: 2px;
+  border-radius: inherit;
+
+  background: linear-gradient(
+    to top,
+    var(--glow-light),
+    color-mix(in srgb, var(--glow-color) 60%, white),
+    var(--glow-dark)
+  );
+
+  -webkit-mask:
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+
+  mask:
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+
+  box-shadow:
+    0 0 0 1px
+    color-mix(in srgb, var(--glow-color) 40%, transparent);
+
+  pointer-events: none;
+}
+
+.gradient-glow:hover {
+  box-shadow:
+    0 12px 30px
+    color-mix(in srgb, var(--glow-color) 40%, transparent);
+}
+
+.gradient-glow:active {
+  box-shadow:
+    0 8px 20px
+    color-mix(in srgb, var(--glow-color) 25%, transparent);
 }
