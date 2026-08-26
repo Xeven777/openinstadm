@@ -342,7 +342,7 @@ export default function InteractiveChatMorph() {
       className="relative flex items-center justify-center"
     >
       <div
-        className="w-full max-w-sm min-h-80 flex flex-col justify-end relative z-10"
+        className="w-full max-w-sm min-h-76 flex flex-col justify-end relative z-10"
         role="log"
         aria-live="polite"
         aria-atomic="false"
