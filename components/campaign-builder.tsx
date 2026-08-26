@@ -326,6 +326,7 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
     setPostCaption("");
     setMatchMode("specific");
     setKeywordText((row.keywords ?? []).join(", "));
+    setDmTriggerEnabled(false);
     setDmMessage(row.dmMessage ?? "");
     setPublicReplyEnabled(Boolean(row.publicReply));
     setPublicReplyMessages(row.publicReply ? [row.publicReply] : [""]);
@@ -338,6 +339,16 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
     const link = row.trackedUrl ?? "";
     setTrackedDestinationUrl(link);
     setLinkOpen(Boolean(link));
+    setLinkButtonLabel("Open link");
+    setSecondLinkOpen(false);
+    setSecondaryDestinationUrl("");
+    setSecondaryButtonLabel("Open link");
+    setRequireFollow(false);
+    setFollowPromptMessage("");
+    setFollowPromptButtonLabel("i'm following");
+    setFollowUpEnabled(false);
+    setFollowUpMessage("");
+    setFollowUpDelayMinutes(0);
     setError(null);
   }
 
@@ -378,6 +389,16 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
 
   function ensureLinkToken() {
     setDmMessage((cur) => (cur.includes("{link}") ? cur : `${cur.trim()} {link}`.trim()));
+  }
+
+  function selectTriggerScope(nextScope: TriggerScope) {
+    setTriggerScope(nextScope);
+    if (nextScope !== "specific") {
+      setPostId(null);
+      setPostUrl(null);
+      setPostThumb(null);
+      setPostCaption("");
+    }
   }
 
   async function handleSubmit(activeValue: boolean) {
@@ -658,6 +679,7 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
                     setPostId(null);
                     setPostUrl(null);
                     setPostThumb(null);
+                    setPostCaption("");
                   }}
                   includeAll={false}
                   label="Instagram account"
@@ -669,7 +691,7 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
           <Section title="When someone comments on">
             <Radio
               checked={triggerScope === "specific"}
-              onSelect={() => setTriggerScope("specific")}
+              onSelect={() => selectTriggerScope("specific")}
             >
               a specific post or reel
             </Radio>
@@ -685,13 +707,13 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
             )}
             <Radio
               checked={triggerScope === "any"}
-              onSelect={() => setTriggerScope("any")}
+              onSelect={() => selectTriggerScope("any")}
             >
               any post or reel
             </Radio>
             <Radio
               checked={triggerScope === "next"}
-              onSelect={() => setTriggerScope("next")}
+              onSelect={() => selectTriggerScope("next")}
             >
               next post or reel
             </Radio>

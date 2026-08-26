@@ -1,5 +1,7 @@
 "use client";
 
+import { memo } from "react";
+
 /* eslint-disable @next/next/no-img-element */
 
 /**
@@ -476,7 +478,9 @@ function DmScreen({
 
 /* ----------------------------- root ----------------------------- */
 
-export default function CampaignPreview(props: CampaignPreviewProps) {
+const CampaignPreview = memo(function CampaignPreview(
+  props: CampaignPreviewProps,
+) {
   const { tab, onTabChange } = props;
   const tabs: { key: PreviewTab; label: string }[] = [
     { key: "post", label: "Post" },
@@ -576,4 +580,6 @@ export default function CampaignPreview(props: CampaignPreviewProps) {
       </div>
     </div>
   );
-}
+});
+
+export default CampaignPreview;

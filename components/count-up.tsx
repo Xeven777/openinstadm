@@ -30,19 +30,24 @@ export default function CountUp({
   const shownRef = useRef(0);
 
   useEffect(() => {
+    let raf = 0;
+
     if (
       typeof window !== "undefined" &&
       window.matchMedia("(prefers-reduced-motion: reduce)").matches
     ) {
-      shownRef.current = value;
-      setDisplay(value);
-      return;
+      // Schedule the visual update after commit instead of synchronously
+      // triggering another render from the effect body.
+      raf = requestAnimationFrame(() => {
+        shownRef.current = value;
+        setDisplay(value);
+      });
+      return () => cancelAnimationFrame(raf);
     }
 
     const from = shownRef.current;
     if (from === value) return;
     const start = performance.now();
-    let raf = 0;
     const factor = Math.pow(10, decimals);
 
     const tick = (now: number) => {

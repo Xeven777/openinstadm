@@ -7,6 +7,10 @@ const nextConfig: NextConfig = {
   // by the new caching model — data fetching is dynamic by default and the
   // framework prerenders a static shell that streams dynamic content into.
   cacheComponents: true,
+  // Each visible Link now prefetches the reusable route shell. Routes that
+  // depend on URL-specific data can opt into runtime prefetching selectively
+  // with `prefetch={true}`.
+  partialPrefetching: true,
   // Client cache TTL for dynamic segments (default: 0 = not cached). Without
   // this, every navigation to a user-scoped page (dashboard, settings, …) hits
   // the server and flashes the loading skeleton. 4 minutes matches the
@@ -18,6 +22,7 @@ const nextConfig: NextConfig = {
       dynamic: 240,
       static: 300,
     },
+    turbopackRustReactCompiler: true,
     cachedNavigations: true,
   },
   images: {
