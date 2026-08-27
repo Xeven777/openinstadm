@@ -2,7 +2,6 @@ import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { buttonVariants } from "@/components/ui/button";
 import Image from "next/image";
-import bg from "@/assets/bg.webp";
 import insta from "@/assets/Instagram.webp";
 import chatBubbles from "@/assets/chatbubbles.webp";
 import {
@@ -14,6 +13,7 @@ import {
   ArrowRightIcon,
 } from "@phosphor-icons/react/dist/ssr";
 import OpenInstaDMAnimation from "./Animated";
+import ThemeImg from "./theme-img";
 
 export default function Hero() {
   return (
@@ -24,19 +24,7 @@ export default function Hero() {
       <div className="absolute right-45 w-100 z-20 hidden lg:block">
         <OpenInstaDMAnimation />
       </div>
-      {/* ── Background image ── */}
-      <div className="absolute inset-0">
-        <Image
-          src={bg}
-          alt=""
-          aria-hidden="true"
-          className="size-full object-cover object-[65%_40%] sm:object-[55%_35%] lg:object-center"
-          loading="eager"
-          decoding="async"
-          width={1200}
-          height={800}
-        />
-      </div>
+      <ThemeImg />
       <div
         aria-hidden="true"
         className="pointer-events-none absolute inset-0 hidden lg:block"
@@ -82,8 +70,7 @@ export default function Hero() {
                   height={100}
                   className="size-9 translate-y-0.75 sm:size-12 sm:translate-y-5 sm:translate-x-3 lg:size-24 xl:size-24 scale-107 hover:scale-110 transition-transform duration-500 active:scale-100 active:translate-y-7 cursor-pointer dark:brightness-110"
                   style={{
-                    filter:
-                      "drop-shadow(rgba(255, 0, 72, 0.4) 1px 10px 10px)",
+                    filter: "drop-shadow(rgba(255, 0, 72, 0.4) 1px 10px 10px)",
                   }}
                 />
                 <span className="bg-linear-to-l from-foreground/90 to-pink-600 dark:from-zinc-100 dark:to-pink-400 bg-clip-text text-transparent p-2">
