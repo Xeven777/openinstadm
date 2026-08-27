@@ -166,13 +166,201 @@ Tracked in detail in [`docs/ui-task.md`](docs/ui-task.md).
 
 ## 🚀 4. New Feature Roadmap
 
-- [ ] **Story Mention & Story Reply Automations**: Parse and auto-respond to Instagram Story tags and replies in webhooks.
+### 📋 Remaining Roadmap Items (quick backlog)
+
+- [ ] **Story Reply & Mention Automation** (detailed plan in Feature A below): Detect `reply_to.story` (+ `story_mention` attachments) in `messages` webhooks — not `story_insights` (post-expiry metrics) — add `storyReplyTriggerEnabled`/`storyMentionEnabled` toggle per campaign, route through existing `processMessage` pipeline with attachment-only handling and ephemeral CDN `story.url` (do not persist). No new webhook subscription needed for replies; `mentions` only if story `@tag` required.
+- [ ] **AI Intent Matching + DM Catch-All Fallback** (detailed plan in Features B + C below): Tiered DM matching — keywords (fast/free) → AI classification (`aiMatchEnabled`/`intent` on Automation) → account-level default reply (`fallbackReplyEnabled`/`fallbackReplyMessage` on InstagramAccount, not per-campaign `matchAnyWord`). Fallback fires once per `mid` after full scan, respects 24h window.
 - [ ] **Automated Comment Moderation**: Automatically hide (`POST /{comment-id}?hide=true`) or delete spam/negative comments.
 - [ ] **Multi-Step DM Lead Capture**: Interactive DM flows capturing email addresses and phone numbers via quick-reply buttons before sending links.
-- [ ] **Multi-Keyword Fallback / Default Auto-Responder**: Default campaign trigger when comments/DMs do not match explicit active keywords.
-- [ ] **AI-Powered Intent Matching & Smart Replies**: Replace exact keyword matching with LLM intent classification for natural conversation.
 - [ ] **Outbound Webhook Integrations**: Forward leads and link clicks to external endpoints (Zapier, Make, HubSpot, Notion).
 - [ ] **Facebook Page Comment Support**: Add Facebook login OAuth permissions, database tables/columns for Facebook Pages, parse `object: "page"` webhook comment events, and integrate Facebook Page-scoped Messaging API (PSID replies).
 - [x] **Workspace invite flow overhaul**: invites are now delivered by email via Resend (same REST-API approach as the magic links) — both new invitees (accept link) and existing users added directly (dashboard link); pending invites can be **resent** from Settings → Team (same token, expiry pushed out 14 days, re-emails); the `/invite/[token]` page was rebuilt on the shadcn theme with dedicated states for expired (persists `EXPIRED` status on the row), already-accepted (dashboard CTA, only shown to the invitee), and signed-in-with-wrong-email (sign out + switch account); the “Sign in to accept” CTA now carries `callbackUrl` back to the invite so the magic-link round-trip lands back here; both the accept route and the auto-accept path invalidate the members cache so the inviter's settings list updates immediately.
 - [x] **Workspace switcher + active-workspace cookie**: fixes the “invited existing user can't reach the workspace” bug — every workspace lookup used to resolve the *oldest* membership with no way to switch, so an invitee who already had their own workspace could never see the one they were added to. Now the dashboard layout (`app/(dashboard)/layout.tsx`) and API context (`getCurrentWorkspaceContext` in `lib/workspace-access.ts`) resolve the `workspace_id` cookie when it names a membership the user still belongs to (falling back to the oldest otherwise); the sidebar footer is a workspace switcher dropdown (`POST /api/workspace/switch` validates membership + sets the cookie, then navigates to `/dashboard`); invite acceptance sets the cookie so invitees land directly in the joined workspace; memberships are listed via cached `getUserWorkspaces` (`workspaces:${userId}` tag, invalidated on accept/direct-add/removal); the layout now also passes the member's real role to `WorkspaceProvider` (it was hardcoded `OWNER`).
 - [x] **Team management UI + toast notifications**: Settings → Team now supports **removing members** (inline two-step confirm), **role changes** (Member ⇄ Admin dropdown via the existing `PATCH`), **leaving a workspace** (non-owners can now remove themselves — `DELETE /api/workspace/members` allows self-removal, clears the active-workspace cookie if they leave the current one, and the UI redirects to `/dashboard`), and **expired invites** stay visible greyed-out with a “Resend (reactivate)” action (`resend` route now re-activates `EXPIRED` rows back to `PENDING` with a fresh 14-day expiry; the members payload includes `status`). Toast feedback (goey-toast, newly mounted at the root layout and theme-synced) covers: invite sent/added vs. email-delivery-failed, copy link, resend, revoke, member removed, role changed, left workspace, Instagram disconnect, campaign save/delete/toggle/duplicate/copy-reel-url, overview refresh, and inbox DM sends. A **sign-out button** was added to the top bar (the app previously had no sign-out anywhere).
+
+---
+
+### 🔮 Feature Plans — Detailed Implementation Specs
+
+The following three features share a layered architecture: keywords are the fast/free path, AI is the smart fallback, and the default auto-responder is the safety net. Story replies add a new trigger source that feeds into the same pipeline.
+
+---
+
+#### Feature A: Story Reply & Mention Automation
+
+**Goal:** Auto-reply when someone replies to an Instagram Story (text) or mentions you in a Story.
+
+**Meta webhook context:** Story replies/mentions arrive through the existing `messages` webhook field (already subscribed) — not `story_insights` (which delivers post-expiry metrics `reach/taps_forward`). They carry a `reply_to.story` marker + optional `story_mention` attachment:
+```json
+{
+  "message": {
+    "mid": "...",
+    "text": "how do I get this?",
+    "reply_to": {
+      "story": { "url": "https://...", "id": "<story_id>" }
+    }
+  }
+}
+```
+No new webhook subscription needed for replies — just parser detection of `reply_to.story` / `attachments[type=story_mention]`. `story.url` is a CDN link expiring ~24h (render as ephemeral inbox preview only). `mentions` field subscription only needed if you require `@tag` events outside messages. Attachment-only reactions (emoji) have no `text` — must be handled via story-id presence, not dropped by `if(!text)` at `lib/meta/webhook.ts:206`.
+
+**Files to change:**
+
+| File | Change |
+|------|--------|
+| `lib/meta/webhook.ts` | Add `source: "DM" | "STORY_REPLY"` and optional `storyUrl` to `WebhookMessageEvent`. Detect `reply_to.story` in `parseMessageEvents`. |
+| `lib/queue/client.ts` | Add `source` field to `ProcessMessageJob` interface. |
+| `prisma/schema.prisma` | Add `storyReplyTriggerEnabled Boolean @default(false)` to `Automation`. Add `source DmSource @default(COMMENT)` column to `DmLog` with new `DmSource` enum (`COMMENT`, `DM`, `STORY_REPLY`, `POSTBACK`). |
+| `lib/queue/dm-worker.ts` | In `processMessage`: if `source === "STORY_REPLY"`, only match automations where `storyReplyTriggerEnabled === true`. If `source === "DM"`, only match `dmTriggerEnabled === true`. Pass `source` through to `DmLog`. |
+| `app/api/webhook/route.ts` | Pass `source` from parsed events into the BullMQ job data. |
+| `app/api/automations/route.ts` | Add `storyReplyTriggerEnabled` to create/update Zod schema. |
+| `components/campaign-builder.tsx` | Add toggle: "also reply when someone replies to your story". |
+| `components/campaign-detail.tsx` | Show story reply trigger status in summary. |
+| `components/campaign-preview.tsx` | Add "Story reply" tab to phone preview. |
+
+**Worker flow:**
+```
+processMessage(source, messageText, senderId):
+  if source === "STORY_REPLY":
+    campaigns = findMany({ storyReplyTriggerEnabled: true, ... })
+  else:
+    campaigns = findMany({ dmTriggerEnabled: true, ... })
+  for campaign in campaigns:
+    → keyword match → follow gate → reveal DM (existing flow)
+```
+
+**Migration:** New Prisma migration adding `storyReplyTriggerEnabled` to Automation, `source` column + enum to DmLog.
+
+---
+
+#### Feature B: Fallback Auto-Responder
+
+**Goal:** When no campaign keyword matches an inbound DM, send a default "How can I help?" reply instead of silence.
+
+**Files to change:**
+
+| File | Change |
+|------|--------|
+| `prisma/schema.prisma` | Add to `InstagramAccount`: `fallbackReplyEnabled Boolean @default(false)`, `fallbackReplyMessage String?`. |
+| `lib/queue/dm-worker.ts` | At the end of `processMessage`, after all campaign keyword + AI checks fail: if account has fallback enabled, send `fallbackReplyMessage` via `sendDirectMessage`. Log in `DmLog` with status `SENT` and a distinguishable `commentText` like `"(fallback)"`. |
+| `lib/server/settings.ts` | (or wherever account settings data is loaded) — include new fields. |
+| `app/api/instagram/accounts/route.ts` | (or settings API) — accept `fallbackReplyEnabled` and `fallbackReplyMessage` in PATCH. |
+| `app/(dashboard)/settings/page.tsx` | Add "Default DM reply" section to Instagram account settings: toggle + textarea. |
+
+**Worker flow (end of processMessage):**
+```
+// After keyword loop completes with zero matches:
+if (!matchedAny && account.fallbackReplyEnabled && account.fallbackReplyMessage) {
+  const usage = await reserveWorkspaceDMSend(account.workspaceId);
+  if (usage.allowed) {
+    await sendDirectMessage(token, account.igId, senderId, account.fallbackReplyMessage);
+    await prisma.dmLog.create({ commentText: "(fallback)", status: "SENT", ... });
+  }
+}
+```
+
+**Placement:** Account-level (on `InstagramAccount`), not campaign-level, because the fallback fires when *no* campaign matches. Each connected account can have its own default reply.
+
+---
+
+#### Feature C: AI Intent Matching
+
+**Goal:** When keyword matching fails, use an LLM to classify the user's intent and route to the correct campaign.
+
+**Architecture — tiered matching:**
+```
+User sends DM
+  → ① Keyword match (fast, free) → campaign reply
+  → ② AI intent match (slower, ~$0.001/call) → campaign reply
+  → ③ Fallback reply (free) → default message
+```
+
+**New file: `lib/ai/classifier.ts`**
+
+```typescript
+export interface Intent {
+  name: string;         // e.g. "pricing"
+  description: string;   // e.g. "User asking about costs, plans, pricing"
+}
+
+export async function classifyIntent(
+  message: string,
+  intents: Intent[]
+): Promise<string | null>  // returns matched intent name or null
+```
+
+Implementation: calls OpenAI chat completions API (or compatible) with a system prompt:
+```
+You are a message classifier for a business Instagram account.
+Classify this user message into one of these intents:
+- {name}: {description}
+- ...
+If no intent matches, respond with ONLY "none".
+Respond with ONLY the intent name or "none", nothing else.
+```
+
+Uses `AI_API_KEY` env var. Default model: `gpt-4o-mini` (~$0.001/classification). Optional `AI_MODEL` override.
+
+**Files to change:**
+
+| File | Change |
+|------|--------|
+| `lib/ai/classifier.ts` | **New.** AI intent classification service. |
+| `lib/env.ts` | Add optional `AI_API_KEY` getter (not required — feature is opt-in). |
+| `prisma/schema.prisma` | Add to `Automation`: `aiMatchEnabled Boolean @default(false)`, `intent String?`, `intentDescription String?`. |
+| `lib/queue/dm-worker.ts` | In `processMessage`, after keyword loop finds no match: (1) collect all campaigns with `aiMatchEnabled: true` on this account, (2) build intents list from `intent` + `intentDescription`, (3) call `classifyIntent(message, intents)`, (4) route to the matched campaign, (5) if no match → fall through to fallback. |
+| `app/api/automations/route.ts` | Add `aiMatchEnabled`, `intent`, `intentDescription` to Zod schema. |
+| `components/campaign-builder.tsx` | Add "Also match by AI intent" toggle. When enabled: show "Intent name" input (e.g. "pricing") and "Description" textarea (tells the AI when to route here). Keywords remain optional as the fast path. |
+| `components/campaign-detail.tsx` | Show AI intent config in summary. |
+
+**Worker flow (AI section of processMessage):**
+```
+// After keyword loop completes with zero matches:
+if (!matchedAny && aiApiKeyAvailable) {
+  const aiCampaigns = await prisma.automation.findMany({
+    where: { aiMatchEnabled: true, isActive: true, instagramAccount: { igId } }
+  });
+  if (aiCampaigns.length > 0) {
+    const intents = aiCampaigns.map(c => ({ name: c.intent, description: c.intentDescription }));
+    const matchedIntent = await classifyIntent(messageText, intents);
+    const campaign = aiCampaigns.find(c => c.intent === matchedIntent);
+    if (campaign) {
+      // Run the existing campaign flow (follow gate → reveal DM)
+    }
+  }
+}
+// If still no match → fallback reply (Feature B)
+```
+
+**Env vars:**
+| Var | Required | Default | Description |
+|-----|----------|---------|-------------|
+| `AI_API_KEY` | No | — | OpenAI API key. Feature disabled when absent. |
+| `AI_MODEL` | No | `gpt-4o-mini` | Model to use for classification. |
+
+**Cost:** ~$0.001 per AI classification with `gpt-4o-mini`. At 100 DMs/day → ~$0.10/day → ~$3/month. Keywords handle the bulk for free; AI only fires on natural language that keywords miss.
+
+**Error handling:**
+- AI API timeout/error → fall back to keyword matching (already tried) → fallback reply
+- AI returns "none" → fall through to fallback reply
+- `AI_API_KEY` not set → AI step is skipped entirely, keywords + fallback still work
+
+**Rate limiting (optional, future):** Per-account limit of ~100 AI classifications/hour to prevent runaway costs. Falls back to keywords if exceeded.
+
+---
+
+#### Implementation Order
+
+| Phase | Feature | Effort | Depends on |
+|-------|---------|--------|------------|
+| 1 | Fallback Auto-Responder (B) | ~2h | Nothing |
+| 2 | AI Intent Matching (C) | ~4h | Phase 1 (fallback is the safety net) |
+| 3 | Story Reply Automation (A) | ~3h | Phases 1–2 (uses same processMessage pipeline) |
+
+**Phase 1** is self-contained and immediately useful — every DM that doesn't match a keyword gets a response instead of silence.
+
+**Phase 2** adds the intelligence layer — natural language DMs route to the right campaign without requiring exact keywords.
+
+**Phase 3** extends the pipeline to story replies, which are a new trigger source feeding into the same keyword → AI → fallback chain.
+
+All three share the same `processMessage` worker function and `DmLog` table, so the changes compose cleanly.
