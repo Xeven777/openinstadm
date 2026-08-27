@@ -194,7 +194,7 @@ async function LogsContent({
               scrolls horizontally inside the panel rather than crushing every
               cell. */}
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[760px] text-sm">
+            <table className="w-full min-w-190 text-sm">
               <thead>
                 <tr className="border-b border-border text-left">
                   <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground sm:px-6">
@@ -248,7 +248,7 @@ async function LogsContent({
                         </span>
                       </div>
                     </td>
-                    <td className="max-w-[220px] px-4 py-3 sm:px-6">
+                    <td className="max-w-55 px-4 py-3 sm:px-6">
                       <span
                         className="block truncate text-muted-foreground"
                         title={log.commentText}

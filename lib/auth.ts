@@ -1,3 +1,4 @@
+import { connection } from "next/server";
 import NextAuth, { type NextAuthConfig } from "next-auth";
 import Resend from "next-auth/providers/resend";
 import { PrismaAdapter } from "@auth/prisma-adapter";
@@ -52,6 +53,7 @@ export const authConfig = {
 export const { handlers, auth, signIn, signOut } = NextAuth(authConfig);
 
 export async function getCurrentUserId(): Promise<string | null> {
+  await connection();
   const session = await auth();
   return session?.user?.id ?? null;
 }

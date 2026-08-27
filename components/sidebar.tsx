@@ -11,12 +11,11 @@ import {
   Gear,
   ListDashes,
   Megaphone,
-  PaperPlaneTilt,
   Pulse,
   SquaresFour,
   type Icon,
 } from "@phosphor-icons/react";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -39,6 +38,7 @@ import {
   SidebarRail,
   SidebarSeparator,
 } from "@/components/ui/sidebar";
+import Image from "next/image";
 
 interface NavItem {
   label: string;
@@ -124,12 +124,16 @@ export default function AppSidebar({
               render={<Link href="/dashboard" />}
             >
               <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-                <PaperPlaneTilt weight="fill" className="size-4" />
+                <Image
+                  src="/logo2.svg"
+                  alt="OpenInstaDM"
+                  width={20}
+                  height={20}
+                />
               </span>
               <span className="grid flex-1 text-left text-sm leading-tight">
-                <span className="truncate font-semibold">OpenInstaDM</span>
-                <span className="truncate text-xs text-sidebar-foreground/70">
-                  Instagram automation
+                <span className="truncate md:text-lg tracking-tight">
+                  OpenInstaDM
                 </span>
               </span>
             </SidebarMenuButton>
@@ -182,15 +186,16 @@ export default function AppSidebar({
                   />
                 }
               >
-                <Avatar className="size-8 rounded-lg">
-                  <AvatarFallback className="rounded-lg bg-primary/15 text-primary text-xs font-bold">
+                <Avatar className="size-8 rounded-full">
+                  <AvatarImage
+                    src={`https://api.dicebear.com/10.x/glyphs/svg?seed=${encodeURIComponent(workspaceName)}`}
+                  />
+                  <AvatarFallback className="rounded-full bg-primary/15 text-primary text-xs font-bold">
                     {workspaceInitials(workspaceName)}
                   </AvatarFallback>
                 </Avatar>
                 <span className="grid flex-1 text-left text-sm leading-tight">
-                  <span className="truncate font-medium">
-                    {workspaceName}
-                  </span>
+                  <span className="truncate font-medium">{workspaceName}</span>
                   <span className="truncate text-xs text-muted-foreground">
                     {workspaces.length} workspace
                     {workspaces.length === 1 ? "" : "s"}
@@ -216,9 +221,14 @@ export default function AppSidebar({
                       disabled={switching}
                       className="gap-2 p-2"
                     >
-                      <span className="flex size-6 shrink-0 items-center justify-center rounded-md border bg-background text-xs font-bold text-muted-foreground">
-                        {workspaceInitials(workspace.name)}
-                      </span>
+                      <Avatar className="size-8 rounded-full">
+                        <AvatarImage
+                          src={`https://api.dicebear.com/10.x/glyphs/svg?seed=${encodeURIComponent(workspaceName)}`}
+                        />
+                        <AvatarFallback className="rounded-full bg-primary/15 text-primary text-xs font-bold">
+                          {workspaceInitials(workspaceName)}
+                        </AvatarFallback>
+                      </Avatar>
                       <span className="grid flex-1 text-left text-sm leading-tight">
                         <span className="truncate font-medium">
                           {workspace.name}

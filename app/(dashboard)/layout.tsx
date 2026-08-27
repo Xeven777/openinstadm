@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
+import { connection } from "next/server";
 import DashboardShell from "@/components/dashboard-shell";
 import { auth } from "@/lib/auth";
 import { getSidebarAccounts } from "@/lib/server/settings";
@@ -37,6 +38,7 @@ async function AuthenticatedShell({
 }: {
   children: React.ReactNode;
 }) {
+  await connection();
   const session = await auth();
 
   if (!session?.user?.id) {
