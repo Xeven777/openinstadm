@@ -172,7 +172,7 @@ export default function AppSidebar({
       </SidebarContent>
 
       <SidebarSeparator />
-
+      
       <SidebarFooter>
         <SidebarMenu>
           <SidebarMenuItem>
@@ -188,7 +188,7 @@ export default function AppSidebar({
               >
                 <Avatar className="size-8 rounded-full">
                   <AvatarImage
-                    src={`https://api.dicebear.com/10.x/glyphs/svg?seed=${encodeURIComponent(workspaceName)}`}
+                    src={`https://api.dicebear.com/10.x/glass/svg?seed=${encodeURIComponent(workspaceName)}`}
                   />
                   <AvatarFallback className="rounded-full bg-primary/15 text-primary text-xs font-bold">
                     {workspaceInitials(workspaceName)}
@@ -223,7 +223,7 @@ export default function AppSidebar({
                     >
                       <Avatar className="size-8 rounded-full">
                         <AvatarImage
-                          src={`https://api.dicebear.com/10.x/glyphs/svg?seed=${encodeURIComponent(workspaceName)}`}
+                          src={`https://api.dicebear.com/10.x/glass/svg?seed=${encodeURIComponent(workspaceName)}`}
                         />
                         <AvatarFallback className="rounded-full bg-primary/15 text-primary text-xs font-bold">
                           {workspaceInitials(workspaceName)}

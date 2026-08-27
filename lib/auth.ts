@@ -17,17 +17,19 @@ export const authConfig = {
   ],
   callbacks: {
     async jwt({ token, user }) {
-      // On sign-in, embed the user ID in the JWT so session lookups never
+      // On sign-in, embed the user ID and name in the JWT so session lookups never
       // touch the database (JWT strategy validates the HMAC signature
       // locally instead of querying the Session table).
       if (user?.id) {
         token.id = user.id;
+        token.name = user.name;
       }
       return token;
     },
     async session({ session, token }) {
       if (session.user) {
         session.user.id = token.id as string;
+        session.user.name = token.name as string | undefined;
       }
       return session;
     },

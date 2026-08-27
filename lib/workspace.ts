@@ -120,7 +120,13 @@ export async function ensureWorkspaceForUser(
     return existingMembership.workspace;
   }
 
-  const workspaceName = email ? `${email.split("@")[0]}'s workspace` : "My workspace";
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { name: true, email: true },
+  });
+
+  const displayName = user?.name?.trim() ?? email?.split("@")[0] ?? "User";
+  const workspaceName = `${displayName}'s workspace`;
 
   return prisma.workspace.create({
     data: {

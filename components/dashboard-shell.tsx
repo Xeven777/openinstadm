@@ -44,7 +44,7 @@ export default function DashboardShell({
             instagramUsername={instagramUsername}
             instagramAccountCount={instagramAccountCount}
           />
-          <div className="flex flex-1 flex-col gap-4 p-4 lg:p-8">
+          <div className="flex flex-1 flex-col gap-4 p-4 lg:p-8 max-w-7xl mx-auto w-full">
             {children}
           </div>
         </SidebarInset>

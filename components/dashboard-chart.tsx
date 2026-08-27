@@ -1,14 +1,5 @@
 "use client";
 
-/**
- * DashboardChart — 7-day DM activity, animated area chart.
- *
- * Recharts AreaChart with a primary-tinted gradient fill, hover crosshair and
- * a themed tooltip. Colors read from the theme tokens (CSS vars resolve in both
- * light and dark), matching the rest of the dashboard. Deliberately a separate
- * client component so the recharts bundle loads only when this region streams.
- */
-
 import {
   Area,
   AreaChart,
@@ -60,22 +51,19 @@ export default function DashboardChart({
   const total = data.reduce((sum, day) => sum + day.count, 0);
 
   return (
-    <Card>
+    <Card className="h-full">
       <CardHeader>
-        <CardTitle>DMs — Last 7 Days</CardTitle>
+        <CardTitle>DMs - Last 7 Days</CardTitle>
         <CardAction>
-          <span className="text-xs text-muted-foreground">
-            {total} total
-          </span>
+          <span className="text-xs text-muted-foreground">{total} total</span>
         </CardAction>
       </CardHeader>
-      <CardContent>
-        <div className="h-44">
-          <ResponsiveContainer width="100%" height="100%">
-            <AreaChart
-              data={data}
-              margin={{ top: 4, right: 8, bottom: 0, left: 0 }}
-            >
+      <CardContent className="h-60">
+        <ResponsiveContainer width="100%" height="100%">
+          <AreaChart
+            data={data}
+            margin={{ top: 4, right: 8, bottom: 0, left: 0 }}
+          >
             <defs>
               <linearGradient id="dm-area-fill" x1="0" y1="0" x2="0" y2="1">
                 <stop
@@ -113,23 +101,22 @@ export default function DashboardChart({
               content={<ChartTooltip />}
               cursor={{ stroke: "var(--color-border)", strokeWidth: 1 }}
             />
-              <Area
-                type="monotone"
-                dataKey="count"
-                stroke="var(--color-primary)"
-                strokeWidth={2}
-                fill="url(#dm-area-fill)"
-                dot={false}
-                activeDot={{
-                  r: 4,
-                  stroke: "var(--color-background)",
-                  strokeWidth: 2,
-                }}
-                animationDuration={700}
-              />
-            </AreaChart>
-          </ResponsiveContainer>
-        </div>
+            <Area
+              type="monotone"
+              dataKey="count"
+              stroke="var(--color-primary)"
+              strokeWidth={2}
+              fill="url(#dm-area-fill)"
+              dot={false}
+              activeDot={{
+                r: 4,
+                stroke: "var(--color-background)",
+                strokeWidth: 2,
+              }}
+              animationDuration={700}
+            />
+          </AreaChart>
+        </ResponsiveContainer>
       </CardContent>
     </Card>
   );

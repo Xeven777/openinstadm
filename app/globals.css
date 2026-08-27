@@ -98,7 +98,7 @@
 .dark {
   --background: oklch(0.145 0 0);
   --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
+  --card: oklch(18% 0.00002 271.152);
   --card-foreground: oklch(0.985 0 0);
   --popover: oklch(0.205 0 0);
   --popover-foreground: oklch(0.985 0 0);
@@ -227,14 +227,14 @@
   }
 }
 ::-webkit-scrollbar {
-  width: 5px;
+  width: 4px;
 }
 ::-webkit-scrollbar-track {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: var(--color-primary);
-  border-radius: 5px;
+  background: var(--color-muted);
+  border-radius: 4px;
 }
 
 .shimmer {
@@ -331,4 +331,31 @@
   box-shadow:
     0 8px 20px
     color-mix(in srgb, var(--glow-color) 25%, transparent);
+}
+
+.wobble-hor-bottom:hover {
+	animation: wobble-hor-bottom 1s both;
+}
+
+@keyframes wobble-hor-bottom {
+  0%,
+  100% {
+    transform: translateX(0%);
+    transform-origin: 50% 50%;
+  }
+  15% {
+    transform: translateX(-10px) rotate(-6deg);
+  }
+  30% {
+    transform: translateX(5px) rotate(6deg);
+  }
+  45% {
+    transform: translateX(-5px) rotate(-3.6deg);
+  }
+  60% {
+    transform: translateX(3px) rotate(2.4deg);
+  }
+  75% {
+    transform: translateX(-3px) rotate(-1.2deg);
+  }
 }

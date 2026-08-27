@@ -13,6 +13,7 @@ import { Suspense } from "react";
 import { redirect } from "next/navigation";
 import { InstagramConnectNotice } from "@/components/instagram-connect-notice";
 import SettingsAccounts from "@/components/settings-accounts";
+import SettingsProfile from "@/components/settings-profile";
 import SettingsTeam from "@/components/settings-team";
 import { Card, CardContent } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
@@ -20,6 +21,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { getWorkspaceMembers } from "@/lib/server/members";
 import { getSettingsData } from "@/lib/server/settings";
 import { getCurrentWorkspaceContext } from "@/lib/workspace-access";
+import { prisma } from "@/lib/db/client";
 
 export default function SettingsPage() {
   return (
@@ -69,13 +71,19 @@ async function SettingsContent() {
   const context = await getCurrentWorkspaceContext();
   if (!context) redirect("/login");
 
-  const [settings, members] = await Promise.all([
+  const [settings, members, user] = await Promise.all([
     getSettingsData(context.workspaceId),
     getWorkspaceMembers(context.workspaceId, context.role),
+    prisma.user.findUnique({
+      where: { id: context.userId },
+      select: { name: true, email: true },
+    }),
   ]);
 
   return (
     <>
+      <SettingsProfile userName={user?.name ?? null} userEmail={user?.email ?? null} />
+
       <SettingsAccounts accounts={settings.instagramAccounts} />
 
       <SettingsTeam members={members} currentUserId={context.userId} />

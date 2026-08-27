@@ -2,9 +2,13 @@ import { Suspense } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-// SSR build: plain-SVG icons that render in Server Components. The CSR build
-// calls React.createContext at module scope and breaks the RSC build collector.
-import { Megaphone, PaperPlaneTilt } from "@phosphor-icons/react/dist/ssr";
+import {
+  HandWavingIcon,
+  InstagramLogoIcon,
+  Megaphone,
+  PaperPlaneTilt,
+  RocketLaunchIcon,
+} from "@phosphor-icons/react/dist/ssr";
 import AccountUrlFilter from "@/components/account-url-filter";
 import CountUp from "@/components/count-up";
 import StatusBadge from "@/components/status-badge";
@@ -39,7 +43,7 @@ import { getCurrentWorkspaceContext } from "@/lib/workspace-access";
 
 export default async function DashboardPage(props: PageProps<"/dashboard">) {
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       <Suspense fallback={<SummarySkeleton />}>
         <SummaryRegion searchParams={props.searchParams} />
       </Suspense>
@@ -56,7 +60,7 @@ function SummarySkeleton() {
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <Skeleton className="h-8 w-56" />
       </div>
-      <div className="grid gap-4 sm:gap-6 lg:grid-cols-3">
+      <div className="grid gap-4  lg:grid-cols-3">
         <div className="lg:col-span-2 rounded-xl border border-border bg-card p-6 shadow-xs">
           <Skeleton className="h-4 w-36" />
           <Skeleton className="mt-4 h-10 w-24" />
@@ -79,7 +83,7 @@ function SummarySkeleton() {
 
 function InsightsSkeleton() {
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-6 gap-4 sm:gap-6">
+    <div className="grid grid-cols-1 lg:grid-cols-6 gap-4 ">
       <div className="lg:col-span-3 rounded-xl border border-border bg-card p-6 shadow-xs">
         <Skeleton className="h-4 w-36" />
         <Skeleton className="mt-4 h-44 w-full" />
@@ -104,8 +108,6 @@ function InsightsSkeleton() {
   );
 }
 
-/** Deferred recharts chunk: the chart region streams after the summary, and the
-    library JS only loads once this component is about to render. */
 const DashboardChart = dynamic(() => import("@/components/dashboard-chart"), {
   loading: () => (
     <div className="rounded-xl border border-border bg-card p-6 shadow-xs">
@@ -132,15 +134,15 @@ async function SummaryRegion({
   const stats = await getDashboardSummary(
     context.workspaceId,
     context.userId,
-    selectedAccountId === "all" ? null : selectedAccountId
+    selectedAccountId === "all" ? null : selectedAccountId,
   );
 
-  const connectedCount = stats.instagramAccounts.length;
+  // const connectedCount = stats.instagramAccounts.length;
   const campaignPct = Math.min(
     Math.round(
-      (stats.activeAutomations / Math.max(stats.totalAutomations, 1)) * 100
+      (stats.activeAutomations / Math.max(stats.totalAutomations, 1)) * 100,
     ),
-    100
+    100,
   );
 
   return (
@@ -148,13 +150,22 @@ async function SummaryRegion({
       {/* Greeting */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
-            Hello, {stats.userName ?? "there"}
+          <h1 className="text-2xl md:text-3xl font-medium tracking-tighter text-foreground sm:text-3xl lg:text-4xl inline-flex items-center gap-2">
+            Hello,{" "}
+            <span className="bg-linear-to-br from-primary to-foreground bg-clip-text text-transparent">
+              {stats.userName ?? "there"}!
+            </span>
+            <span>
+              <HandWavingIcon
+                className="size-8 text-yellow-400 wobble-hor-bottom"
+                weight="duotone"
+              />
+            </span>
           </h1>
-          <p className="mt-1 text-sm text-muted-foreground">
+          {/* <p className="mt-1 text-sm text-muted-foreground">
             {connectedCount} connected{" "}
             {connectedCount === 1 ? "account" : "accounts"}
-          </p>
+          </p> */}
         </div>
         {stats.instagramAccounts.length > 1 && (
           <AccountUrlFilter
@@ -164,9 +175,38 @@ async function SummaryRegion({
         )}
       </div>
 
-      {/* Hero metrics — the two numbers that matter most, with context. */}
-      <div className="grid gap-4 sm:gap-6 lg:grid-cols-3">
-        <Card className="lg:col-span-2">
+      <div className="grid gap-4 lg:grid-cols-3">
+        <Card
+          className="bg-linear-to-b from-lime-200 dark:from-lime-500 to-lime-300 text-black border-2 shadow-[0_10px_28px_rgba(132,204,22,0.3)]"
+          style={{
+            boxShadow: "inset 0 10px 20px lab(99 2.34 0.77 / 0.3)",
+          }}
+        >
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 tracking-tight">
+              <InstagramLogoIcon weight="duotone" className="size-5" />
+              Get Started
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-3xl font-semibold tracking-[-7%] leading-tight">
+              Create New <span className="italic font-bold">Campaign!</span>
+            </p>
+            <Link
+              href="/campaigns/new"
+              className={cn(
+                buttonVariants({ variant: "secondary", size: "lg" }),
+                "h-12 justify-center rounded-full text-base tracking-tight bg-linear-to-b from-secondary dark:to-black to-white px-6 mt-4 dark:shadow-[0_2px_0_1px_var(--secondary)]",
+              )}
+            >
+              Lets Go <RocketLaunchIcon className="size-4 ml-2" weight="bold" />
+            </Link>
+          </CardContent>
+        </Card>
+
+        <Card className="relative">
+          <div className="absolute w-2/5 h-4/5 bg-lime-700/30 -top-20 -right-30 pointer pointer-events-none rounded-full blur-3xl"></div>
+          <div className="absolute w-2/5 h-4/5 bg-lime-700/30 -bottom-20 -left-30 pointer pointer-events-none rounded-full blur-3xl"></div>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <PaperPlaneTilt weight="fill" className="size-4 text-primary" />
@@ -182,7 +222,7 @@ async function SummaryRegion({
             </CardAction>
           </CardHeader>
           <CardContent>
-            <p className="text-4xl font-bold tracking-tight text-foreground">
+            <p className="text-4xl md:text-6xl font-bold tracking-tight text-foreground">
               <CountUp value={stats.dmsSentWeek} />
             </p>
             <div className="mt-3 flex flex-wrap gap-x-6 gap-y-1 text-sm text-muted-foreground">
@@ -202,7 +242,9 @@ async function SummaryRegion({
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="relative">
+          <div className="absolute w-2/5 h-4/5 bg-lime-700/30 top-20 -right-30 pointer pointer-events-none rounded-full blur-3xl"></div>
+          <div className="absolute w-2/5 h-4/5 bg-lime-700/30 bottom-20 -left-30 pointer pointer-events-none rounded-full blur-3xl"></div>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Megaphone weight="fill" className="size-4 text-primary" />
@@ -218,7 +260,7 @@ async function SummaryRegion({
             </CardAction>
           </CardHeader>
           <CardContent>
-            <p className="text-4xl font-bold tracking-tight text-foreground">
+            <p className="text-4xl md:text-6xl font-bold tracking-tight text-foreground">
               <CountUp value={stats.activeAutomations} />
               <span className="text-lg font-medium text-muted-foreground">
                 {" "}
@@ -304,18 +346,15 @@ async function InsightsRegion({
 
   const stats = await getDashboardInsights(
     context.workspaceId,
-    selectedAccountId === "all" ? null : selectedAccountId
+    selectedAccountId === "all" ? null : selectedAccountId,
   );
 
-  const maxKeyword = Math.max(
-    ...stats.topKeywords.map((k) => k.count),
-    0
-  );
+  const maxKeyword = Math.max(...stats.topKeywords.map((k) => k.count), 0);
 
   return (
     <>
       {/* Chart + Recent Activity */}
-      <div className="grid grid-cols-1 lg:grid-cols-6 gap-4 sm:gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-6 gap-4 ">
         {/* 7-Day Chart */}
         <div className="lg:col-span-3">
           <DashboardChart data={stats.dailyDMs} />
