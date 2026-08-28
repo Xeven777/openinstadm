@@ -50,7 +50,7 @@ export async function PATCH(request: Request) {
       data: { name },
     });
 
-    revalidateTag(`workspace-ctx:${userId}:primary`);
+    revalidateTag("workspace-ctx", userId);
 
     return new Response(JSON.stringify({ success: true, name }), {
       status: 200,

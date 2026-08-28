@@ -1,6 +1,5 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
-import { GithubLogo } from "@phosphor-icons/react/dist/ssr";
 import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
@@ -8,6 +7,7 @@ import Hero from "@/components/sections/hero";
 import Navbar from "@/components/sections/navbar";
 import FeaturesSection from "@/components/sections/features";
 import HowWorks from "@/components/sections/how-works";
+import Footer from "@/components/sections/footer";
 
 const GITHUB_URL = "https://github.com/xeven777/OpenInstaDM";
 
@@ -223,28 +223,7 @@ export default async function Home() {
         </div>
       </section>
 
-      {/* ─── Footer ─── */}
-      <footer className="border-t border-border">
-        <div className="mx-auto flex w-full max-w-8xl items-center justify-between px-5 py-6 text-sm text-muted-foreground sm:px-6 lg:px-8">
-          <span className="font-semibold tracking-tight text-foreground">
-            OpenInstaDM
-          </span>
-          <div className="flex items-center gap-4">
-            <a
-              href={GITHUB_URL}
-              target="_blank"
-              rel="noreferrer"
-              className="inline-flex items-center gap-2 transition-colors hover:text-foreground"
-            >
-              <GithubLogo
-                weight="fill"
-                className="h-4 w-4"
-                aria-hidden="true"
-              />
-            </a>
-          </div>
-        </div>
-      </footer>
+      <Footer />
     </main>
   );
 }
