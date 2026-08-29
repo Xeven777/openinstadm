@@ -7,11 +7,11 @@ const Cta = () => {
   return (
     <section>
       <div className="mx-auto w-full max-w-8xl px-5 py-24 sm:px-6 lg:px-8">
-        <div className="relative overflow-hidden rounded-2xl border border-border p-8 sm:p-12 lg:p-16 bg-black">
+        <div className="relative overflow-hidden rounded-2xl border border-border px-6 py-16 sm:p-12 lg:p-16 bg-black text-center">
           <div className="absolute -top-50 left-1/2 -translate-x-1/2 w-100 blur-[100px] rounded-full bg-primary h-50 select-none pointer-events-none opacity-80"></div>
           <div className="flex flex-col items-center justify-between gap-6 lg:gap-8">
             <div>
-              <h2 className="max-w-2xl text-4xl text-center font-semibold leading-tight tracking-tighter text-foreground sm:text-5xl">
+              <h2 className="max-w-2xl text-3xl font-semibold leading-tight tracking-tighter sm:text-5xl text-white">
                 Turn your next reel&rsquo;s
                 <br />
                 comments into DMs
@@ -30,7 +30,7 @@ const Cta = () => {
                 href="/login"
                 className={cn(
                   buttonVariants({ variant: "glow", size: "lg" }),
-                  "rounded-full px-6 h-12",
+                  "rounded-full px-6 h-12 btn-shadow2",
                 )}
               >
                 Get Started{" "}

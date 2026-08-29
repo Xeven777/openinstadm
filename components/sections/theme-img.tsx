@@ -14,7 +14,7 @@ const ThemeImg = () => {
         src={resolvedTheme === "dark" ? bgn : bg}
         alt="background"
         aria-hidden="true"
-        className="size-full object-cover object-[65%_40%] sm:object-[55%_35%] lg:object-center"
+        className="size-full object-cover object-[65%_40%] sm:object-[55%_35%] lg:object-center hidden md:block"
         loading="eager"
         decoding="async"
         width={1400}

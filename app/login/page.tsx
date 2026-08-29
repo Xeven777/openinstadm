@@ -4,7 +4,7 @@ import { getCampaignTemplate } from "@/lib/templates/campaign-templates";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import Image from "next/image";
-import { StarIcon } from "@phosphor-icons/react/dist/ssr";
+import { ArrowRightIcon, StarIcon } from "@phosphor-icons/react/dist/ssr";
 import { FlickeringGrid } from "@/components/ui/flickering-grid";
 
 export const metadata = {
@@ -13,7 +13,6 @@ export const metadata = {
 };
 
 type LoginSearchParams = Promise<{
-  checkEmail?: string;
   callbackUrl?: string;
   template?: string;
 }>;
@@ -32,7 +31,6 @@ export default function LoginPage({
 
 async function LoginContent({ searchParams }: { searchParams: LoginSearchParams }) {
   const params = await searchParams;
-  const checkEmail = params.checkEmail === "1";
   const selectedTemplate = getCampaignTemplate(params.template);
   const templateCallbackUrl = selectedTemplate
     ? `/campaigns/new?template=${selectedTemplate.slug}`
@@ -63,128 +61,47 @@ async function LoginContent({ searchParams }: { searchParams: LoginSearchParams 
           </div>
 
           {/* Heading */}
-          <h1
-            className="text-3xl font-semibold tracking-tight"
-            style={{ color: "var(--foreground)" }}
-          >
-            Sign in
-          </h1>
-          <p
-            className="mt-3 text-sm leading-relaxed"
-            style={{ color: "var(--muted-foreground)" }}
-          >
+          <h1 className="text-3xl font-semibold tracking-tight">Sign in</h1>
+          <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
             {selectedTemplate
               ? `Sign in to use the ${selectedTemplate.title} template.`
               : "Sign in by email, then connect your Instagram professional account."}
           </p>
 
           {/* Form */}
-          {checkEmail ? (
-            <div
-              className="mt-10 text-center py-8 rounded-xl"
-              style={{
-                background: "var(--card)",
-                border: "1px solid var(--border)",
-              }}
-            >
-              <div
-                className="mb-4 inline-flex items-center justify-center size-12 rounded-full"
-                style={{
-                  background: "var(--primary)",
-                  color: "var(--primary-foreground)",
-                }}
-              >
-                <svg
-                  width="24"
-                  height="24"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <path d="M22 2L11 13" />
-                  <path d="M22 2L15 22L11 13L2 9L22 2Z" />
-                </svg>
-              </div>
-              <h2
-                className="text-lg font-semibold"
-                style={{ color: "var(--foreground)" }}
-              >
-                Check your email
-              </h2>
-              <p
-                className="mt-2 text-sm px-4"
-                style={{ color: "var(--muted-foreground)" }}
-              >
-                We sent you a secure sign-in link. Open it on this device to
-                continue.
-              </p>
+          <form action={sendMagicLink} className="mt-8 space-y-3">
+            <div className="space-y-2">
+              <label htmlFor="email" className="block text-sm font-medium">
+                Work email
+              </label>
+              <Input
+                id="email"
+                name="email"
+                type="email"
+                required
+                autoComplete="email"
+                placeholder="you@company.com"
+              />
             </div>
-          ) : (
-            <form action={sendMagicLink} className="mt-8 space-y-3">
-              <div className="space-y-2">
-                <label
-                  htmlFor="email"
-                  className="block text-sm font-medium"
-                  style={{ color: "var(--foreground)" }}
-                >
-                  Work email
-                </label>
-                <Input
-                  id="email"
-                  name="email"
-                  type="email"
-                  required
-                  autoComplete="email"
-                  placeholder="you@company.com"
-                />
-              </div>
 
-              <Button
-                type="submit"
-                className="w-full"
-                size={"lg"}
-                variant={"default"}
-              >
-                Send magic link
-                <svg
-                  width="16"
-                  height="16"
-                  viewBox="0 0 16 16"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  className="ml-1 inline-block"
-                >
-                  <path d="M3 8h10M9 4l4 4-4 4" />
-                </svg>
-              </Button>
-            </form>
-          )}
+            <Button
+              type="submit"
+              className="w-full"
+              size={"lg"}
+              variant={"default"}
+            >
+              Send magic link <ArrowRightIcon className="ml-2 h-4 w-4" />
+            </Button>
+          </form>
 
           {/* Footer */}
-          <p
-            className="mt-10 text-xs text-center"
-            style={{ color: "var(--muted-foreground)" }}
-          >
+          <p className="mt-10 text-xs text-center text-muted-foreground">
             By continuing, you agree to our{" "}
-            <a
-              href="/legal/terms"
-              className="underline underline-offset-2"
-              style={{ color: "var(--muted-foreground)" }}
-            >
+            <a href="/legal/terms" className="underline underline-offset-2">
               Terms
             </a>{" "}
             and{" "}
-            <a
-              href="/legal/privacy"
-              className="underline underline-offset-2"
-              style={{ color: "var(--muted-foreground)" }}
-            >
+            <a href="/legal/privacy" className="underline underline-offset-2">
               Privacy Policy
             </a>
             .
@@ -193,9 +110,9 @@ async function LoginContent({ searchParams }: { searchParams: LoginSearchParams 
       </div>
 
       {/* Right panel — Testimonial / Brand */}
-      <div className="hidden lg:flex flex-1 items-center justify-center p-10 bg-black/40 border-l-2 relative">
+      <div className="hidden lg:flex flex-1 items-center justify-center p-10 bg-black/40 border-l-2 relative overflow-hidden">
         <FlickeringGrid
-          className="absolute inset-0 z-0 mask-[radial-gradient(650px_circle_at_center,transparent,white)]"
+          className="absolute inset-0 z-0 mask-[radial-gradient(650px_circle_at_center,transparent,white)] pointer-events-none"
           squareSize={2}
           gridGap={6}
           color="#83BE3C"
@@ -208,28 +125,26 @@ async function LoginContent({ searchParams }: { searchParams: LoginSearchParams 
             {[...Array(5)].map((_, i) => (
               <StarIcon
                 key={i}
-                size={20}
+                size={26}
                 weight="fill"
-                className="text-yellow-400"
+                className="text-yellow-400 hover:scale-130 transition-all duration-300"
               />
             ))}
           </div>
 
           {/* Quote */}
-          <blockquote
-            className="text-xl font-medium leading-snug tracking-tight"
-            style={{ color: "var(--foreground)" }}
-          >
-            &ldquo;OpenInstaDM gave our team an automated starting point, so the
-            first comment-to-DM pass already felt ready to ship.&rdquo;
+          <blockquote className="text-xl md:text-2xl font-medium leading-snug tracking-tight">
+            &ldquo;OpenInstaDM works so well that we were able to automate our
+            Comment-to-DM workflow in just a few hours! Bye bye expensive
+            manychat!&rdquo;
           </blockquote>
 
           {/* Author */}
           <div className="mt-8 flex items-center gap-3">
             <div className="size-10 rounded-full overflow-hidden bg-linear-to-tr from-yellow-400 to-rose-500"></div>
             <div>
-              <p className="text-sm font-medium">Anish Biswas</p>
-              <p className="text-xs">Founder @AuraDevs</p>
+              <p className="text-sm">Anish Biswas</p>
+              <p className="text-xs font-light">Founder @AuraDevs</p>
             </div>
           </div>
 
