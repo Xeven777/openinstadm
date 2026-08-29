@@ -38,11 +38,11 @@ const Navbar = async () => {
           aria-label="OpenInstaDM home"
         >
           <Image
-            src="/logo3.svg"
+            src="/logo1.svg"
             alt="OpenInstaDM logo"
             width={32}
             height={32}
-            className="size-8 grayscale-100 brightness-0 hover:brightness-90 transition-all duration-300 hover:grayscale-0 shimmer"
+            className="size-8 transition-all duration-300 dark:invert-0 invert shimmer"
           />
           <span className="text-lg font-bold tracking-tight text-foreground">
             OpenInstaDM

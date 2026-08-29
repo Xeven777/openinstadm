@@ -20,6 +20,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { formatTimeAgo } from "@/lib/utils/time";
 import { queryKeys } from "@/lib/query/keys";
 import { fetchPosts } from "@/lib/query/api";
+import { cn } from "@/lib/utils";
 
 interface PostPickerProps {
   selectedPostId: string | null;
@@ -188,7 +189,7 @@ export default function PostPicker({
               variant="outline"
               className="gap-1.5 font-normal text-muted-foreground"
             >
-              <span className="inline-block h-2.5 w-2.5 rounded-sm border border-warning/50" />
+              <span className="inline-block h-2.5 w-2.5 rounded-sm border border-destructive" />
               Already used
             </Badge>
           )}
@@ -207,16 +208,14 @@ export default function PostPicker({
                   }
                   aria-pressed={isSelected}
                   title={isUsed ? `Already used by "${usedByName}"` : undefined}
-                  className={`
-              relative aspect-square rounded overflow-hidden border-2
-              ${
-                isSelected
-                  ? "border-primary"
-                  : isUsed
-                    ? "border-warning/40 hover:border-warning/60"
-                    : "border-border hover:border-foreground/20"
-              }
-            `}
+                  className={cn(
+                    "relative aspect-square rounded overflow-hidden border-2",
+                    isSelected
+                      ? "border-primary"
+                      : isUsed
+                        ? "border-destructive hover:opacity-80 cursor-help"
+                        : "border-border hover:border-foreground/20",
+                  )}
                 >
                   {thumb ? (
                     <img
@@ -236,6 +235,11 @@ export default function PostPicker({
                   {isSelected && (
                     <span className="absolute bottom-0 inset-x-0 bg-primary py-1 text-center text-xs font-medium text-primary-foreground">
                       Selected
+                    </span>
+                  )}
+                  {isUsed && !isSelected && (
+                    <span className="absolute bottom-0 inset-x-0 bg-background/50 py-1 text-center text-xs font-bold text-destructive-foreground line-clamp-1">
+                      Used by &quot;{usedByName}&quot;
                     </span>
                   )}
                 </button>

@@ -188,7 +188,7 @@ async function SummaryRegion({
               Get Started
             </CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="pb-0 justify-end h-full">
             <p className="text-3xl font-semibold tracking-[-7%] leading-tight">
               Create New <span className="italic font-bold">Campaign!</span>
             </p>
@@ -196,7 +196,7 @@ async function SummaryRegion({
               href="/campaigns/new"
               className={cn(
                 buttonVariants({ variant: "secondary", size: "lg" }),
-                "h-12 justify-center rounded-full text-base tracking-tight bg-linear-to-b from-secondary dark:to-black to-white px-6 mt-4 dark:shadow-[0_2px_0_1px_var(--secondary)]",
+                "h-12 justify-center rounded-full text-base tracking-tight bg-linear-to-b from-secondary dark:to-black to-white px-6 mt-auto dark:shadow-[0_2px_0_1px_var(--secondary)]",
               )}
             >
               Lets Go <RocketLaunchIcon className="size-4 ml-2" weight="bold" />
@@ -275,7 +275,7 @@ async function SummaryRegion({
               aria-valuemax={stats.totalAutomations}
             >
               <div
-                className="h-full rounded-full bg-primary transition-all duration-700 ease-out"
+                className="h-full rounded-full bg-primary transition-all duration-700 ease-out shadow-[0_0_6px_var(--primary)]"
                 style={{ width: `${campaignPct}%` }}
               />
             </div>

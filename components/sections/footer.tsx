@@ -35,26 +35,26 @@ export default function Footer() {
     <footer className="border-t border-border bg-muted/30">
       <div className="mx-auto max-w-8xl px-5 sm:px-6 lg:px-8">
         {/* Main footer grid */}
-        <div className="grid grid-cols-2 gap-10 py-16 sm:grid-cols-3 lg:grid-cols-5 lg:gap-8">
+        <div className="grid grid-cols-2 gap-10 py-16 sm:grid-cols-3 lg:grid-cols-6 lg:gap-8">
           {/* Brand column */}
-          <div className="col-span-2 sm:col-span-3 lg:col-span-1">
+          <div className="col-span-2 sm:col-span-3 lg:col-span-2">
             <Link
               href="/"
               className="inline-flex items-center gap-2"
               aria-label="OpenInstaDM home"
             >
               <Image
-                src="/logo3.svg"
+                src="/logo1.svg"
                 alt="OpenInstaDM logo"
                 width={28}
                 height={28}
-                className="size-7 grayscale-100 brightness-0 hover:brightness-90 transition-all duration-300 hover:grayscale-0"
+                className="size-7 transition-all duration-300 dark:invert-0 invert"
               />
               <span className="text-base font-bold tracking-tight text-foreground">
                 OpenInstaDM
               </span>
             </Link>
-            <p className="mt-4 max-w-70 text-sm leading-relaxed text-muted-foreground">
+            <p className="mt-4 text-sm leading-relaxed text-muted-foreground">
               Open-source Instagram comment-to-DM automation. Turn engagement
               into conversations.
             </p>
@@ -75,9 +75,7 @@ export default function Footer() {
           {/* Link columns */}
           {Object.entries(footerLinks).map(([title, links]) => (
             <div key={title}>
-              <h3 className="text-sm font-semibold text-foreground">
-                {title}
-              </h3>
+              <h3 className="text-sm font-semibold text-foreground">{title}</h3>
               <ul className="mt-4 space-y-3">
                 {links.map((link) => (
                   <li key={link.href}>
@@ -97,8 +95,7 @@ export default function Footer() {
         {/* Bottom bar */}
         <div className="flex flex-col items-center justify-between gap-4 border-t border-border py-6 sm:flex-row">
           <p className="text-xs text-muted-foreground">
-            &copy; {new Date().getFullYear()} OpenInstaDM. Open source under the
-            MIT License.
+            &copy; 2026 OpenInstaDM. Open source under the MIT License.
           </p>
           <p className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
             Built with{" "}
