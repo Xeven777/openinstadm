@@ -11,7 +11,7 @@ import {
 } from "@/lib/server/automations";
 import { invalidateWorkspaceStats } from "@/lib/server/stats";
 import {
-  canManageWorkspace,
+  canManageAutomations,
   getCurrentWorkspaceContext,
   getCurrentWorkspaceId
 } from "@/lib/workspace-access";
@@ -187,9 +187,9 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  if (!canManageWorkspace(context.role)) {
+  if (!canManageAutomations(context)) {
     return NextResponse.json(
-      { success: false, error: "Only owners and admins can create campaigns" },
+      { success: false, error: "You do not have permission to create campaigns" },
       { status: 403 }
     );
   }
@@ -360,9 +360,9 @@ export async function PATCH(request: NextRequest) {
     );
   }
 
-  if (!canManageWorkspace(context.role)) {
+  if (!canManageAutomations(context)) {
     return NextResponse.json(
-      { success: false, error: "Only owners and admins can update campaigns" },
+      { success: false, error: "You do not have permission to update campaigns" },
       { status: 403 }
     );
   }
@@ -525,9 +525,9 @@ export async function DELETE(request: NextRequest) {
     );
   }
 
-  if (!canManageWorkspace(context.role)) {
+  if (!canManageAutomations(context)) {
     return NextResponse.json(
-      { success: false, error: "Only owners and admins can delete campaigns" },
+      { success: false, error: "You do not have permission to delete campaigns" },
       { status: 403 }
     );
   }

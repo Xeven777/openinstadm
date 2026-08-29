@@ -16,6 +16,7 @@ export interface WorkspaceContextValue {
   userId: string;
   workspaceId: string;
   role: string;
+  permissions: string[];
 }
 
 const WorkspaceContext = createContext<WorkspaceContextValue | null>(null);

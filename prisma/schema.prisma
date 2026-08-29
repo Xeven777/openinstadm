@@ -81,7 +81,8 @@ model WorkspaceMember {
   id          String        @id @default(cuid())
   workspaceId String
   userId      String
-  role        WorkspaceRole @default(OWNER)
+  role        WorkspaceRole @default(MEMBER)
+  permissions WorkspacePermission[] @default([])
   createdAt   DateTime      @default(now())
 
   workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
@@ -96,6 +97,7 @@ model WorkspaceInvitation {
   workspaceId     String
   email           String
   role            WorkspaceRole             @default(MEMBER)
+  permissions     WorkspacePermission[] @default([])
   token           String                    @unique
   status          WorkspaceInvitationStatus @default(PENDING)
   invitedByUserId String?
@@ -368,10 +370,14 @@ model OperationalEvent {
 
 enum WorkspaceRole {
   OWNER
-  ADMIN
   MEMBER
 }
 
+enum WorkspacePermission {
+  MANAGE_AUTOMATIONS
+  MANAGE_INSTAGRAM_ACCOUNTS
+  MANAGE_MEMBERS
+}
 enum WorkspaceInvitationStatus {
   PENDING
   ACCEPTED

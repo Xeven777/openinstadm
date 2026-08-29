@@ -3,7 +3,7 @@ import { prisma } from "@/lib/db/client";
 import { invalidateSettingsCache } from "@/lib/server/settings";
 import { invalidateWorkspaceStats } from "@/lib/server/stats";
 import {
-  canManageWorkspace,
+  canManageInstagramAccounts,
   getCurrentWorkspaceContext,
 } from "@/lib/workspace-access";
 
@@ -16,9 +16,9 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  if (!canManageWorkspace(context.role)) {
+  if (!canManageInstagramAccounts(context)) {
     return NextResponse.json(
-      { success: false, error: "Only owners and admins can disconnect accounts" },
+      { success: false, error: "You do not have permission to disconnect accounts" },
       { status: 403 }
     );
   }

@@ -130,7 +130,7 @@ export const agenciesSeoPage: SeoPageConfig = {
   bullets: [
     "Connect multiple client Instagram accounts on the Agency plan.",
     "Filter dashboards, logs, campaigns, and settings by account.",
-    "Invite teammates as owners, admins, or members.",
+    "Invite members and grant only the workspace permissions they need.",
     "Share read-only client reports without exposing workspace controls.",
   ],
   sections: [
@@ -156,7 +156,7 @@ export const agenciesSeoPage: SeoPageConfig = {
     },
     {
       label: "Team roles",
-      ours: "Owner, admin, and member roles with invite links.",
+      ours: "Owner and member roles, with owner-granted permissions and invite links.",
       other: "Often one shared login or overpowered teammate access.",
     },
     {

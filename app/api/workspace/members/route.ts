@@ -16,18 +16,33 @@ import {
 } from "@/lib/workspace-invitations";
 import { invalidateUserWorkspaces } from "@/lib/workspace";
 import {
-  canManageWorkspace,
+  canGrantMemberPermissions,
+  canManageMembers,
   getCurrentWorkspaceContext,
+  invalidateWorkspaceContext,
 } from "@/lib/workspace-access";
+
+const permissionSchema = z.enum([
+  "MANAGE_AUTOMATIONS",
+  "MANAGE_INSTAGRAM_ACCOUNTS",
+  "MANAGE_MEMBERS",
+]);
 
 const inviteSchema = z.object({
   email: z.string().email(),
-  role: z.enum(["ADMIN", "MEMBER"]).default("MEMBER"),
+  permissions: z
+    .array(permissionSchema)
+    .max(3)
+    .default([])
+    .refine((permissions) => new Set(permissions).size === permissions.length),
 });
 
 const updateMemberSchema = z.object({
   memberId: z.string().min(1),
-  role: z.enum(["ADMIN", "MEMBER"]),
+  permissions: z
+    .array(permissionSchema)
+    .max(3)
+    .refine((permissions) => new Set(permissions).size === permissions.length),
 });
 
 const deleteSchema = z.object({
@@ -46,7 +61,11 @@ export async function GET() {
 
   return NextResponse.json({
     success: true,
-    data: await getWorkspaceMembers(context.workspaceId, context.role),
+    data: await getWorkspaceMembers(
+      context.workspaceId,
+      context.role,
+      context.permissions
+    ),
   });
 }
 
@@ -58,9 +77,9 @@ export async function POST(request: NextRequest) {
       { status: 401 }
     );
   }
-  if (!canManageWorkspace(context.role)) {
+  if (!canManageMembers(context)) {
     return NextResponse.json(
-      { success: false, error: "Only owners and admins can invite members" },
+      { success: false, error: "You do not have permission to invite members" },
       { status: 403 }
     );
   }
@@ -71,6 +90,16 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       { success: false, error: "Invalid invitation", details: parsed.error.flatten() },
       { status: 400 }
+    );
+  }
+
+  if (
+    parsed.data.permissions.length > 0 &&
+    !canGrantMemberPermissions(context)
+  ) {
+    return NextResponse.json(
+      { success: false, error: "Only the owner can grant permissions" },
+      { status: 403 }
     );
   }
 
@@ -92,7 +121,7 @@ export async function POST(request: NextRequest) {
 
   const workspaceName = workspace?.name ?? "your workspace";
   const invitedBy =
-    inviter?.name || inviter?.email || "A workspace admin";
+    inviter?.name || inviter?.email || "A workspace member";
   // Origin of the app (server-side; the dashboard link for added members).
   const signInUrl = `${
     (process.env.NEXTAUTH_URL ?? "http://localhost:3000").replace(/\/$/, "")
@@ -101,33 +130,40 @@ export async function POST(request: NextRequest) {
   // Email delivery is best-effort — a failed send never fails the invite.
   // The inviter still gets the copyable link in the UI as a fallback.
   let emailSent = false;
+  let addedExistingMember = false;
 
   if (existingUser) {
-    await prisma.workspaceMember.upsert({
+    const existingMembership = await prisma.workspaceMember.findUnique({
       where: {
         workspaceId_userId: {
           workspaceId: context.workspaceId,
           userId: existingUser.id,
         },
       },
-      create: {
-        workspaceId: context.workspaceId,
-        userId: existingUser.id,
-        role: parsed.data.role,
-      },
-      update: {
-        role: parsed.data.role,
-      },
+      select: { id: true },
     });
 
-    invalidateUserWorkspaces(existingUser.id);
+    // A delegated member must never overwrite permissions the owner assigned
+    // to an existing workspace member.
+    if (!existingMembership) {
+      await prisma.workspaceMember.create({
+        data: {
+          workspaceId: context.workspaceId,
+          userId: existingUser.id,
+          role: "MEMBER",
+          permissions: parsed.data.permissions,
+        },
+      });
+      addedExistingMember = true;
+      invalidateUserWorkspaces(existingUser.id);
+      invalidateWorkspaceContext(existingUser.id, context.workspaceId);
 
-    emailSent = await sendMemberAddedEmail({
-      to: email,
-      workspaceName,
-      role: parsed.data.role,
-      signInUrl,
-    });
+      emailSent = await sendMemberAddedEmail({
+        to: email,
+        workspaceName,
+        signInUrl,
+      });
+    }
   } else {
     const invitation = await prisma.workspaceInvitation.upsert({
       where: {
@@ -139,13 +175,17 @@ export async function POST(request: NextRequest) {
       create: {
         workspaceId: context.workspaceId,
         email,
-        role: parsed.data.role,
+        role: "MEMBER",
+        permissions: parsed.data.permissions,
         token: generateInvitationToken(),
         invitedByUserId: context.userId,
         expiresAt: getInvitationExpiry(),
       },
       update: {
-        role: parsed.data.role,
+        role: "MEMBER",
+        ...(canGrantMemberPermissions(context)
+          ? { permissions: parsed.data.permissions }
+          : {}),
         status: "PENDING",
         token: generateInvitationToken(),
         invitedByUserId: context.userId,
@@ -156,7 +196,6 @@ export async function POST(request: NextRequest) {
     emailSent = await sendInviteEmail({
       to: email,
       workspaceName,
-      role: parsed.data.role,
       inviteUrl: buildInvitationUrl(invitation.token),
       invitedBy,
     });
@@ -167,8 +206,12 @@ export async function POST(request: NextRequest) {
   return NextResponse.json({
     success: true,
     emailSent,
-    addedExistingMember: Boolean(existingUser),
-    data: await getWorkspaceMembers(context.workspaceId, context.role),
+    addedExistingMember,
+    data: await getWorkspaceMembers(
+      context.workspaceId,
+      context.role,
+      context.permissions
+    ),
   });
 }
 
@@ -180,9 +223,9 @@ export async function PATCH(request: NextRequest) {
       { status: 401 }
     );
   }
-  if (!canManageWorkspace(context.role)) {
+  if (!canGrantMemberPermissions(context)) {
     return NextResponse.json(
-      { success: false, error: "Only owners and admins can update roles" },
+      { success: false, error: "Only the owner can update permissions" },
       { status: 403 }
     );
   }
@@ -207,14 +250,20 @@ export async function PATCH(request: NextRequest) {
 
   await prisma.workspaceMember.update({
     where: { id: member.id },
-    data: { role: parsed.data.role },
+    data: { permissions: parsed.data.permissions },
   });
 
   invalidateMembersCache(context.workspaceId);
+  invalidateUserWorkspaces(member.userId);
+  invalidateWorkspaceContext(member.userId, context.workspaceId);
 
   return NextResponse.json({
     success: true,
-    data: await getWorkspaceMembers(context.workspaceId, context.role),
+    data: await getWorkspaceMembers(
+      context.workspaceId,
+      context.role,
+      context.permissions
+    ),
   });
 }
 
@@ -248,22 +297,23 @@ export async function DELETE(request: NextRequest) {
 
     const isSelf = member.userId === context.userId;
     // Anyone can leave a workspace they belong to; removing someone else stays
-    // a manage action (owner/admin).
-    if (!isSelf && !canManageWorkspace(context.role)) {
+    // a delegated MANAGE_MEMBERS action.
+    if (!isSelf && !canManageMembers(context)) {
       return NextResponse.json(
-        { success: false, error: "Only owners and admins can remove members" },
+        { success: false, error: "You do not have permission to remove members" },
         { status: 403 }
       );
     }
 
     await prisma.workspaceMember.delete({ where: { id: member.id } });
     invalidateUserWorkspaces(member.userId);
+    invalidateWorkspaceContext(member.userId, context.workspaceId);
   }
 
   if (parsed.data.invitationId) {
-    if (!canManageWorkspace(context.role)) {
+    if (!canManageMembers(context)) {
       return NextResponse.json(
-        { success: false, error: "Only owners and admins can revoke invites" },
+        { success: false, error: "You do not have permission to revoke invites" },
         { status: 403 }
       );
     }
@@ -281,7 +331,11 @@ export async function DELETE(request: NextRequest) {
 
   const response = NextResponse.json({
     success: true,
-    data: await getWorkspaceMembers(context.workspaceId, context.role),
+    data: await getWorkspaceMembers(
+      context.workspaceId,
+      context.role,
+      context.permissions
+    ),
   });
 
   // Leaving the currently-active workspace: clear the selection so the next

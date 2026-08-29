@@ -1,4 +1,7 @@
-import type { WorkspaceRole } from "@/app/generated/prisma/client";
+import type {
+  WorkspacePermission,
+  WorkspaceRole,
+} from "@/app/generated/prisma/client";
 import { cacheLife, cacheTag, revalidateTag } from "next/cache";
 import { prisma } from "@/lib/db/client";
 import { buildInvitationUrl } from "@/lib/workspace-invitations";
@@ -25,6 +28,7 @@ export function invalidateMembersCache(workspaceId: string): void {
 export interface SettingsMember {
   id: string;
   role: WorkspaceRole;
+  permissions: WorkspacePermission[];
   createdAt: string;
   user: {
     id: string;
@@ -37,6 +41,7 @@ export interface SettingsInvitation {
   id: string;
   email: string;
   role: WorkspaceRole;
+  permissions: WorkspacePermission[];
   status: "PENDING" | "EXPIRED";
   inviteUrl: string;
   expiresAt: string;
@@ -44,13 +49,15 @@ export interface SettingsInvitation {
 
 export interface WorkspaceMembersPayload {
   currentUserRole: WorkspaceRole;
+  currentUserPermissions: WorkspacePermission[];
   members: SettingsMember[];
   invitations: SettingsInvitation[];
 }
 
 export async function getWorkspaceMembers(
   workspaceId: string,
-  currentUserRole: WorkspaceRole
+  currentUserRole: WorkspaceRole,
+  currentUserPermissions: WorkspacePermission[]
 ): Promise<WorkspaceMembersPayload> {
   "use cache";
   cacheLife({ stale: 300, revalidate: 300, expire: 3600 });
@@ -63,6 +70,7 @@ export async function getWorkspaceMembers(
       select: {
         id: true,
         role: true,
+        permissions: true,
         createdAt: true,
         user: {
           select: {
@@ -80,6 +88,7 @@ export async function getWorkspaceMembers(
         id: true,
         email: true,
         role: true,
+        permissions: true,
         status: true,
         token: true,
         expiresAt: true,
@@ -90,6 +99,7 @@ export async function getWorkspaceMembers(
 
   return {
     currentUserRole,
+    currentUserPermissions,
     members: members.map((member) => ({
       ...member,
       createdAt: member.createdAt.toISOString(),
@@ -98,6 +108,7 @@ export async function getWorkspaceMembers(
       id: invitation.id,
       email: invitation.email,
       role: invitation.role,
+      permissions: invitation.permissions,
       // The query above restricts to PENDING/EXPIRED, so the enum narrows safely.
       status: invitation.status as "PENDING" | "EXPIRED",
       inviteUrl: buildInvitationUrl(invitation.token),
