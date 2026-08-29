@@ -109,8 +109,8 @@ export default function Hero() {
             <Link
               href="/login"
               className={cn(
-                buttonVariants({ variant: "default", size: "lg" }),
-                "h-12 w-full justify-center rounded-full font-semibold sm:w-auto px-6 bg-linear-to-b from-primary to-lime-300 text-black border-2 border-primary/50 hover:opacity-90 hover:scale-101 btn-shadow2 dark:from-lime-400 dark:to-lime-300 dark:border-lime-400/40 dark:shadow-[0_12px_32px_rgba(132,204,22,0.22)]",
+                buttonVariants({ variant: "glow", size: "lg" }),
+                "rounded-full px-6 h-12",
               )}
             >
               Get Started{" "}
