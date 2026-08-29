@@ -23,6 +23,8 @@ const footerLinks = {
   ],
   Compare: [
     { label: "Manychat alternative", href: "/manychat-alternative" },
+    { label: "LinkDM alternative", href: "/linkdm-alternative" },
+    { label: "Chatfuel alternative", href: "/chatfuel-alternative" },
     {
       label: "DM automation agencies",
       href: "/instagram-dm-automation-agencies",
@@ -32,6 +34,19 @@ const footerLinks = {
       href: "/instagram-comment-to-dm-templates",
     },
     { label: "Comment link automation", href: "/comment-link-automation" },
+    { label: "Instagram Auto DM", href: "/instagram-auto-dm" },
+    {
+      label: "Keyword automation",
+      href: "/instagram-keyword-automation",
+    },
+    {
+      label: "Auto-reply comments",
+      href: "/auto-reply-instagram-comments",
+    },
+    {
+      label: "Lead magnet automation",
+      href: "/instagram-lead-magnet-automation",
+    },
   ],
 };
 
