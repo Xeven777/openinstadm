@@ -41,6 +41,13 @@ export class PermissionError extends MetaApiError {
   }
 }
 
+export class MessagingWindowClosedError extends MetaApiError {
+  constructor(message: string, fbTraceId?: string, subcode?: number) {
+    super(10, subcode ?? 2534022, fbTraceId, message);
+    this.name = "MessagingWindowClosedError";
+  }
+}
+
 interface GraphApiError {
   error: {
     message: string;
@@ -117,6 +124,20 @@ async function handleResponse<T>(response: Response): Promise<T> {
     const subcode = err?.error_subcode;
     const traceId = err?.fbtrace_id;
     const message = err?.message ?? "Unknown Meta API error";
+
+    // Instagram's 24-hour messaging window refusal is code 10 subcode 2534022
+    // with message "...outside of allowed window...". Treat it as a distinct
+    // error so callers can return 403 + a human explanation instead of 502.
+    if (
+      code === 10 &&
+      (subcode === 2534022 || /outside of allowed window/i.test(message))
+    ) {
+      throw new MessagingWindowClosedError(message, traceId, subcode);
+    }
+    // Fallback: some payloads omit the subcode but still carry the window text
+    if (/outside of allowed window/i.test(message)) {
+      throw new MessagingWindowClosedError(message, traceId, subcode);
+    }
 
     switch (code) {
       case 190:
@@ -332,14 +353,26 @@ export async function sendPrivateReplyWithLinkButton(
 
 /**
  * Send a plain-text direct message to a user by their Instagram-scoped ID.
- * Used to deliver the reveal message after a button postback.
+ * Used to deliver the reveal message after a button postback and for manual
+ * inbox replies.
+ *
+ * Pass `opts.tag = "HUMAN_AGENT"` to send outside the 24-hour Standard
+ * Messaging Window (up to 7 days) — requires the Human Agent feature to be
+ * approved in App Review. The tag must never be used for promotional content.
  */
 export async function sendDirectMessage(
   accessToken: string,
   instagramAccountId: string,
   userId: string,
-  message: string
+  message: string,
+  opts?: { tag?: string }
 ): Promise<{ recipient_id: string; message_id: string }> {
+  const body: Record<string, unknown> = {
+    recipient: { id: userId },
+    message: { text: message },
+  };
+  if (opts?.tag) body.tag = opts.tag;
+
   const response = await fetch(
     `${instagramGraphBase()}/${instagramAccountId}/messages`,
     {
@@ -348,10 +381,7 @@ export async function sendDirectMessage(
         "Content-Type": "application/json",
         Authorization: `Bearer ${accessToken}`,
       },
-      body: JSON.stringify({
-        recipient: { id: userId },
-        message: { text: message },
-      }),
+      body: JSON.stringify(body),
     }
   );
 
@@ -367,8 +397,24 @@ export async function sendDirectMessageWithLinkButton(
   instagramAccountId: string,
   userId: string,
   text: string,
-  buttons: LinkButton[]
+  buttons: LinkButton[],
+  opts?: { tag?: string }
 ): Promise<{ recipient_id: string; message_id: string }> {
+  const body: Record<string, unknown> = {
+    recipient: { id: userId },
+    message: {
+      attachment: {
+        type: "template",
+        payload: {
+          template_type: "button",
+          text: text.slice(0, 640),
+          buttons: toWebUrlButtons(buttons),
+        },
+      },
+    },
+  };
+  if (opts?.tag) body.tag = opts.tag;
+
   const response = await fetch(
     `${instagramGraphBase()}/${instagramAccountId}/messages`,
     {
@@ -377,19 +423,7 @@ export async function sendDirectMessageWithLinkButton(
         "Content-Type": "application/json",
         Authorization: `Bearer ${accessToken}`,
       },
-      body: JSON.stringify({
-        recipient: { id: userId },
-        message: {
-          attachment: {
-            type: "template",
-            payload: {
-              template_type: "button",
-              text: text.slice(0, 640),
-              buttons: toWebUrlButtons(buttons),
-            },
-          },
-        },
-      }),
+      body: JSON.stringify(body),
     }
   );
 

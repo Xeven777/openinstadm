@@ -110,13 +110,13 @@ async function LoginContent({ searchParams }: { searchParams: LoginSearchParams 
       </div>
 
       {/* Right panel — Testimonial / Brand */}
-      <div className="hidden lg:flex flex-1 items-center justify-center p-10 bg-black/40 border-l-2 relative overflow-hidden">
+      <div className="hidden lg:flex flex-1 items-center justify-center p-10 bg-lime-50 dark:bg-black/40 border-l-2 relative overflow-hidden">
         <FlickeringGrid
           className="absolute inset-0 z-0 mask-[radial-gradient(650px_circle_at_center,transparent,white)] pointer-events-none"
           squareSize={2}
           gridGap={6}
           color="#83BE3C"
-          maxOpacity={0.5}
+          maxOpacity={0.6}
           flickerChance={0.1}
         />
         <div className="w-full max-w-md">

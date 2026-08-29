@@ -139,7 +139,7 @@ export function sendDirectMessageApi(input: {
   instagramAccountId: string;
   recipientId: string;
   text: string;
-}): Promise<{ success: boolean; data: unknown; error?: string }> {
+}): Promise<{ success: boolean; data: unknown; error?: string; code?: string }> {
   return fetch("/api/instagram/conversations", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -147,7 +147,12 @@ export function sendDirectMessageApi(input: {
   }).then(async (res) => {
     const payload = await res.json();
     if (!payload.success) {
-      throw new Error(payload.error ?? "Failed to send message");
+      const err = new Error(payload.error ?? "Failed to send message");
+      // Preserve the server's machine-readable code (e.g. WINDOW_CLOSED) so
+      // the inbox UI can branch on it without parsing the human message.
+      if (payload.code) (err as Error & { code?: string }).code = payload.code;
+      if (payload.details) (err as Error & { details?: string }).details = payload.details;
+      throw err;
     }
     return payload;
   });

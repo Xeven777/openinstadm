@@ -5,6 +5,10 @@ import {
   getConversations,
   sendDirectMessage,
   MetaApiError,
+  MessagingWindowClosedError,
+  RateLimitError,
+  TokenExpiredError,
+  PermissionError,
 } from "@/lib/meta/client";
 import { decryptToken } from "@/lib/meta/oauth";
 
@@ -134,19 +138,112 @@ export async function POST(request: NextRequest) {
 
   try {
     const accessToken = decryptToken(account.accessToken);
-    const result = await sendDirectMessage(
-      accessToken,
-      account.instagramId,
-      body.recipientId,
-      text
-    );
-    return NextResponse.json({ success: true, data: result });
+    // Try normal send first. If the 24-hour Standard Messaging Window is
+    // closed, optionally retry with the HUMAN_AGENT tag (7-day window) when
+    // the feature is approved. Opt-in via ENABLE_HUMAN_AGENT_TAG=true so
+    // automated sends aren't accidentally flagged as promotional.
+    try {
+      const result = await sendDirectMessage(
+        accessToken,
+        account.instagramId,
+        body.recipientId,
+        text
+      );
+      return NextResponse.json({ success: true, data: result });
+    } catch (err) {
+      const isWindowClosed =
+        err instanceof MessagingWindowClosedError ||
+        (err instanceof MetaApiError &&
+          /outside of allowed window/i.test(err.message));
+      const humanAgentEnabled =
+        process.env.ENABLE_HUMAN_AGENT_TAG === "true";
+
+      if (isWindowClosed && humanAgentEnabled) {
+        try {
+          const retry = await sendDirectMessage(
+            accessToken,
+            account.instagramId,
+            body.recipientId,
+            text,
+            { tag: "HUMAN_AGENT" }
+          );
+          return NextResponse.json({ success: true, data: retry });
+        } catch (retryErr) {
+          // Fall through to the window-closed response below.
+          throw retryErr;
+        }
+      }
+      throw err;
+    }
   } catch (err) {
     console.error("[Conversations] Send error:", err);
-    // Surface Meta's own message — the common case is the 24-hour messaging
-    // window having closed, which the user needs to see explicitly.
-    const message =
-      err instanceof MetaApiError ? err.message : "Failed to send message";
-    return NextResponse.json({ success: false, error: message }, { status: 502 });
+
+    if (err instanceof MessagingWindowClosedError) {
+      return NextResponse.json(
+        {
+          success: false,
+          error:
+            "Instagram closed the 24-hour messaging window for this conversation — the person hasn't messaged you in the last 24 hours. Ask them to send a new message to reopen the window. If your app is approved for the Human Agent feature, set ENABLE_HUMAN_AGENT_TAG=true to extend this to 7 days.",
+          code: "WINDOW_CLOSED",
+          details: err.message,
+        },
+        { status: 403 }
+      );
+    }
+    if (err instanceof TokenExpiredError) {
+      return NextResponse.json(
+        { success: false, error: err.message, code: "TOKEN_EXPIRED" },
+        { status: 401 }
+      );
+    }
+    if (err instanceof RateLimitError) {
+      return NextResponse.json(
+        { success: false, error: err.message, code: "RATE_LIMITED" },
+        { status: 429 }
+      );
+    }
+    if (err instanceof PermissionError) {
+      return NextResponse.json(
+        { success: false, error: err.message, code: "PERMISSION_DENIED" },
+        { status: 403 }
+      );
+    }
+    if (err instanceof MetaApiError) {
+      // Fallback: detect window-closed by message even if it wasn't typed as
+      // MessagingWindowClosedError (e.g. mocked errors in tests).
+      if (/outside of allowed window/i.test(err.message)) {
+        return NextResponse.json(
+          {
+            success: false,
+            error:
+              "Instagram closed the 24-hour messaging window for this conversation — the person hasn't messaged you in the last 24 hours. Ask them to send a new message to reopen the window.",
+            code: "WINDOW_CLOSED",
+            details: err.message,
+          },
+          { status: 403 }
+        );
+      }
+      return NextResponse.json(
+        { success: false, error: err.message },
+        { status: 502 }
+      );
+    }
+    // Generic window text from non-MetaApiError throws (e.g. tests)
+    if (err instanceof Error && /outside of allowed window/i.test(err.message)) {
+      return NextResponse.json(
+        {
+          success: false,
+          error:
+            "Instagram closed the 24-hour messaging window for this conversation — the person hasn't messaged you in the last 24 hours. Ask them to send a new message to reopen the window.",
+          code: "WINDOW_CLOSED",
+          details: err.message,
+        },
+        { status: 403 }
+      );
+    }
+    return NextResponse.json(
+      { success: false, error: "Failed to send message" },
+      { status: 502 }
+    );
   }
 }
