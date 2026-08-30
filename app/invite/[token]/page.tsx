@@ -9,6 +9,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/db/client";
 import { cn } from "@/lib/utils";
 import { normalizeInvitationEmail } from "@/lib/workspace-invitations";
+import { WORKSPACE_PERMISSION_LABELS, type WorkspacePermission } from "@/lib/workspace-context";
 
 type InvitePageProps = {
   params: Promise<{ token: string }>;
@@ -50,12 +51,12 @@ function InviteShell({ children }: { children: React.ReactNode }) {
 
 function InviteHeading({
   workspaceName,
-  role,
   email,
+  permissions,
 }: {
   workspaceName: string;
-  role: string;
   email: string;
+  permissions?: string[];
 }) {
   return (
     <>
@@ -66,8 +67,16 @@ function InviteHeading({
         Join {workspaceName}
       </h1>
       <p className="text-sm leading-6 text-muted-foreground">
-        You were invited as {role.toLowerCase()} for {email}.
+        You were invited as a Member for {email}.
       </p>
+      {permissions && permissions.length > 0 && (
+        <p className="mt-2 text-sm leading-6 text-muted-foreground">
+          Access includes: {permissions
+            .map((permission) => WORKSPACE_PERMISSION_LABELS[permission as WorkspacePermission])
+            .filter(Boolean)
+            .join(", ")}.
+        </p>
+      )}
     </>
   );
 }
@@ -114,8 +123,8 @@ async function InviteContent({ params }: InvitePageProps) {
       <InviteShell>
         <InviteHeading
           workspaceName={workspaceName}
-          role={invitation.role}
           email={invitation.email}
+          permissions={invitation.permissions}
         />
         <p className="text-sm text-muted-foreground">
           You&apos;re already a member of {workspaceName}. Head to the
@@ -138,8 +147,8 @@ async function InviteContent({ params }: InvitePageProps) {
       <InviteShell>
         <InviteHeading
           workspaceName={workspaceName}
-          role={invitation.role}
           email={invitation.email}
+          permissions={invitation.permissions}
         />
         <p className="text-sm text-destructive">
           This invitation has expired. Ask the workspace owner to resend it
@@ -153,8 +162,8 @@ async function InviteContent({ params }: InvitePageProps) {
     <InviteShell>
       <InviteHeading
         workspaceName={workspaceName}
-        role={invitation.role}
         email={invitation.email}
+        permissions={invitation.permissions}
       />
       <div className="pt-1">
         <InvitationAcceptCard

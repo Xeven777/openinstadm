@@ -25,6 +25,7 @@ import { cn } from "@/lib/utils";
 import { queryKeys } from "@/lib/query/keys";
 import { fetchProfile, fetchPosts } from "@/lib/query/api";
 import type { CampaignListItem } from "@/lib/server/automations";
+import { canManageAutomations, useWorkspaceContext } from "@/lib/workspace-context";
 
 type Tab = "insights" | "preview";
 
@@ -34,6 +35,7 @@ interface CampaignDetailProps {
 
 export default function CampaignDetail({ campaign }: CampaignDetailProps) {
   const router = useRouter();
+  const canManage = canManageAutomations(useWorkspaceContext());
   const [tab, setTab] = useState<Tab>("insights");
   const [previewTab, setPreviewTab] = useState<PreviewTab>("dm");
   // Optimistic toggle, applied on top of the server prop so the badge flips
@@ -262,13 +264,13 @@ export default function CampaignDetail({ campaign }: CampaignDetailProps) {
             </TabsList>
           </Tabs>
           <div className="flex items-center gap-2">
-            <Link
+            {canManage && <Link
               href={`/campaigns/${campaign.id}/edit`}
               className={cn(buttonVariants({ variant: "outline", size: "sm" }))}
             >
               Edit
-            </Link>
-            <Button
+            </Link>}
+            {canManage && <Button
               onClick={() => void toggleActive()}
               disabled={toggleMutation.isPending}
               variant={isActive ? "destructive" : "outline"}
@@ -279,9 +281,14 @@ export default function CampaignDetail({ campaign }: CampaignDetailProps) {
               }
             >
               {isActive ? "Stop" : "Resume"}
-            </Button>
+            </Button>}
           </div>
         </div>
+        {!canManage && (
+          <p className="text-sm text-muted-foreground">
+            You have view-only access to campaigns.
+          </p>
+        )}
 
         {tab === "insights" && (
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">

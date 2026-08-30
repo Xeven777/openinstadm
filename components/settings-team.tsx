@@ -22,14 +22,16 @@ import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
 import type { WorkspaceMembersPayload } from "@/lib/server/members";
+import {
+  WORKSPACE_PERMISSION_LABELS,
+  type WorkspacePermission,
+} from "@/lib/workspace-context";
 
-const PERMISSIONS = [
-  { value: "MANAGE_AUTOMATIONS", label: "Manage automations" },
-  { value: "MANAGE_INSTAGRAM_ACCOUNTS", label: "Manage Instagram accounts" },
-  { value: "MANAGE_MEMBERS", label: "Manage team" },
-] as const;
+const PERMISSIONS = (Object.keys(WORKSPACE_PERMISSION_LABELS) as WorkspacePermission[]).map(
+  (value) => ({ value, label: WORKSPACE_PERMISSION_LABELS[value] }),
+);
 
-type MemberPermission = (typeof PERMISSIONS)[number]["value"];
+type MemberPermission = WorkspacePermission;
 
 function memberName(name: string | null, email: string | null): string {
   return name || email || "This member";
@@ -262,6 +264,23 @@ export default function SettingsTeam({
         </div>
 
         <Separator />
+
+        {members.currentUserRole !== "OWNER" && (
+          <div className="rounded-lg border border-border bg-muted/40 px-3 py-2.5">
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              Your access
+            </p>
+            <p className="mt-1 text-sm text-foreground">
+              {members.currentUserPermissions.length === 0
+                ? "Standard member access"
+                : members.currentUserPermissions
+                    .map((permission) => WORKSPACE_PERMISSION_LABELS[permission as WorkspacePermission])
+                    .join(" · ")}
+            </p>
+          </div>
+        )}
+
+        {members.currentUserRole !== "OWNER" && <Separator />}
 
         <div className="space-y-1">
           {members.members.map((member) => {

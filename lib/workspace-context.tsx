@@ -19,6 +19,37 @@ export interface WorkspaceContextValue {
   permissions: string[];
 }
 
+export const WORKSPACE_PERMISSION_LABELS = {
+  MANAGE_AUTOMATIONS: "Manage automations",
+  MANAGE_INSTAGRAM_ACCOUNTS: "Manage Instagram accounts",
+  MANAGE_MEMBERS: "Manage team",
+} as const;
+
+export type WorkspacePermission = keyof typeof WORKSPACE_PERMISSION_LABELS;
+
+export function isOwner(context: WorkspaceContextValue | null | undefined) {
+  return context?.role === "OWNER";
+}
+
+function hasPermission(
+  context: WorkspaceContextValue | null | undefined,
+  permission: WorkspacePermission,
+) {
+  return Boolean(isOwner(context) || context?.permissions.includes(permission));
+}
+
+export function canManageAutomations(context: WorkspaceContextValue | null | undefined) {
+  return hasPermission(context, "MANAGE_AUTOMATIONS");
+}
+
+export function canManageInstagramAccounts(context: WorkspaceContextValue | null | undefined) {
+  return hasPermission(context, "MANAGE_INSTAGRAM_ACCOUNTS");
+}
+
+export function canManageMembers(context: WorkspaceContextValue | null | undefined) {
+  return hasPermission(context, "MANAGE_MEMBERS");
+}
+
 const WorkspaceContext = createContext<WorkspaceContextValue | null>(null);
 
 export function WorkspaceProvider({

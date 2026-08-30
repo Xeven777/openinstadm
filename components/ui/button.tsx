@@ -45,11 +45,15 @@ function Button({
   className,
   variant = "default",
   size = "default",
+  render,
   ...props
 }: ButtonPrimitive.Props & VariantProps<typeof buttonVariants>) {
+  const isNativeButton = !render || (render as React.ReactElement).type === "button";
   return (
     <ButtonPrimitive
       data-slot="button"
+      nativeButton={isNativeButton} // 3. Dynamically set nativeButton
+      render={render}
       className={cn(buttonVariants({ variant, size, className }))}
       {...props}
     />
