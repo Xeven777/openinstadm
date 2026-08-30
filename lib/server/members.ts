@@ -63,6 +63,11 @@ export async function getWorkspaceMembers(
   cacheLife({ stale: 300, revalidate: 300, expire: 3600 });
   cacheTag(`members:${workspaceId}`);
 
+  const canManageMembers =
+    currentUserRole === "OWNER" ||
+    currentUserPermissions.includes("MANAGE_MEMBERS");
+  const canViewMemberPermissions = currentUserRole === "OWNER";
+
   const [members, invitations] = await Promise.all([
     prisma.workspaceMember.findMany({
       where: { workspaceId },
@@ -81,20 +86,24 @@ export async function getWorkspaceMembers(
         },
       },
     }),
-    prisma.workspaceInvitation.findMany({
-      where: { workspaceId, status: { in: ["PENDING", "EXPIRED"] } },
-      orderBy: { createdAt: "desc" },
-      select: {
-        id: true,
-        email: true,
-        role: true,
-        permissions: true,
-        status: true,
-        token: true,
-        expiresAt: true,
-        createdAt: true,
-      },
-    }),
+    // Invite links carry an authentication token. Only people who can manage
+    // the team may retrieve or share them.
+    canManageMembers
+      ? prisma.workspaceInvitation.findMany({
+          where: { workspaceId, status: { in: ["PENDING", "EXPIRED"] } },
+          orderBy: { createdAt: "desc" },
+          select: {
+            id: true,
+            email: true,
+            role: true,
+            permissions: true,
+            status: true,
+            token: true,
+            expiresAt: true,
+            createdAt: true,
+          },
+        })
+      : Promise.resolve([]),
   ]);
 
   return {
@@ -102,6 +111,10 @@ export async function getWorkspaceMembers(
     currentUserPermissions,
     members: members.map((member) => ({
       ...member,
+      // A plain member only needs their own permissions, which are already
+      // provided by currentUserPermissions. Do not disclose other members'
+      // delegated access in the team payload.
+      permissions: canViewMemberPermissions ? member.permissions : [],
       createdAt: member.createdAt.toISOString(),
     })),
     invitations: invitations.map((invitation) => ({
