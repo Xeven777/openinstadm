@@ -145,25 +145,33 @@ export async function POST(request: NextRequest) {
 
     // A delegated member must never overwrite permissions the owner assigned
     // to an existing workspace member.
-    if (!existingMembership) {
-      await prisma.workspaceMember.create({
-        data: {
-          workspaceId: context.workspaceId,
-          userId: existingUser.id,
-          role: "MEMBER",
-          permissions: parsed.data.permissions,
+    if (existingMembership) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "This user is already a member of the workspace",
         },
-      });
-      addedExistingMember = true;
-      invalidateUserWorkspaces(existingUser.id);
-      invalidateWorkspaceContext(existingUser.id, context.workspaceId);
-
-      emailSent = await sendMemberAddedEmail({
-        to: email,
-        workspaceName,
-        signInUrl,
-      });
+        { status: 409 },
+      );
     }
+
+    await prisma.workspaceMember.create({
+      data: {
+        workspaceId: context.workspaceId,
+        userId: existingUser.id,
+        role: "MEMBER",
+        permissions: parsed.data.permissions,
+      },
+    });
+    addedExistingMember = true;
+    invalidateUserWorkspaces(existingUser.id);
+    invalidateWorkspaceContext(existingUser.id, context.workspaceId);
+
+    emailSent = await sendMemberAddedEmail({
+      to: email,
+      workspaceName,
+      signInUrl,
+    });
   } else {
     const invitation = await prisma.workspaceInvitation.upsert({
       where: {

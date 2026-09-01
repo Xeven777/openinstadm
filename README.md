@@ -65,7 +65,7 @@ git clone https://github.com/xeven777/OpenInstaDM.git
 cd openinstadm
 npm install
 cp .env.example .env      # then fill in the values, see docs/setup.md
-docker-compose up -d      # starts Postgres and Redis
+docker compose -f infra/docker/docker-compose.yml up -d  # starts Postgres and Redis
 npm run db:migrate
 npm run dev               # web app on http://localhost:3000
 npm run worker            # in a second terminal, this sends the DMs

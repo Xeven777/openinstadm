@@ -93,6 +93,9 @@ export default function SettingsTeam({
         router.refresh();
       } else {
         setError(payload.error ?? "Could not invite member");
+        if (res.status === 409) {
+          gooeyToast.warning(payload.error ?? "This user is already a member");
+        }
       }
     } finally {
       setBusy(null);
