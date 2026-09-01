@@ -47,8 +47,7 @@ import {
   type OverviewResponse,
 } from "@/lib/server/overview";
 import { formatTimeAgo } from "@/lib/utils/time";
-import { getCurrentWorkspaceContext } from "@/lib/workspace-access";
-import { canManageInstagramAccounts } from "@/lib/workspace-context";
+import { canManageInstagramAccounts, getCurrentWorkspaceContext } from "@/lib/workspace-access";
 
 // Allow time for paginated media + per-post insight calls on larger accounts.
 export const maxDuration = 60;
