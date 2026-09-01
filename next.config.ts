@@ -1,7 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  allowedDevOrigins: ["tunnel.auradevs.co","d462-2401-4900-b6f7-a97b-5858-75b6-38ad-8a71.ngrok-free.app"],
+  allowedDevOrigins: ["tunnel.auradevs.co"],
   // Cache Components: enables `use cache`/`cacheLife` and Partial Prerendering.
   // With it, `dynamic`/`revalidate`/`fetchCache` segment configs are replaced
   // by the new caching model — data fetching is dynamic by default and the
