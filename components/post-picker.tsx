@@ -168,8 +168,7 @@ export default function PostPicker({
           variant="outline"
           size="icon-sm"
           onClick={() => void handleRefresh()}
-          disabled={refreshing}
-          aria-disabled={disabled}
+          disabled={disabled || refreshing}
           title="Refresh from Instagram"
           aria-label="Refresh from Instagram"
           className="shrink-0"
