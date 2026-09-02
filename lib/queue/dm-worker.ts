@@ -196,13 +196,22 @@ async function processComment(job: Job<ProcessCommentJob>): Promise<void> {
     commenterId,
     commenterName,
     mediaId,
+    originalMediaId,
   } = job.data;
   const requeueAttempt = job.data.requeueAttempt ?? 0;
 
   const automations = await prisma.automation.findMany({
     where: {
       // Match campaigns bound to this specific post, plus any-post campaigns.
-      OR: [{ postId: mediaId }, { matchAnyPost: true }],
+      // When the polling reconciler sweeps an ad copy, mediaId is the ad's id
+      // and originalMediaId is the post the campaign is bound to. Without the
+      // second clause the worker finds no campaign and drops the comment, so
+      // the sweep re-enqueues it every 5m and never delivers (DmLog stays empty).
+      OR: [
+        { postId: mediaId },
+        ...(originalMediaId ? [{ postId: originalMediaId } as const] : []),
+        { matchAnyPost: true },
+      ],
       isActive: true,
       instagramAccount: {
         instagramId: instagramAccountId,

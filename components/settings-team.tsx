@@ -26,7 +26,6 @@ import {
   WORKSPACE_PERMISSION_LABELS,
   type WorkspacePermission,
 } from "@/lib/workspace-context";
-import Image from "next/image";
 
 const PERMISSIONS = (Object.keys(WORKSPACE_PERMISSION_LABELS) as WorkspacePermission[]).map(
   (value) => ({ value, label: WORKSPACE_PERMISSION_LABELS[value] }),

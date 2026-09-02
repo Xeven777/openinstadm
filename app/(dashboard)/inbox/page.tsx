@@ -45,7 +45,7 @@ import {
 } from "@/lib/query/api";
 import { canManageInstagramAccounts, useWorkspaceContext } from "@/lib/workspace-context";
 
-const POLL_MS = 12_000;
+const POLL_MS = 20_000;
 // The seeded account is remembered in sessionStorage so a revisit can start on
 // the right account before the account list resolves.
 const SELECTED_ACCOUNT_KEY = "inbox:selectedAccount";
@@ -414,7 +414,7 @@ export default function InboxPage() {
                             height={36}
                             className="rounded-full"
                           />
-                          <div>
+                          <div className="min-w-0 flex-1">
                             <div className="flex items-baseline justify-between gap-2">
                               <span className="truncate text-sm font-medium text-foreground">
                                 @{c.contact.username ?? "unknown"}
