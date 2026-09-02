@@ -3,6 +3,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/db/client";
 import { invalidateMembersCache } from "@/lib/server/members";
 import { invalidateUserWorkspaces } from "@/lib/workspace";
+import { invalidateWorkspaceContext } from "@/lib/workspace-access";
 import {
   WORKSPACE_COOKIE,
   workspaceCookieOptions,
@@ -67,9 +68,12 @@ export async function POST(request: NextRequest) {
       create: {
         workspaceId: invitation.workspaceId,
         userId: session.user.id,
-        role: invitation.role,
+        role: "MEMBER",
+        permissions: invitation.permissions,
       },
-      update: { role: invitation.role },
+      // Do not let an older invite overwrite permissions the owner changed
+      // after the member was added to this workspace.
+      update: {},
     }),
     prisma.workspaceInvitation.update({
       where: { id: invitation.id },
@@ -79,6 +83,7 @@ export async function POST(request: NextRequest) {
 
   invalidateMembersCache(invitation.workspaceId);
   invalidateUserWorkspaces(session.user.id);
+  invalidateWorkspaceContext(session.user.id, invitation.workspaceId);
 
   // Land the invitee in the workspace they just joined — the dashboard layout
   // resolves the active workspace from this cookie.

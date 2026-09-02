@@ -12,7 +12,6 @@ const RESEND_API_URL = "https://api.resend.com/emails";
 export interface InviteEmailPayload {
   to: string;
   workspaceName: string;
-  role: "ADMIN" | "MEMBER";
   inviteUrl: string;
   invitedBy: string;
 }
@@ -20,7 +19,6 @@ export interface InviteEmailPayload {
 export interface MemberAddedEmailPayload {
   to: string;
   workspaceName: string;
-  role: "ADMIN" | "MEMBER";
   signInUrl: string;
 }
 
@@ -67,10 +65,6 @@ async function sendEmail(opts: {
   }
 }
 
-function roleLabel(role: "ADMIN" | "MEMBER"): string {
-  return role === "ADMIN" ? "admin" : "member";
-}
-
 /** Inline-styled HTML shell shared by both invite emails. */
 function emailShell(title: string, bodyHtml: string, cta: { label: string; url: string }) {
   return `
@@ -92,15 +86,14 @@ function emailShell(title: string, bodyHtml: string, cta: { label: string; url: 
 }
 
 export async function sendInviteEmail(payload: InviteEmailPayload): Promise<boolean> {
-  const role = roleLabel(payload.role);
   const subject = `You're invited to join ${payload.workspaceName} on OpenInstaDM`;
   const bodyHtml = `
     <p style="margin:0 0 12px;"><strong>${payload.invitedBy}</strong> invited you to join
-    <strong>${payload.workspaceName}</strong> as a <strong>${role}</strong>.</p>
+    <strong>${payload.workspaceName}</strong> as a <strong>member</strong>.</p>
     <p style="margin:0;">Accept the invite to start collaborating on Instagram
     comment-to-DM automations.</p>
   `;
-  const bodyText = `${payload.invitedBy} invited you to join ${payload.workspaceName} as a ${role} on OpenInstaDM.\n\nAccept the invite: ${payload.inviteUrl}`;
+  const bodyText = `${payload.invitedBy} invited you to join ${payload.workspaceName} as a member on OpenInstaDM.\n\nAccept the invite: ${payload.inviteUrl}`;
 
   return sendEmail({
     to: payload.to,
@@ -116,15 +109,14 @@ export async function sendInviteEmail(payload: InviteEmailPayload): Promise<bool
 export async function sendMemberAddedEmail(
   payload: MemberAddedEmailPayload
 ): Promise<boolean> {
-  const role = roleLabel(payload.role);
   const subject = `You've been added to ${payload.workspaceName} on OpenInstaDM`;
   const bodyHtml = `
     <p style="margin:0 0 12px;">You've been added to
-    <strong>${payload.workspaceName}</strong> as a <strong>${role}</strong>.</p>
+    <strong>${payload.workspaceName}</strong> as a <strong>member</strong>.</p>
     <p style="margin:0;">Sign in to start collaborating on Instagram
     comment-to-DM automations.</p>
   `;
-  const bodyText = `You've been added to ${payload.workspaceName} as a ${role} on OpenInstaDM.\n\nSign in: ${payload.signInUrl}`;
+  const bodyText = `You've been added to ${payload.workspaceName} as a member on OpenInstaDM.\n\nSign in: ${payload.signInUrl}`;
 
   return sendEmail({
     to: payload.to,

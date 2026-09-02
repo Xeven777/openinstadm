@@ -33,6 +33,7 @@ interface PostPickerProps {
     thumbUrl?: string,
     caption?: string
   ) => void;
+  disabled?: boolean;
 }
 
 export default function PostPicker({
@@ -40,6 +41,7 @@ export default function PostPicker({
   instagramAccountId,
   usedPostIds,
   onSelect,
+  disabled = false,
 }: PostPickerProps) {
   const [query, setQuery] = useState("");
   // Thumbnails render in pages of 10; "Show more" reveals the next page. The
@@ -153,6 +155,7 @@ export default function PostPicker({
           <Input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
+            disabled={disabled}
             placeholder="Search your posts by caption…"
             className="pl-9"
           />
@@ -165,7 +168,7 @@ export default function PostPicker({
           variant="outline"
           size="icon-sm"
           onClick={() => void handleRefresh()}
-          disabled={refreshing}
+          disabled={disabled || refreshing}
           title="Refresh from Instagram"
           aria-label="Refresh from Instagram"
           className="shrink-0"
@@ -206,6 +209,7 @@ export default function PostPicker({
                   onClick={() =>
                     onSelect(post.id, post.permalink, thumb, post.caption)
                   }
+                  disabled={disabled}
                   aria-pressed={isSelected}
                   title={isUsed ? `Already used by "${usedByName}"` : undefined}
                   className={cn(
@@ -252,6 +256,7 @@ export default function PostPicker({
               variant="outline"
               size="sm"
               onClick={() => setVisibleCount((c) => c + PAGE_SIZE)}
+              disabled={disabled}
               className="w-full"
             >
               Show {Math.min(PAGE_SIZE, matches.length - visibleCount)} more

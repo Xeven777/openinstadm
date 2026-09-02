@@ -612,15 +612,15 @@ REDIS_URL=rediss://user:password@your-upstash-host:6379`}
                   <TabsContent value="docker" className="space-y-3 pt-2">
                     <CodeBlock
                       lang="bash"
-                      code={`# uses docker-compose.yml in the repo root
-docker-compose up -d   # Postgres :5432 + Redis :6379`}
+                      code={`# run from the repository root
+docker compose -f infra/docker/docker-compose.yml up -d   # Postgres :5432 + Redis :6379`}
                     />
                     <div className="rounded-lg border border-border bg-muted/40 p-3">
                       <p className="text-xs font-semibold">Reset everything later</p>
                       <CodeBlock
                         lang="bash"
-                        code={`docker-compose down -v
-docker-compose up -d
+                        code={`docker compose -f infra/docker/docker-compose.yml down -v
+docker compose -f infra/docker/docker-compose.yml up -d
 npm run db:generate && npm run db:migrate`}
                         className="mt-2"
                       />

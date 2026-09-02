@@ -21,6 +21,7 @@ interface AccountSelectProps {
   onChange: (value: string) => void;
   includeAll?: boolean;
   label?: string;
+  disabled?: boolean;
 }
 
 export default function AccountSelect({
@@ -29,17 +30,19 @@ export default function AccountSelect({
   onChange,
   includeAll = true,
   label = "Instagram account",
+  disabled = false,
 }: AccountSelectProps) {
   return (
     <div className="flex flex-col gap-2 text-sm">
       <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
         {label}
       </span>
-      <Select
-        value={value}
+        <Select
+          value={value}
+          disabled={disabled}
         onValueChange={(next) => next != null && onChange(next)}
       >
-        <SelectTrigger className="min-w-52">
+        <SelectTrigger className="min-w-52" disabled={disabled}>
           <SelectValue placeholder="Select account" />
         </SelectTrigger>
         <SelectContent>

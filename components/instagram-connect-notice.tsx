@@ -28,7 +28,7 @@ const MESSAGES: Record<string, { tone: Tone; title: string; detail: string }> = 
     tone: "error",
     title: "Not permitted",
     detail:
-      "Only workspace owners and admins can connect an Instagram account.",
+      "Only workspace owners and members with Instagram account access can connect an Instagram account.",
   },
   already_connected: {
     tone: "warning",

@@ -9,7 +9,7 @@ import { getLongLivedToken, getUserInfo, subscribeInstagramAccountToWebhooks } f
 } from "@/lib/meta/oauth";
 import { invalidateSettingsCache } from "@/lib/server/settings";
 import { invalidateWorkspaceStats } from "@/lib/server/stats";
-import { canManageWorkspace } from "@/lib/workspace-access";
+import { canManageInstagramAccounts } from "@/lib/workspace-access";
 
 export async function GET(request: NextRequest) {
   const code = request.nextUrl.searchParams.get("code");
@@ -37,7 +37,7 @@ export async function GET(request: NextRequest) {
     },
   });
 
-  if (!membership || !canManageWorkspace(membership.role)) {
+  if (!membership || !canManageInstagramAccounts(membership)) {
     return NextResponse.redirect(`${baseUrl}/settings?instagram=forbidden`);
   }
 

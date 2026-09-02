@@ -13,7 +13,7 @@ Thanks for wanting to help. OpenInstaDM is public so the comment-to-DM engine is
 
 ```bash
 npm install
-docker-compose up -d
+docker compose -f infra/docker/docker-compose.yml up -d
 cp .env.example .env      # fill in the values, see docs/setup.md
 npm run db:generate
 npm run db:migrate

@@ -18,6 +18,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
 import type { InstagramAccountStat } from "@/lib/server/stats";
+import { canManageInstagramAccounts, useWorkspaceContext } from "@/lib/workspace-context";
 
 export default function SettingsAccounts({
   accounts,
@@ -27,6 +28,7 @@ export default function SettingsAccounts({
   const router = useRouter();
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const canManage = canManageInstagramAccounts(useWorkspaceContext());
 
   async function disconnectInstagram(instagramAccountId: string) {
     if (
@@ -125,33 +127,35 @@ export default function SettingsAccounts({
                   </Badge>
                 </div>
               </div>
-              <Button
-                variant="destructive"
-                size="sm"
-                onClick={() => void disconnectInstagram(account.id)}
-                disabled={busy === `disconnect:${account.id}`}
-              >
-                {busy === `disconnect:${account.id}`
-                  ? "Disconnecting..."
-                  : "Disconnect"}
-              </Button>
+              {canManage && (
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={() => void disconnectInstagram(account.id)}
+                  disabled={busy === `disconnect:${account.id}`}
+                >
+                  {busy === `disconnect:${account.id}`
+                    ? "Disconnecting..."
+                    : "Disconnect"}
+                </Button>
+              )}
             </div>
           ))}
         </div>
 
         <Separator />
 
-        <a
-          href="/api/instagram/connect"
-          className={cn(
-            buttonVariants({ variant: "default" }),
-            "bg-linear-to-tl w-fit from-fuchsia-500 via-red-600 to-orange-400 text-white ml-auto",
-          )}
-        >
-          {accounts.length > 0
-            ? "Connect another account"
-            : "Connect Instagram"}
-        </a>
+        {canManage && (
+          <a
+            href="/api/instagram/connect"
+            className={cn(
+              buttonVariants({ variant: "default" }),
+              "bg-linear-to-tl w-fit from-fuchsia-500 via-red-600 to-orange-400 text-white ml-auto",
+            )}
+          >
+            {accounts.length > 0 ? "Connect another account" : "Connect Instagram"}
+          </a>
+        )}
       </CardContent>
     </Card>
   );

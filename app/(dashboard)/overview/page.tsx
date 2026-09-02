@@ -47,7 +47,7 @@ import {
   type OverviewResponse,
 } from "@/lib/server/overview";
 import { formatTimeAgo } from "@/lib/utils/time";
-import { getCurrentWorkspaceContext } from "@/lib/workspace-access";
+import { canManageInstagramAccounts, getCurrentWorkspaceContext } from "@/lib/workspace-access";
 
 // Allow time for paginated media + per-post insight calls on larger accounts.
 export const maxDuration = 60;
@@ -137,12 +137,11 @@ async function OverviewContent({
             Connect an account to see reach, engagement and follower trends
             across your posts.
           </p>
-          <Link
-            href="/api/instagram/connect"
-            className={cn(buttonVariants({ variant: "default", size: "sm" }), "mt-2")}
-          >
-            Connect Instagram
-          </Link>
+          {canManageInstagramAccounts(context) && (
+            <Link href="/api/instagram/connect" className={cn(buttonVariants({ variant: "default", size: "sm" }), "mt-2")}>
+              Connect Instagram
+            </Link>
+          )}
         </CardContent>
       </Card>
     );

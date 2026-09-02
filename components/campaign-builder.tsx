@@ -38,6 +38,7 @@ import {
   IMPORT_ACCOUNT_KEY,
   type ImportRow,
 } from "@/lib/import-queue";
+import { canManageAutomations, useWorkspaceContext } from "@/lib/workspace-context";
 
 type TriggerScope = "specific" | "any" | "next";
 type MatchMode = "specific" | "any";
@@ -124,6 +125,7 @@ function Radio({
 
 export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderProps) {
   const router = useRouter();
+  const canManage = canManageAutomations(useWorkspaceContext());
 
   const [loading, setLoading] = useState(mode === "edit");
   const [notFound, setNotFound] = useState(false);
@@ -611,7 +613,7 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
           )}
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          {importQueue && (
+          {canManage && importQueue && (
             <Button
               type="button"
               variant="outline"
@@ -621,7 +623,7 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
               {importQueue.length > 1 ? "Skip" : "Skip & finish"}
             </Button>
           )}
-          {mode === "edit" &&
+          {canManage && mode === "edit" &&
             (isActive ? (
               <Button
                 type="button"
@@ -641,18 +643,24 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
                 Go Live
               </Button>
             ))}
-          <Button
+          {canManage && <Button
             type="button"
             onClick={() => handleSubmit(mode === "new" ? true : isActive)}
             disabled={saving}
           >
             {saving ? "Saving…" : mode === "new" ? "Go Live" : "Save changes"}
-          </Button>
+          </Button>}
         </div>
       </div>
 
+      {!canManage && (
+        <p className="text-sm text-muted-foreground">
+          You have view-only access to campaigns.
+        </p>
+      )}
+
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px] xl:gap-8">
-        <div className="space-y-5">
+        <fieldset disabled={!canManage} className="min-w-0 space-y-5">
           {error && (
             <Alert variant="destructive">
               <Warning weight="fill" />
@@ -678,6 +686,7 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
                 <AccountSelect
                   accounts={accounts}
                   value={selectedAccountId}
+                  disabled={!canManage}
                   onChange={(id) => {
                     setSelectedAccountId(id);
                     setPostId(null);
@@ -705,6 +714,7 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
                   selectedPostId={postId}
                   instagramAccountId={selectedAccountId}
                   usedPostIds={usedPosts}
+                  disabled={!canManage}
                   onSelect={handlePostSelect}
                 />
               </div>
@@ -1018,7 +1028,7 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
               )}
             </div>
           </Section>
-        </div>
+        </fieldset>
 
         <aside className="rounded-2xl border border-border bg-card p-4 shadow-xs sm:p-5 xl:sticky xl:top-6 xl:self-start">
           <div className="mb-5 flex items-start justify-between gap-3">

@@ -73,7 +73,11 @@ async function SettingsContent() {
 
   const [settings, members, user] = await Promise.all([
     getSettingsData(context.workspaceId),
-    getWorkspaceMembers(context.workspaceId, context.role),
+    getWorkspaceMembers(
+      context.workspaceId,
+      context.role,
+      context.permissions
+    ),
     prisma.user.findUnique({
       where: { id: context.userId },
       select: { name: true, email: true },

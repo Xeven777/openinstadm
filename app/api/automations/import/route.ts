@@ -7,7 +7,7 @@ import { invalidateCampaignsCache } from "@/lib/server/automations";
 import { invalidateWorkspaceStats } from "@/lib/server/stats";
 import { generateTrackedLinkSlug } from "@/lib/tracking/server";
 import {
-  canManageWorkspace,
+  canManageAutomations,
   getCurrentWorkspaceContext,
 } from "@/lib/workspace-access";
 
@@ -37,9 +37,9 @@ export async function POST(request: NextRequest) {
       { status: 401 }
     );
   }
-  if (!canManageWorkspace(context.role)) {
+  if (!canManageAutomations(context)) {
     return NextResponse.json(
-      { success: false, error: "Only owners and admins can import campaigns" },
+      { success: false, error: "You do not have permission to import campaigns" },
       { status: 403 }
     );
   }

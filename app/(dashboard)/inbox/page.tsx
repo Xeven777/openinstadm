@@ -43,6 +43,7 @@ import {
   sendDirectMessageApi,
   type ThreadMessage,
 } from "@/lib/query/api";
+import { canManageInstagramAccounts, useWorkspaceContext } from "@/lib/workspace-context";
 
 const POLL_MS = 12_000;
 // The seeded account is remembered in sessionStorage so a revisit can start on
@@ -94,6 +95,7 @@ function ThreadSkeleton() {
 
 export default function InboxPage() {
   const queryClient = useQueryClient();
+  const canManageAccounts = canManageInstagramAccounts(useWorkspaceContext());
   // Seed from the last-used account so a revisit can paint the cached
   // conversation list immediately, before the account list even loads.
   const [selectedAccountId, setSelectedAccountId] = useState(() => {
@@ -341,7 +343,7 @@ export default function InboxPage() {
             <p className="max-w-sm text-sm text-muted-foreground">
               Connect an account to read and reply to your direct messages.
             </p>
-            <Link
+            {canManageAccounts && <Link
               href="/api/instagram/connect"
               className={cn(
                 buttonVariants({ variant: "default", size: "sm" }),
@@ -349,7 +351,7 @@ export default function InboxPage() {
               )}
             >
               Connect Instagram
-            </Link>
+            </Link>}
           </div>
         ) : (
           <div className="grid h-full grid-cols-1 sm:grid-cols-[300px_1fr]">

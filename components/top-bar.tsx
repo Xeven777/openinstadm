@@ -8,6 +8,7 @@ import { SidebarTrigger } from "@/components/ui/sidebar";
 import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
 import { ModeToggle } from "./theme-toggle";
+import { canManageInstagramAccounts, useWorkspaceContext } from "@/lib/workspace-context";
 
 const pageTitles: Record<string, string> = {
   "/dashboard": "Dashboard",
@@ -33,6 +34,7 @@ export default function TopBar({
 }: TopBarProps) {
   const pathname = usePathname();
   const title = pageTitles[pathname] ?? "Dashboard";
+  const canManageAccounts = canManageInstagramAccounts(useWorkspaceContext());
 
   return (
     <header className="flex h-14 shrink-0 items-center gap-2 border-b bg-background px-4 transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-12 lg:px-4 sticky top-0 w-full">
@@ -57,7 +59,7 @@ export default function TopBar({
               ? `${instagramAccountCount} accounts`
               : `@${instagramUsername}`}
           </a>
-        ) : (
+        ) : canManageAccounts ? (
           <a
             href="/api/instagram/connect"
             className={cn(
@@ -68,7 +70,7 @@ export default function TopBar({
             <span className="sm:hidden">Connect</span>
             <span className="hidden sm:inline">Connect Instagram</span>
           </a>
-        )}
+        ) : null}
         <ModeToggle />
         <Button
           variant="ghost"
