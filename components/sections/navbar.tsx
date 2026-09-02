@@ -30,7 +30,7 @@ const Navbar = async () => {
   const stars = await getGitHubStars();
 
   return (
-    <header className="fixed w-11/12 top-2 z-40 border-b border-border/50 bg-background/80 backdrop-blur-xl rounded-full -translate-x-1/2 left-1/2">
+    <header className="fixed w-11/12 top-2 z-40 border-b border-border/50 bg-background/60 backdrop-blur-xl rounded-full -translate-x-1/2 left-1/2">
       <div className="mx-auto flex h-15 w-full max-w-8xl items-center justify-between px-5 sm:px-6 lg:px-8 rounded-full">
         <Link
           href="/"
@@ -44,7 +44,7 @@ const Navbar = async () => {
             height={32}
             className="size-8 transition-all duration-300 dark:invert-0 invert shimmer"
           />
-          <span className="text-lg font-bold tracking-tight text-foreground">
+          <span className="text-lg font-bold tracking-tight text-foreground hidden md:block">
             OpenInstaDM
           </span>
         </Link>
@@ -67,7 +67,10 @@ const Navbar = async () => {
           </a>
           <Link
             href="/login"
-            className={cn(buttonVariants({ variant: "default" }))}
+            className={cn(
+              buttonVariants({ variant: "glow" }),
+              "rounded-full h-10",
+            )}
           >
             Get started
           </Link>

@@ -8,7 +8,6 @@ const footerLinks = {
   Product: [
     { label: "Features", href: "/#features" },
     { label: "How it works", href: "/#how" },
-    { label: "Templates", href: "/templates" },
     { label: "Dashboard", href: "/login" },
   ],
   Resources: [
@@ -24,15 +23,36 @@ const footerLinks = {
   ],
   Compare: [
     { label: "Manychat alternative", href: "/manychat-alternative" },
-    { label: "DM automation agencies", href: "/instagram-dm-automation-agencies" },
-    { label: "Comment-to-DM templates", href: "/instagram-comment-to-dm-templates" },
+    { label: "LinkDM alternative", href: "/linkdm-alternative" },
+    { label: "Chatfuel alternative", href: "/chatfuel-alternative" },
+    {
+      label: "DM automation agencies",
+      href: "/instagram-dm-automation-agencies",
+    },
+    {
+      label: "Comment-to-DM templates",
+      href: "/instagram-comment-to-dm-templates",
+    },
     { label: "Comment link automation", href: "/comment-link-automation" },
+    { label: "Instagram Auto DM", href: "/instagram-auto-dm" },
+    {
+      label: "Keyword automation",
+      href: "/instagram-keyword-automation",
+    },
+    {
+      label: "Auto-reply comments",
+      href: "/auto-reply-instagram-comments",
+    },
+    {
+      label: "Lead magnet automation",
+      href: "/instagram-lead-magnet-automation",
+    },
   ],
 };
 
 export default function Footer() {
   return (
-    <footer className="border-t border-border bg-muted/30">
+    <footer className="border-t border-border relative">
       <div className="mx-auto max-w-8xl px-5 sm:px-6 lg:px-8">
         {/* Main footer grid */}
         <div className="grid grid-cols-2 gap-10 py-16 sm:grid-cols-3 lg:grid-cols-6 lg:gap-8">
@@ -106,6 +126,10 @@ export default function Footer() {
             />{" "}
             for the open-source community
           </p>
+        </div>
+
+        <div className="flex items-center justify-center font-bold tracking-[-9%] text-[clamp(3rem,18vw,18rem)] leading-none bg-clip-text text-transparent bg-linear-to-b from-foreground to-transparent absolute left-1/2 -translate-x-1/2 opacity-60 pointer-events-none">
+          OpenInstaDM
         </div>
       </div>
     </footer>

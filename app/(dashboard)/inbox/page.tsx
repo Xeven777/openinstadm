@@ -50,11 +50,16 @@ const POLL_MS = 12_000;
 // the right account before the account list resolves.
 const SELECTED_ACCOUNT_KEY = "inbox:selectedAccount";
 
-function formatTime(iso: string | null): string {
+function formatTime(iso: string | null, nowMs: number | null): string {
   if (!iso) return "";
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return "";
-  const now = new Date();
+  // nowMs comes from state (effect) so this function stays pure during render.
+  // Fallback to date-only when now is not yet available (first render).
+  if (nowMs == null) {
+    return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+  }
+  const now = new Date(nowMs);
   const sameDay = d.toDateString() === now.toDateString();
   return sameDay
     ? d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })
@@ -103,6 +108,17 @@ export default function InboxPage() {
   const [sendError, setSendError] = useState<string | null>(null);
 
   const scrollRef = useRef<HTMLDivElement>(null);
+  // Wall-clock for 24-hour window + "same day" labels. Kept in state so
+  // render stays pure (cacheComponents rule forbids Date.now()/new Date() in
+  // render). Updated once a minute so the "window expired" label flips
+  // without a full refetch.
+  const [nowMs, setNowMs] = useState<number | null>(null);
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- intentional: seed clock after mount so render is pure
+    setNowMs(Date.now());
+    const id = setInterval(() => setNowMs(Date.now()), 60_000);
+    return () => clearInterval(id);
+  }, []);
   // Always-latest selection/thread, so async mutation callbacks can tell where
   // to restore/roll back even if the user switched mid-flight.
   const activeIdRef = useRef<string | null>(null);
@@ -159,7 +175,9 @@ export default function InboxPage() {
   });
   const conversations = conversationsQuery.data ?? [];
   const convLoading = conversationsQuery.isPending;
-  const convError = conversationsQuery.error ? conversationsQuery.error.message : null;
+  const convError = conversationsQuery.error
+    ? conversationsQuery.error.message
+    : null;
 
   const messagesQuery = useQuery({
     queryKey: queryKeys.messages(selectedAccountId, activeId ?? ""),
@@ -168,10 +186,45 @@ export default function InboxPage() {
     enabled: Boolean(selectedAccountId && activeId),
     refetchInterval: POLL_MS,
   });
-  const messages = useMemo(() => messagesQuery.data ?? [], [messagesQuery.data]);
+  const messages = useMemo(
+    () => messagesQuery.data ?? [],
+    [messagesQuery.data],
+  );
   const threadLoading = messagesQuery.isPending;
 
   const openConversation = conversations.find((c) => c.id === activeId) ?? null;
+
+  // Instagram's Standard Messaging Window: 24 hours from the user's last
+  // inbound message. We derive the last inbound time from the loaded thread;
+  // fallback to the conversation's updated_time (proxy for last activity).
+  // Uses nowMs from state so the memo stays pure for cacheComponents.
+  const windowInfo = useMemo(() => {
+    if (!openConversation) return null;
+    let lastInboundIso: string | null = null;
+    for (let i = messages.length - 1; i >= 0; i--) {
+      if (!messages[i].fromMe && messages[i].createdTime) {
+        lastInboundIso = messages[i].createdTime;
+        break;
+      }
+    }
+    const iso = lastInboundIso ?? openConversation.updatedTime;
+    if (!iso) return { closed: false as const, unknown: true as const };
+    const t = Date.parse(iso);
+    if (Number.isNaN(t))
+      return { closed: false as const, unknown: true as const };
+    if (nowMs == null)
+      return { closed: false as const, unknown: true as const };
+    const elapsedMs = nowMs - t;
+    const closed = elapsedMs > 24 * 60 * 60 * 1000;
+    const hoursLeft = Math.max(0, 24 - elapsedMs / 3600000);
+    return { closed, unknown: false as const, iso, elapsedMs, hoursLeft };
+  }, [messages, openConversation, nowMs]);
+
+  const isWindowClosed = windowInfo && !windowInfo.unknown && windowInfo.closed;
+  const windowWarning = useMemo(() => {
+    if (!isWindowClosed) return null;
+    return "Instagram's 24-hour window is closed — this person hasn't messaged you in the last 24 hours, so Meta will reject the send. Ask them to send a new message to reopen it (or enable the 7-day Human Agent tag after App Review).";
+  }, [isWindowClosed]);
 
   // Keep the thread pinned to the latest message.
   useEffect(() => {
@@ -189,6 +242,7 @@ export default function InboxPage() {
       const key = queryKeys.messages(selectedAccountId, activeId ?? "");
       await queryClient.cancelQueries({ queryKey: key });
       // Optimistically show the reply immediately, then confirm with the server.
+      // Date calls are inside an event handler (mutation), not render.
       const optimistic: ThreadMessage = {
         id: `optimistic-${Date.now()}`,
         text,
@@ -210,8 +264,13 @@ export default function InboxPage() {
         });
       }
       setDraft(vars.text);
-      setSendError(err instanceof Error ? err.message : "Failed to send message");
-      gooeyToast.error("Message not sent");
+      const msg = err instanceof Error ? err.message : "Failed to send message";
+      setSendError(msg);
+      if (/24-hour|WINDOW_CLOSED|outside of allowed window/i.test(msg)) {
+        gooeyToast.error("Window closed — they need to message you again");
+      } else {
+        gooeyToast.error("Message not sent");
+      }
     },
     onSuccess: () => {
       gooeyToast.success("Message sent");
@@ -231,7 +290,8 @@ export default function InboxPage() {
 
   async function handleSend() {
     const text = draft.trim();
-    if (!text || !openConversation?.contact.id || sendMutation.isPending) return;
+    if (!text || !openConversation?.contact.id || sendMutation.isPending)
+      return;
     setSendError(null);
     setDraft("");
     await sendMutation.mutateAsync({
@@ -295,9 +355,6 @@ export default function InboxPage() {
           </div>
         ) : (
           <div className="grid h-full grid-cols-1 sm:grid-cols-[300px_1fr]">
-            {/* Conversation list. On mobile it takes the full pane and is hidden
-                once a thread is open (ManyChat-style); on sm+ it is always
-                shown. */}
             <div
               className={`min-h-0 flex-col border-b border-border sm:flex sm:border-b-0 sm:border-r ${
                 openConversation ? "hidden" : "flex"
@@ -316,7 +373,9 @@ export default function InboxPage() {
                 {convLoading ? (
                   <ConversationListSkeleton />
                 ) : convError ? (
-                  <p className="px-4 py-6 text-sm text-destructive">{convError}</p>
+                  <p className="px-4 py-6 text-sm text-destructive">
+                    {convError}
+                  </p>
                 ) : conversations.length === 0 ? (
                   <p className="px-4 py-6 text-sm text-muted-foreground">
                     No conversations yet.
@@ -361,7 +420,7 @@ export default function InboxPage() {
                                 @{c.contact.username ?? "unknown"}
                               </span>
                               <span className="shrink-0 text-[11px] text-muted-foreground">
-                                {formatTime(c.updatedTime)}
+                                {formatTime(c.updatedTime, nowMs)}
                               </span>
                             </div>
                             {c.lastMessage && (
@@ -382,7 +441,7 @@ export default function InboxPage() {
             {/* Thread. On mobile it is only shown once a conversation is open
                 and fills the pane; on sm+ it always sits beside the list. */}
             <div
-              className={`min-h-0 w-[70%] flex-col ${openConversation ? "flex" : "hidden sm:flex"}`}
+              className={`min-h-0 w-full flex-col ${openConversation ? "flex" : "hidden sm:flex"}`}
             >
               {!openConversation ? (
                 <div className="flex flex-1 items-center justify-center p-6 text-sm text-muted-foreground">
@@ -408,12 +467,14 @@ export default function InboxPage() {
 
                   <div
                     ref={scrollRef}
-                    className="min-h-0 flex-1 space-y-2 overflow-y-auto p-4"
+                    className="min-h-0 flex-1 space-y-2 overflow-y-auto p-4 max-w-50"
                   >
                     {threadLoading && messages.length === 0 ? (
                       <ThreadSkeleton />
                     ) : messages.length === 0 ? (
-                      <p className="text-sm text-muted-foreground">No messages.</p>
+                      <p className="text-sm text-muted-foreground">
+                        No messages.
+                      </p>
                     ) : (
                       messages.map((m) => (
                         <div
@@ -438,7 +499,7 @@ export default function InboxPage() {
                                   : "text-muted-foreground"
                               }`}
                             >
-                              {formatTime(m.createdTime)}
+                              {formatTime(m.createdTime, nowMs)}
                             </p>
                           </div>
                         </div>
@@ -447,8 +508,15 @@ export default function InboxPage() {
                   </div>
 
                   <div className="shrink-0 border-t border-border p-3">
+                    {isWindowClosed && (
+                      <div className="mb-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-200">
+                        {windowWarning}
+                      </div>
+                    )}
                     {sendError && (
-                      <p className="mb-2 text-xs text-destructive">{sendError}</p>
+                      <p className="mb-2 text-xs text-destructive">
+                        {sendError}
+                      </p>
                     )}
                     <div className="flex items-end gap-2">
                       <Textarea
@@ -456,13 +524,22 @@ export default function InboxPage() {
                         onChange={(e) => setDraft(e.target.value)}
                         onKeyDown={handleKeyDown}
                         rows={1}
-                        placeholder="Write a reply…  (Enter to send, Shift+Enter for a new line)"
+                        placeholder={
+                          isWindowClosed
+                            ? "Window closed — ask them to message again to reopen…"
+                            : "Write a reply…  (Enter to send, Shift+Enter for a new line)"
+                        }
                         className="max-h-32 min-h-10 flex-1 resize-none rounded-lg bg-muted dark:bg-input/30"
                       />
                       <Button
                         type="button"
                         onClick={() => void handleSend()}
                         disabled={sending || !draft.trim()}
+                        title={
+                          isWindowClosed
+                            ? "Instagram will reject this until the person messages again (24h window closed)"
+                            : undefined
+                        }
                         className="shrink-0"
                       >
                         {sending ? (
@@ -479,6 +556,14 @@ export default function InboxPage() {
                         )}
                       </Button>
                     </div>
+                    {isWindowClosed && windowInfo && !windowInfo.unknown && (
+                      <p className="mt-1.5 text-[11px] text-muted-foreground">
+                        Last inbound: {formatTime(windowInfo.iso, nowMs)} ·{" "}
+                        {windowInfo.hoursLeft < 1
+                          ? "window expired"
+                          : `${windowInfo.hoursLeft.toFixed(1)}h left`}
+                      </p>
+                    )}
                   </div>
                 </>
               )}

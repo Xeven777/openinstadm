@@ -1,6 +1,4 @@
 import type { ReactNode } from "react";
-import Link from "next/link";
-import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import Hero from "@/components/sections/hero";
@@ -8,8 +6,7 @@ import Navbar from "@/components/sections/navbar";
 import FeaturesSection from "@/components/sections/features";
 import HowWorks from "@/components/sections/how-works";
 import Footer from "@/components/sections/footer";
-
-const GITHUB_URL = "https://github.com/xeven777/OpenInstaDM";
+import Cta from "@/components/sections/Cta";
 
 function AppWindow({
   label,
@@ -180,51 +177,9 @@ export default async function Home() {
         </div>
       </section>
 
-      {/* ─── CTA ─── */}
-      <section className="border-t border-border">
-        <div className="mx-auto w-full max-w-8xl px-5 py-24 sm:px-6 lg:px-8">
-          <div className="relative overflow-hidden rounded-2xl border border-border bg-background p-8 sm:p-12 lg:p-16">
-            <div className="hero-glow absolute inset-0 pointer-events-none opacity-50" />
-            <div className="relative grid gap-8 lg:grid-cols-[1fr_auto] lg:items-center">
-              <div>
-                <h2 className="max-w-2xl text-4xl font-bold leading-tight tracking-tighter text-foreground sm:text-5xl">
-                  Turn your next reel&rsquo;s
-                  <br />
-                  comments into DMs
-                </h2>
-                <p className="mt-5 max-w-lg text-base text-muted-foreground">
-                  Free and open source. Star it if it saves you a subscription.
-                </p>
-              </div>
-              <div className="flex w-full flex-col gap-3 sm:flex-row lg:w-auto lg:flex-col">
-                <Link
-                  href="/login"
-                  className={cn(
-                    buttonVariants({ variant: "default", size: "lg" }),
-                    "w-full justify-center px-7 sm:w-auto",
-                  )}
-                >
-                  Get started free
-                </Link>
-                <a
-                  href={GITHUB_URL}
-                  target="_blank"
-                  rel="noreferrer"
-                  className={cn(
-                    buttonVariants({ variant: "outline", size: "lg" }),
-                    "w-full justify-center px-7 sm:w-auto",
-                  )}
-                >
-                  View on GitHub
-                </a>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
+      <Cta />
 
       <Footer />
     </main>
   );
 }
-
