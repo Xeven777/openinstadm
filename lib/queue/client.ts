@@ -30,8 +30,8 @@ export interface ProcessCommentJob {
   commenterName?: string;
   mediaId: string;
   requeueAttempt?: number;
-  // Which path enqueued this comment. Recorded in the shared ProcessedComment
-  // dedup store so the reconciler can tell webhook- from polling-caught comments.
+  // Which path enqueued this comment. Available to the worker while it handles
+  // the job, but not persisted after processing.
   source?: CommentSource;
   // When the polling reconciler sweeps an ad copy of a post, mediaId is the
   // ad's media id and originalMediaId is the post the campaign is bound to.
