@@ -26,6 +26,7 @@ import {
   WORKSPACE_PERMISSION_LABELS,
   type WorkspacePermission,
 } from "@/lib/workspace-context";
+import Image from "next/image";
 
 const PERMISSIONS = (Object.keys(WORKSPACE_PERMISSION_LABELS) as WorkspacePermission[]).map(
   (value) => ({ value, label: WORKSPACE_PERMISSION_LABELS[value] }),
@@ -239,21 +240,6 @@ export default function SettingsTeam({
     }
   }
 
-  function getInitials(name: string | null, email: string | null): string {
-    if (name) {
-      return name
-        .split(/\s+/)
-        .map((w) => w[0])
-        .join("")
-        .toUpperCase()
-        .slice(0, 2);
-    }
-    if (email) {
-      return email.slice(0, 2).toUpperCase();
-    }
-    return "??";
-  }
-
   return (
     <Card>
       <CardContent className="gap-4">
@@ -296,12 +282,24 @@ export default function SettingsTeam({
                 className="flex flex-wrap items-center gap-3 rounded-lg px-3 py-2.5 transition-colors hover:bg-muted/50"
               >
                 <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary">
-                  {getInitials(member.user.name, member.user.email)}
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={
+                      "https://api.dicebear.com/10.x/thumbs/svg?seed=" +
+                      member.user.id
+                    }
+                    alt={member.user.name ?? member.user.email ?? "M"}
+                    width={36}
+                    height={36}
+                    className="rounded-full"
+                  />
                 </div>
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-medium text-foreground">
                     {member.user.name ?? member.user.email}
-                    {isSelf && <span className="text-muted-foreground"> (you)</span>}
+                    {isSelf && (
+                      <span className="text-muted-foreground"> (you)</span>
+                    )}
                   </p>
                   <p className="truncate text-sm text-muted-foreground">
                     {member.user.email}
@@ -322,7 +320,7 @@ export default function SettingsTeam({
                           onClick={() =>
                             void removeMember(
                               member.id,
-                              memberName(member.user.name, member.user.email)
+                              memberName(member.user.name, member.user.email),
                             )
                           }
                           disabled={busy === `member:${member.id}`}
@@ -348,9 +346,9 @@ export default function SettingsTeam({
                           window.setTimeout(
                             () =>
                               setConfirmRemoveId((cur) =>
-                                cur === member.id ? null : cur
+                                cur === member.id ? null : cur,
                               ),
-                            4000
+                            4000,
                           );
                         }}
                         aria-label={`Remove ${member.user.email ?? member.user.name ?? "member"}`}
@@ -375,15 +373,17 @@ export default function SettingsTeam({
                         >
                           <Switch
                             size="sm"
-                            checked={member.permissions.includes(permission.value)}
+                            checked={member.permissions.includes(
+                              permission.value,
+                            )}
                             onCheckedChange={(checked) =>
                               void updatePermissions(
                                 member.id,
                                 togglePermission(
                                   member.permissions,
                                   permission.value,
-                                  checked
-                                )
+                                  checked,
+                                ),
                               )
                             }
                             disabled={busy === `permissions:${member.id}`}
@@ -396,8 +396,9 @@ export default function SettingsTeam({
                   </div>
                 )}
 
-                {isSelf && !isOwner && (
-                  confirmLeave ? (
+                {isSelf &&
+                  !isOwner &&
+                  (confirmLeave ? (
                     <div className="flex items-center gap-2">
                       <Button
                         type="button"
@@ -428,8 +429,7 @@ export default function SettingsTeam({
                       <SignOut className="size-3.5" />
                       Leave workspace
                     </Button>
-                  )
-                )}
+                  ))}
               </div>
             );
           })}
