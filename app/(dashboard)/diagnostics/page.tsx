@@ -276,7 +276,7 @@ async function DiagnosticsSections() {
                 >
                   <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-1">
                     <p className="min-w-0 flex-1 truncate text-sm font-medium text-foreground">
-                      {item.automation.name}
+                      {item.automation?.name ?? "Auto-reply"}
                     </p>
                     <StatusBadge status={item.status} />
                   </div>

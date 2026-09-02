@@ -242,6 +242,7 @@ export async function POST(request: NextRequest) {
       // Build a map of userId → Set<automationId> for dedup.
       const scheduledByUser = new Map<string, Set<string>>();
       for (const log of openingLogs) {
+        if (!log.automation) continue;
         const userId = log.commenterId;
         const automationId = log.automation.id;
         const set = scheduledByUser.get(userId) ?? new Set();

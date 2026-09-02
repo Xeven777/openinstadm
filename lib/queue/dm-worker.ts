@@ -1015,6 +1015,7 @@ async function processMessage(job: Job<ProcessMessageJob>): Promise<void> {
   });
 
   const dedupeId = `dm:${messageId}`;
+  let matchedAny = false;
 
   for (const automation of automations) {
     const matchResult = automation.matchAnyWord
@@ -1026,6 +1027,7 @@ async function processMessage(job: Job<ProcessMessageJob>): Promise<void> {
         );
 
     if (!matchResult.matched) continue;
+    matchedAny = true;
 
     const existingLog = await prisma.dmLog.findUnique({
       where: {
@@ -1292,6 +1294,166 @@ async function processMessage(job: Job<ProcessMessageJob>): Promise<void> {
       throw error;
     }
   }
+
+  // Fallback auto-responder: plain-text DM when no campaign matched.
+  // Fires once per inbound message id, after all keyword checks fail.
+  if (!matchedAny) {
+    const account = await prisma.instagramAccount.findUnique({
+      where: { instagramId: instagramAccountId },
+      select: {
+        id: true,
+        workspaceId: true,
+        instagramId: true,
+        accessToken: true,
+        fallbackReplyEnabled: true,
+        fallbackReplyMessage: true,
+      },
+    });
+
+    const fallbackMessage = account?.fallbackReplyMessage?.trim() ?? "";
+    if (account?.fallbackReplyEnabled && fallbackMessage) {
+      const fallbackDedupeId = `dm:fallback:${messageId}`;
+
+      // Reuse a name captured earlier so {username} renders even for fallback.
+      const priorLog = await prisma.dmLog.findFirst({
+        where: { commenterId: senderId },
+        select: { commenterName: true },
+      });
+      const commenterName = priorLog?.commenterName ?? null;
+
+      if (!account.accessToken) {
+        await prisma.dmLog.create({
+          data: {
+            workspaceId: account.workspaceId,
+            automationId: null,
+            instagramAccountId: account.id,
+            commenterId: senderId,
+            commenterName,
+            commentText: messageText,
+            commentId: fallbackDedupeId,
+            status: "FAILED",
+            errorMessage: "No Instagram access token available",
+          },
+        });
+      } else {
+        let accessToken: string;
+        try {
+          accessToken = decryptToken(account.accessToken);
+        } catch {
+          await prisma.dmLog.create({
+            data: {
+              workspaceId: account.workspaceId,
+              automationId: null,
+              instagramAccountId: account.id,
+              commenterId: senderId,
+              commenterName,
+              commentText: messageText,
+              commentId: fallbackDedupeId,
+              status: "FAILED",
+              errorMessage: "Failed to decrypt Instagram access token",
+            },
+          });
+          return;
+        }
+
+        // Advisory lock + pending claim so concurrent workers don't double-send.
+        let canProceed = true;
+        try {
+          await prisma.$transaction(async (tx) => {
+            await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${fallbackDedupeId}))`;
+            const existing = await tx.dmLog.findFirst({
+              where: {
+                commentId: fallbackDedupeId,
+                instagramAccountId: account.id,
+              },
+              select: { status: true },
+            });
+            if (
+              existing?.status === "SENT" ||
+              existing?.status === "SKIPPED_PLAN_LIMIT" ||
+              existing?.status === "PENDING"
+            ) {
+              canProceed = false;
+              return;
+            }
+            await tx.dmLog.create({
+              data: {
+                workspaceId: account.workspaceId,
+                automationId: null,
+                instagramAccountId: account.id,
+                commenterId: senderId,
+                commenterName,
+                commentText: messageText,
+                commentId: fallbackDedupeId,
+                status: "PENDING",
+                attempts: job.attemptsMade + 1,
+              },
+            });
+          });
+        } catch (error) {
+          const isUniqueViolation =
+            typeof error === "object" &&
+            error !== null &&
+            "code" in error &&
+            (error as { code?: string }).code === "P2002";
+          if (isUniqueViolation) return;
+          throw error;
+        }
+        if (!canProceed) return;
+
+        const usage = await reserveWorkspaceDMSend(account.workspaceId);
+        if (!usage.allowed) {
+          await prisma.dmLog.updateMany({
+            where: {
+              commentId: fallbackDedupeId,
+              instagramAccountId: account.id,
+              workspaceId: account.workspaceId,
+            },
+            data: {
+              status: "SKIPPED_PLAN_LIMIT",
+              errorMessage: `Monthly DM limit reached (${usage.limit})`,
+            },
+          });
+          return;
+        }
+
+        try {
+          const rendered = renderMessageWithoutLink({
+            message: fallbackMessage,
+            commenterName,
+          });
+          await sendDirectMessage(accessToken, account.instagramId, senderId, rendered);
+          await prisma.dmLog.updateMany({
+            where: {
+              commentId: fallbackDedupeId,
+              instagramAccountId: account.id,
+              workspaceId: account.workspaceId,
+            },
+            data: {
+              status: "SENT",
+              dmSentAt: new Date(),
+              errorMessage: null,
+            },
+          });
+        } catch (error) {
+          await releaseWorkspaceDMReservation(account.workspaceId, usage.periodStart);
+          await prisma.dmLog.updateMany({
+            where: {
+              commentId: fallbackDedupeId,
+              instagramAccountId: account.id,
+              workspaceId: account.workspaceId,
+            },
+            data: {
+              status: "FAILED",
+              attempts: job.attemptsMade + 1,
+              errorMessage: formatError(error),
+            },
+          });
+          throw error;
+        }
+      }
+    }
+  }
 }
 
 async function processJob(job: Job<DmQueueJob>): Promise<void> {
@@ -1359,6 +1521,8 @@ export function createDMWorker(): Worker<DmQueueJob> {
     {
       connection: getRedisConnection(),
       concurrency: 5,
+      drainDelay: 10,
+      stalledInterval: 120000,
       settings: {
         backoffStrategy: (attemptsMade: number) =>
           BACKOFF_DELAYS[Math.min(attemptsMade - 1, BACKOFF_DELAYS.length - 1)],

@@ -26,7 +26,7 @@ export interface DmLogListItem {
   status: string;
   errorMessage: string | null;
   createdAt: string;
-  automation: { name: string; keywords: string[] };
+  automation: { name: string; keywords: string[] } | null;
   instagramAccount: { username: string };
 }
 

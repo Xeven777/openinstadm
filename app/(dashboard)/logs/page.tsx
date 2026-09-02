@@ -267,7 +267,7 @@ async function LogsContent({
                     <td className="px-4 py-3 sm:px-6">
                       <span className="inline-flex items-center gap-1.5 text-muted-foreground">
                         <Megaphone className="size-3.5 shrink-0" />
-                        {log.automation.name}
+                        {log.automation?.name ?? "Auto-reply"}
                       </span>
                     </td>
                     <td className="px-4 py-3 text-muted-foreground sm:px-6">

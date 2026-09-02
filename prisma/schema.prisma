@@ -116,16 +116,18 @@ model WorkspaceInvitation {
 }
 
 model InstagramAccount {
-  id                String    @id @default(cuid())
-  workspaceId       String
-  instagramId       String    @unique
-  username          String
-  name              String?
-  accessToken       String
-  tokenExpiresAt    DateTime?
-  webhookSubscribed Boolean   @default(false)
-  connectedAt       DateTime  @default(now())
-  updatedAt         DateTime  @updatedAt
+  id                     String    @id @default(cuid())
+  workspaceId            String
+  instagramId            String    @unique
+  username               String
+  name                   String?
+  accessToken            String
+  tokenExpiresAt         DateTime?
+  webhookSubscribed      Boolean   @default(false)
+  fallbackReplyEnabled   Boolean   @default(false)
+  fallbackReplyMessage   String?
+  connectedAt            DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
 
   workspace         Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   automations       Automation[]
@@ -233,9 +235,9 @@ model Automation {
 }
 
 model DmLog {
-  id                 String @id @default(cuid())
+  id                 String  @id @default(cuid())
   workspaceId        String
-  automationId       String
+  automationId       String?
   instagramAccountId String
 
   commenterId    String
@@ -243,8 +245,8 @@ model DmLog {
   commentText    String
   commentId      String
   matchedKeyword String?
-  status         DmStatus  @default(PENDING)
-  attempts       Int       @default(0)
+  status         DmStatus @default(PENDING)
+  attempts       Int      @default(0)
   dmSentAt       DateTime?
   errorMessage   String?
 
@@ -257,9 +259,9 @@ model DmLog {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  workspace        Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  automation       Automation       @relation(fields: [automationId], references: [id], onDelete: Cascade)
-  instagramAccount InstagramAccount @relation(fields: [instagramAccountId], references: [id], onDelete: Cascade)
+  workspace        Workspace         @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  automation       Automation?       @relation(fields: [automationId], references: [id], onDelete: Cascade)
+  instagramAccount InstagramAccount  @relation(fields: [instagramAccountId], references: [id], onDelete: Cascade)
 
   @@unique([automationId, commentId])
   @@index([workspaceId])
@@ -269,6 +271,7 @@ model DmLog {
   @@index([workspaceId, status, updatedAt])
   @@index([automationId])
   @@index([instagramAccountId])
+  @@index([instagramAccountId, commentId])
   @@index([status])
 }
 
