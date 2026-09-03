@@ -1,9 +1,9 @@
 /**
- * Custom Resend magic-link email template.
+ * Custom Resend magic-link email — modern SaaS edition.
  *
- * The default Auth.js template is functional but plain. This version matches
- * the OpenInstaDM brand: lime-green accent, Inter-style system font stack,
- * dark-mode-aware background, and a polished CTA button.
+ * Minimal, airy, and premium. Whitespaced card on a soft slate field,
+ * tight typography, near-black CTA, lime accent hairline.
+ * Fully table-based for Outlook/Gmail compatibility, inline-styled.
  *
  * Used by lib/auth.ts via `sendVerificationRequest`.
  */
@@ -16,7 +16,7 @@ export async function sendVerificationRequest(params: {
   provider: { apiKey?: string; from?: string };
   theme?: { brandColor?: string; buttonText?: string };
 }) {
-  const { identifier: to, provider, url, theme } = params;
+  const { identifier: to, provider, url } = params;
   const { host } = new URL(url);
 
   const apiKey = provider.apiKey;
@@ -26,10 +26,8 @@ export async function sendVerificationRequest(params: {
   }
 
   const from = provider.from ?? "OpenInstaDM <login@example.com>";
-  const brandColor = theme?.brandColor ?? "#5a8a0a";
-  const buttonText = theme?.buttonText ?? "#ffffff";
 
-  const html = buildHtml({ url, host, brandColor, buttonText });
+  const html = buildHtml({ url, host });
   const text = buildText({ url, host });
 
   const res = await fetch(RESEND_API_URL, {
@@ -47,89 +45,128 @@ export async function sendVerificationRequest(params: {
   }
 }
 
+function escapeHtml(s: string) {
+  return s
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;");
+}
 
-function buildHtml(params: {
-  url: string;
-  host: string;
-  brandColor: string;
-  buttonText: string;
-}) {
-  const { url, host, brandColor, buttonText } = params;
+function buildHtml(params: { url: string; host: string }) {
+  const { url, host } = params;
+  const safeHost = escapeHtml(host);
+  const safeUrl = escapeHtml(url);
 
-  return `
-<!DOCTYPE html>
+  return `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Sign in to ${host}</title>
+  <meta name="color-scheme" content="light only" />
+  <meta name="supported-color-schemes" content="light only" />
+  <title>Sign in to ${safeHost}</title>
+  <!--[if mso]><style>table{border-collapse:collapse;} a{text-decoration:none;}</style><![endif]-->
+  <style>
+    @media only screen and (max-width: 520px) {
+      .card-pad { padding: 28px 22px 32px !important; }
+      .outer-pad { padding: 24px 12px !important; }
+      .h1 { font-size: 20px !important; }
+    }
+  </style>
 </head>
-<body style="margin:0;padding:0;background-color:#f4f4f5;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
+<body style="margin:0;padding:0;background-color:#f8fafb;">
+  <!-- Preheader (hidden preview text) -->
+  <div style="display:none;max-height:0;overflow:hidden;opacity:0;visibility:hidden;mso-hide:all;">
+    Your secure sign-in link for ${safeHost} — expires in 24 hours.
+  </div>
 
-  <!-- Outer wrapper -->
-  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#f4f4f5;padding:48px 16px;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#f8fafb;">
     <tr>
-      <td align="center">
+      <td align="center" class="outer-pad" style="padding:40px 16px;">
 
         <!-- Card -->
-        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:480px;background-color:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 1px 3px 0 rgba(0,0,0,0.06),0 1px 2px -1px rgba(0,0,0,0.06);">
-
-          <!-- Green accent bar -->
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:480px;background-color:#ffffff;border:1px solid #e2e8f0;border-radius:16px;overflow:hidden;">
+          <!-- Lime hairline -->
           <tr>
-            <td style="height:4px;background:linear-gradient(90deg, #83BE3C 0%, #5a8a0a 100%);"></td>
+            <td style="height:3px;line-height:3px;background-color:#A2EA49;font-size:0;">&nbsp;</td>
           </tr>
-
-          <!-- Body -->
           <tr>
-            <td style="padding:40px 36px 48px;">
+            <td class="card-pad" style="padding:36px 32px 32px;">
 
-              <!-- Logo mark -->
-              <table role="presentation" cellpadding="0" cellspacing="0" style="margin-bottom:32px;">
+              <!-- Brand -->
+              <table role="presentation" cellpadding="0" cellspacing="0" style="margin-bottom:28px;">
                 <tr>
-                  <td style="background-color:${brandColor};width:36px;height:36px;border-radius:10px;text-align:center;vertical-align:middle;font-size:18px;font-weight:700;color:${buttonText};">
-                    O
+                  <td style="width:36px;height:36px;background-color:#0a0a0a;border-radius:10px;text-align:center;vertical-align:middle;">
+                    <span style="display:block;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:15px;font-weight:800;letter-spacing:-0.04em;color:#ffffff;line-height:36px;">O</span>
                   </td>
-                  <td style="padding-left:10px;font-size:16px;font-weight:700;color:#18181b;letter-spacing:-0.01em;">
-                    OpenInstaDM
+                  <td style="padding-left:10px;vertical-align:middle;">
+                    <span style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:13.5px;font-weight:700;letter-spacing:-0.02em;color:#0f172a;">OpenInstaDM</span>
+                    <span style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:11px;font-weight:500;letter-spacing:0.04em;color:#94a3b8;margin-left:8px;vertical-align:middle;">SIGN IN</span>
                   </td>
                 </tr>
               </table>
 
               <!-- Heading -->
-              <h1 style="margin:0 0 8px;font-size:22px;font-weight:700;color:#18181b;line-height:1.3;">
-                Sign in to ${host}
+              <h1 class="h1" style="margin:0 0 10px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:22px;font-weight:700;letter-spacing:-0.03em;line-height:1.25;color:#0f172a;">
+                Sign in to ${safeHost}
               </h1>
-              <p style="margin:0 0 28px;font-size:14px;line-height:1.65;color:#71717a;">
-                Click the button below to securely sign in to your account. This link expires in <strong>24 hours</strong>.
+              <p style="margin:0 0 24px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:14px;line-height:1.65;color:#64748b;">
+                Click the button below to securely sign in. This magic link expires in <span style="color:#0f172a;font-weight:600;">24 hours</span> and can only be used once.
               </p>
 
-              <!-- CTA button -->
-              <table role="presentation" cellpadding="0" cellspacing="0" style="margin-bottom:32px;">
+              <!-- CTA -->
+              <table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 0 20px;">
                 <tr>
-                  <td align="center" style="border-radius:10px;background-color:${brandColor};">
-                    <a href="${url}"
-                       target="_blank"
-                       style="display:inline-block;padding:12px 28px;font-size:15px;font-weight:600;color:${buttonText};text-decoration:none;letter-spacing:0.01em;">
-                      Sign in to your account &rarr;
+                  <td style="border-radius:10px;background-color:#0a0a0a;">
+                    <!--[if mso]>
+                    <v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" href="${safeUrl}" style="height:44px;v-text-anchor:middle;width:220px;" arcsize="22%" fillcolor="#0a0a0a" stroke="f">
+                      <center style="color:#ffffff;font-family:sans-serif;font-size:14px;font-weight:600;">Sign in to your account →</center>
+                    </v:roundrect>
+                    <![endif]-->
+                    <!--[if !mso]><!-->
+                    <a href="${safeUrl}" target="_blank" rel="noopener noreferrer"
+                       style="display:inline-block;padding:13px 26px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:14px;font-weight:600;letter-spacing:-0.01em;color:#ffffff;text-decoration:none;line-height:18px;">
+                      Sign in to your account&nbsp;&nbsp;→
                     </a>
+                    <!--<![endif]-->
+                  </td>
+                </tr>
+              </table>
+
+              <!-- Security note -->
+              <table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 0 24px;">
+                <tr>
+                  <td style="vertical-align:top;padding-top:2px;">
+                    <span style="display:inline-block;width:20px;height:20px;border-radius:9999px;background-color:#f1f5f9;text-align:center;line-height:20px;font-size:11px;">🔒</span>
+                  </td>
+                  <td style="padding-left:8px;">
+                    <p style="margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:12.5px;line-height:1.55;color:#94a3b8;">
+                      If you didn't request this email, you can safely ignore it. No account changes were made.
+                    </p>
                   </td>
                 </tr>
               </table>
 
               <!-- Divider -->
-              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:28px;">
-                <tr>
-                  <td style="border-top:1px solid #e4e4e7;"></td>
-                </tr>
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 18px;">
+                <tr><td style="height:1px;background-color:#f1f5f9;line-height:1px;font-size:0;">&nbsp;</td></tr>
               </table>
 
-              <!-- Fallback link -->
-              <p style="margin:0 0 6px;font-size:12px;line-height:1.6;color:#a1a1aa;">
-                If the button doesn't work, copy and paste this link into your browser:
+              <!-- Fallback -->
+              <p style="margin:0 0 8px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:11px;font-weight:600;letter-spacing:0.06em;text-transform:uppercase;color:#94a3b8;">
+                Button not working?
               </p>
-              <p style="margin:0;font-size:12px;line-height:1.6;word-break:break-all;">
-                <a href="${url}" style="color:${brandColor};text-decoration:underline;text-underline-offset:2px;">${url}</a>
+              <p style="margin:0 0 6px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:12px;line-height:1.6;color:#64748b;">
+                Copy and paste this link into your browser:
               </p>
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#f8fafb;border:1px solid #e2e8f0;border-radius:8px;">
+                <tr>
+                  <td style="padding:10px 12px;word-break:break-all;">
+                    <a href="${safeUrl}" target="_blank" rel="noopener noreferrer" style="font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,'Liberation Mono','Courier New',monospace;font-size:11px;line-height:1.6;color:#334155;text-decoration:none;word-break:break-all;">${safeUrl}</a>
+                  </td>
+                </tr>
+              </table>
 
             </td>
           </tr>
@@ -139,10 +176,12 @@ function buildHtml(params: {
         <!-- Footer -->
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:480px;">
           <tr>
-            <td style="padding:20px 8px 0;text-align:center;">
-              <p style="margin:0;font-size:11px;line-height:1.6;color:#a1a1aa;">
-                You received this email because someone tried to sign in to your OpenInstaDM account.
-                If you didn't request this, you can safely ignore this email.
+            <td style="padding:22px 8px 0;text-align:center;">
+              <p style="margin:0 0 6px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:11px;line-height:1.6;color:#94a3b8;">
+                Sent by <span style="color:#64748b;font-weight:600;">OpenInstaDM</span> — Instagram comment-to-DM automation
+              </p>
+              <p style="margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:11px;line-height:1.6;color:#cbd5e1;">
+                This is an automated message, please do not reply.
               </p>
             </td>
           </tr>
@@ -163,10 +202,12 @@ function buildText(params: { url: string; host: string }) {
   return [
     `Sign in to ${params.host}`,
     ``,
-    `Click the link below to sign in (valid for 24 hours):`,
+    `Click the link below to securely sign in (valid for 24 hours, single use):`,
     ``,
     params.url,
     ``,
-    `If you didn't request this, you can safely ignore this email.`,
+    `If you didn't request this email you can safely ignore it.`,
+    ``,
+    `— OpenInstaDM`,
   ].join("\n");
 }

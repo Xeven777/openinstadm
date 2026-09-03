@@ -114,7 +114,14 @@ export default function SettingsAccounts({
                     <span>
                       Expires{" "}
                       {account.tokenExpiresAt
-                        ? new Date(account.tokenExpiresAt).toLocaleDateString()
+                        ? new Date(account.tokenExpiresAt).toLocaleDateString(
+                            "en-IN",
+                            {
+                              year: "numeric",
+                              month: "short",
+                              day: "numeric",
+                            },
+                          )
                         : "unknown"}
                     </span>
                     <span aria-hidden="true">·</span>
@@ -163,7 +170,9 @@ export default function SettingsAccounts({
               "bg-linear-to-tl w-fit from-fuchsia-500 via-red-600 to-orange-400 text-white ml-auto",
             )}
           >
-            {accounts.length > 0 ? "Connect another account" : "Connect Instagram"}
+            {accounts.length > 0
+              ? "Connect another account"
+              : "Connect Instagram"}
           </a>
         )}
       </CardContent>
@@ -190,7 +199,6 @@ function FallbackReplyControl({
   // Keep local state in sync when server data refreshes (router.refresh).
   const serverEnabled = account.fallbackReplyEnabled;
   const serverMessage = account.fallbackReplyMessage ?? "";
-  // eslint-disable-next-line react-hooks/set-state-in-effect
   const [prevServerEnabled, setPrevServerEnabled] = useState(serverEnabled);
   const [prevServerMessage, setPrevServerMessage] = useState(serverMessage);
   if (serverEnabled !== prevServerEnabled || serverMessage !== prevServerMessage) {
