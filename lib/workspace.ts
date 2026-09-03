@@ -1,5 +1,5 @@
 import { cacheLife, cacheTag, revalidateTag } from "next/cache";
-import { prisma } from "@/lib/db/client";
+import { prisma, withDbRetry } from "@/lib/db/client";
 import { invalidateMembersCache } from "@/lib/server/members";
 import type {
   Workspace,
@@ -76,11 +76,13 @@ export async function getUserWorkspaces(userId: string): Promise<UserWorkspace[]
   cacheLife({ stale: 30, revalidate: 60, expire: 300 });
   cacheTag(`workspaces:${userId}`);
 
-  const memberships = await prisma.workspaceMember.findMany({
-    where: { userId },
-    include: { workspace: { select: { id: true, name: true } } },
-    orderBy: { createdAt: "asc" },
-  });
+  const memberships = await withDbRetry(() =>
+    prisma.workspaceMember.findMany({
+      where: { userId },
+      include: { workspace: { select: { id: true, name: true } } },
+      orderBy: { createdAt: "asc" },
+    }),
+  );
 
   return memberships.map((membership) => ({
     id: membership.workspaceId,

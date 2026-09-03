@@ -19,10 +19,18 @@ function createPrismaClient() {
   const poolMax = Number(process.env.DATABASE_POOL_MAX ?? (isWorker ? 3 : 10));
   const idleTimeoutMillis = Number(process.env.DATABASE_IDLE_TIMEOUT_MS ?? 10_000);
 
+  // Neon pooled compute suspends when idle — wake-up can take 5-15s. A 10s
+  // connection timeout fires before the compute is ready and surfaces as
+  // "Connection terminated due to connection timeout" from pg. 30s gives the
+  // cold start enough headroom while still failing fast on a real outage.
+  const connectionTimeoutMillis = Number(
+    process.env.DATABASE_CONNECTION_TIMEOUT_MS ?? 30_000,
+  );
+
   return new PrismaClient({
     adapter: new PrismaPg({
       connectionString: databaseUrl,
-      connectionTimeoutMillis: 10_000,
+      connectionTimeoutMillis,
       idleTimeoutMillis,
       // The dashboard stats aggregation fires ~16 queries in a single
       // Promise.all; a pool of 5 would queue them in 4 sequential waves and
@@ -46,3 +54,30 @@ export const prisma = new Proxy({} as PrismaClient, {
     return Reflect.get(getPrisma(), prop, receiver);
   },
 });
+
+export function isTransientDbError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return (
+    /Connection terminated due to connection timeout/i.test(message) ||
+    /connection timeout/i.test(message) ||
+    /Can't reach database server/i.test(message) ||
+    /connect ETIMEDOUT/i.test(message) ||
+    /ConnectionResetError/i.test(message)
+  );
+}
+
+export async function withDbRetry<T>(
+  fn: () => Promise<T>,
+  retries = 1,
+  delayMs = 800,
+): Promise<T> {
+  try {
+    return await fn();
+  } catch (error) {
+    if (retries > 0 && isTransientDbError(error)) {
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
+      return withDbRetry(fn, retries - 1, delayMs * 2);
+    }
+    throw error;
+  }
+}

@@ -25,6 +25,7 @@ function buildProviders(): NextAuthConfig["providers"] {
       Google({
         clientId: process.env.GOOGLE_CLIENT_ID!,
         clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
+        allowDangerousEmailAccountLinking: true,
         authorization: {
           params: {
             prompt: "consent",
@@ -40,6 +41,7 @@ function buildProviders(): NextAuthConfig["providers"] {
       GitHub({
         clientId: githubId!,
         clientSecret: githubSecret!,
+        allowDangerousEmailAccountLinking: true,
       })
     );
   }

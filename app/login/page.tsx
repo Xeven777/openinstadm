@@ -5,7 +5,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import Image from "next/image";
-import { ArrowRightIcon, StarIcon } from "@phosphor-icons/react/dist/ssr";
+import {
+  ArrowRightIcon,
+  StarIcon,
+  GithubLogoIcon,
+  GoogleLogoIcon,
+} from "@phosphor-icons/react/dist/ssr";
 import { FlickeringGrid } from "@/components/ui/flickering-grid";
 
 export const metadata = {
@@ -16,7 +21,56 @@ export const metadata = {
 type LoginSearchParams = Promise<{
   callbackUrl?: string;
   template?: string;
+  error?: string;
 }>;
+
+function getErrorMessage(
+  error: string,
+): { title: string; description: string } | null {
+  switch (error) {
+    case "OAuthAccountNotLinked":
+      return {
+        title: "Email already linked to another method",
+        description:
+          "This email is already registered with a different sign-in method (e.g. magic link or another OAuth provider). Sign in with the original method first, then you can link Google/GitHub from your account. Or contact support to merge accounts.",
+      };
+    case "OAuthCallback":
+    case "OAuthSignin":
+    case "OAuthCreateAccount":
+    case "Callback":
+      return {
+        title: "Sign-in failed",
+        description:
+          "The OAuth provider returned an error. Please try again or use another method.",
+      };
+    case "EmailSignin":
+    case "EmailCreateAccount":
+    case "Verification":
+      return {
+        title: "Magic link failed",
+        description:
+          "Could not send the magic link. Check your email address or try OAuth instead.",
+      };
+    case "AccessDenied":
+      return {
+        title: "Access denied",
+        description: "You don't have permission to sign in.",
+      };
+    case "Configuration":
+      return {
+        title: "Configuration error",
+        description:
+          "The auth provider is misconfigured (check redirect URI / client secret).",
+      };
+    default:
+      if (error)
+        return {
+          title: "Something went wrong",
+          description: decodeURIComponent(error),
+        };
+      return null;
+  }
+}
 
 export default function LoginPage({
   searchParams,
@@ -37,6 +91,7 @@ async function LoginContent({ searchParams }: { searchParams: LoginSearchParams 
     ? `/campaigns/new?template=${selectedTemplate.slug}`
     : null;
   const callbackUrl = params.callbackUrl ?? templateCallbackUrl ?? "/dashboard";
+  const errorInfo = params.error ? getErrorMessage(params.error) : null;
 
   const hasResend = !!process.env.RESEND_API_KEY;
   const hasGoogle =
@@ -91,16 +146,53 @@ async function LoginContent({ searchParams }: { searchParams: LoginSearchParams 
                 : "Sign in by email, then connect your Instagram professional account."}
           </p>
 
+          {errorInfo && (
+            <div className="mt-6 rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm leading-6">
+              <p className="font-semibold text-destructive">
+                {errorInfo.title}
+              </p>
+              <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
+                {errorInfo.description}
+              </p>
+              {params.error === "OAuthAccountNotLinked" && hasResend && (
+                <p className="mt-2 text-[11px] leading-relaxed text-muted-foreground">
+                  Tip: Sign in with your magic link first, or delete the old
+                  verification and retry - after this fix, verified
+                  Google/GitHub emails will auto-link.
+                </p>
+              )}
+            </div>
+          )}
+
           {!hasAnyProvider && (
             <div className="mt-8 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-100">
               <p className="font-semibold">No sign-in provider configured</p>
               <p className="mt-1 text-xs leading-5 opacity-80">
-                Set <code className="rounded bg-amber-100 px-1 py-0.5 dark:bg-amber-900/50">GOOGLE_CLIENT_ID</code> /{" "}
-                <code className="rounded bg-amber-100 px-1 py-0.5 dark:bg-amber-900/50">GOOGLE_CLIENT_SECRET</code> or{" "}
-                <code className="rounded bg-amber-100 px-1 py-0.5 dark:bg-amber-900/50">GITHUB_ID</code> /{" "}
-                <code className="rounded bg-amber-100 px-1 py-0.5 dark:bg-amber-900/50">GITHUB_SECRET</code> in your{" "}
-                <code className="rounded bg-amber-100 px-1 py-0.5 dark:bg-amber-900/50">.env</code>. See{" "}
-                <code className="rounded bg-amber-100 px-1 py-0.5 dark:bg-amber-900/50">.env.example</code>.
+                Set{" "}
+                <code className="rounded bg-amber-100 px-1 py-0.5 dark:bg-amber-900/50">
+                  GOOGLE_CLIENT_ID
+                </code>{" "}
+                /{" "}
+                <code className="rounded bg-amber-100 px-1 py-0.5 dark:bg-amber-900/50">
+                  GOOGLE_CLIENT_SECRET
+                </code>{" "}
+                or{" "}
+                <code className="rounded bg-amber-100 px-1 py-0.5 dark:bg-amber-900/50">
+                  GITHUB_ID
+                </code>{" "}
+                /{" "}
+                <code className="rounded bg-amber-100 px-1 py-0.5 dark:bg-amber-900/50">
+                  GITHUB_SECRET
+                </code>{" "}
+                in your{" "}
+                <code className="rounded bg-amber-100 px-1 py-0.5 dark:bg-amber-900/50">
+                  .env
+                </code>
+                . See{" "}
+                <code className="rounded bg-amber-100 px-1 py-0.5 dark:bg-amber-900/50">
+                  .env.example
+                </code>
+                .
               </p>
             </div>
           )}
@@ -109,29 +201,26 @@ async function LoginContent({ searchParams }: { searchParams: LoginSearchParams 
             <div className="mt-8 space-y-3">
               {hasGoogle && (
                 <form action={signInWithGoogle}>
-                  <Button type="submit" className="w-full" size="lg" variant="default">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src="https://www.svgrepo.com/show/475656/google-color.svg"
-                      alt=""
-                      width={18}
-                      height={18}
-                      className="mr-2 size-[18px] bg-white rounded-full p-0.5"
-                    />
+                  <Button
+                    type="submit"
+                    className="w-full"
+                    size="lg"
+                    variant="default"
+                  >
+                    <GoogleLogoIcon size={18} className="mr-2" />
                     Continue with Google
                   </Button>
                 </form>
               )}
               {hasGitHub && (
                 <form action={signInWithGitHub}>
-                  <Button type="submit" className="w-full" size="lg" variant="outline">
-                    <svg
-                      viewBox="0 0 24 24"
-                      aria-hidden="true"
-                      className="mr-2 size-[18px] fill-current"
-                    >
-                      <path d="M12 0C5.374 0 0 5.373 0 12c0 5.302 3.438 9.8 8.207 11.387.6.11.793-.26.793-.577v-2.165c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.73.083-.73 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.108-.775.418-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.468-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.4 3-.405 1.02.005 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22v3.293c0 .319.192.694.801.576C20.566 21.797 24 17.3 24 12c0-6.627-5.373-12-12-12z" />
-                    </svg>
+                  <Button
+                    type="submit"
+                    className="w-full"
+                    size="lg"
+                    variant="outline"
+                  >
+                    <GithubLogoIcon size={18} className="mr-2" />
                     Continue with GitHub
                   </Button>
                 </form>
@@ -150,7 +239,10 @@ async function LoginContent({ searchParams }: { searchParams: LoginSearchParams 
               {hasResend && (
                 <form action={sendMagicLink} className="space-y-3">
                   <div className="space-y-2">
-                    <label htmlFor="email" className="block text-sm font-medium">
+                    <label
+                      htmlFor="email"
+                      className="block text-sm font-medium"
+                    >
                       Work email
                     </label>
                     <Input
@@ -163,7 +255,12 @@ async function LoginContent({ searchParams }: { searchParams: LoginSearchParams 
                     />
                   </div>
 
-                  <Button type="submit" className="w-full" size="lg" variant={hasOAuth ? "outline" : "default"}>
+                  <Button
+                    type="submit"
+                    className="w-full"
+                    size="lg"
+                    variant={hasOAuth ? "outline" : "default"}
+                  >
                     Send magic link <ArrowRightIcon className="ml-2 h-4 w-4" />
                   </Button>
                 </form>
@@ -211,8 +308,9 @@ async function LoginContent({ searchParams }: { searchParams: LoginSearchParams 
 
           {/* Quote */}
           <blockquote className="text-xl md:text-2xl font-medium leading-snug tracking-tight">
-            &ldquo;OpenInstaDM works so well that we were able to automate our Comment-to-DM workflow in just a
-            few hours! Bye bye expensive manychat!&rdquo;
+            &ldquo;OpenInstaDM works so well that we were able to automate our
+            Comment-to-DM workflow in just a few hours! Bye bye expensive
+            manychat!&rdquo;
           </blockquote>
 
           {/* Author */}

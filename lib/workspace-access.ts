@@ -6,7 +6,7 @@ import type {
 import { cacheLife, cacheTag, revalidateTag } from "next/cache";
 import { cookies } from "next/headers";
 import { getCurrentUserId } from "@/lib/auth";
-import { prisma } from "@/lib/db/client";
+import { prisma, withDbRetry } from "@/lib/db/client";
 import { ensureWorkspaceForUser } from "@/lib/workspace";
 import { WORKSPACE_COOKIE } from "@/lib/workspace-cookie";
 
@@ -71,6 +71,8 @@ export async function getCurrentWorkspaceId(): Promise<string | null> {
   const context = await getCurrentWorkspaceContext();
   return context?.workspaceId ?? null;
 }
+
+
 /**
  * Cached workspace lookup — keyed by userId + requested workspace so different
  * members (and a member switching workspaces) never share context. 30s stale
@@ -86,11 +88,13 @@ async function getCachedWorkspaceContext(
   cacheTag(`workspace-ctx:${userId}:${requestedWorkspaceId ?? "primary"}`);
   cacheTag(`workspace-context:${userId}`);
 
-  const memberships = await prisma.workspaceMember.findMany({
-    where: { userId },
-    include: { workspace: true },
-    orderBy: { createdAt: "asc" },
-  });
+  const memberships = await withDbRetry(() =>
+    prisma.workspaceMember.findMany({
+      where: { userId },
+      include: { workspace: true },
+      orderBy: { createdAt: "asc" },
+    }),
+  );
 
   // The cookie wins when it names a workspace the user still belongs to;
   // otherwise fall back to the oldest membership.
@@ -109,19 +113,25 @@ async function getCachedWorkspaceContext(
     };
   }
 
-  const user = await prisma.user.findUnique({
-    where: { id: userId },
-    select: { email: true },
-  });
-  const workspace = await ensureWorkspaceForUser(userId, user?.email);
-  const createdMembership = await prisma.workspaceMember.findUnique({
-    where: {
-      workspaceId_userId: {
-        workspaceId: workspace.id,
-        userId,
+  const user = await withDbRetry(() =>
+    prisma.user.findUnique({
+      where: { id: userId },
+      select: { email: true },
+    }),
+  );
+  const workspace = await withDbRetry(() =>
+    ensureWorkspaceForUser(userId, user?.email),
+  );
+  const createdMembership = await withDbRetry(() =>
+    prisma.workspaceMember.findUnique({
+      where: {
+        workspaceId_userId: {
+          workspaceId: workspace.id,
+          userId,
+        },
       },
-    },
-  });
+    }),
+  );
 
   return {
     userId,
