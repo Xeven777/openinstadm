@@ -43,8 +43,9 @@ import {
   sendDirectMessageApi,
   type ThreadMessage,
 } from "@/lib/query/api";
+import { canManageInstagramAccounts, useWorkspaceContext } from "@/lib/workspace-context";
 
-const POLL_MS = 12_000;
+const POLL_MS = 20_000;
 // The seeded account is remembered in sessionStorage so a revisit can start on
 // the right account before the account list resolves.
 const SELECTED_ACCOUNT_KEY = "inbox:selectedAccount";
@@ -94,6 +95,7 @@ function ThreadSkeleton() {
 
 export default function InboxPage() {
   const queryClient = useQueryClient();
+  const canManageAccounts = canManageInstagramAccounts(useWorkspaceContext());
   // Seed from the last-used account so a revisit can paint the cached
   // conversation list immediately, before the account list even loads.
   const [selectedAccountId, setSelectedAccountId] = useState(() => {
@@ -341,7 +343,7 @@ export default function InboxPage() {
             <p className="max-w-sm text-sm text-muted-foreground">
               Connect an account to read and reply to your direct messages.
             </p>
-            <Link
+            {canManageAccounts && <Link
               href="/api/instagram/connect"
               className={cn(
                 buttonVariants({ variant: "default", size: "sm" }),
@@ -349,7 +351,7 @@ export default function InboxPage() {
               )}
             >
               Connect Instagram
-            </Link>
+            </Link>}
           </div>
         ) : (
           <div className="grid h-full grid-cols-1 sm:grid-cols-[300px_1fr]">
@@ -400,20 +402,35 @@ export default function InboxPage() {
                             className="absolute inset-y-0 left-0 w-0.5 bg-primary"
                           />
                         )}
-                        <div className="flex items-baseline justify-between gap-2">
-                          <span className="truncate text-sm font-medium text-foreground">
-                            @{c.contact.username ?? "unknown"}
-                          </span>
-                          <span className="shrink-0 text-[11px] text-muted-foreground">
-                            {formatTime(c.updatedTime, nowMs)}
-                          </span>
+                        <div className="flex items-center gap-2">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src={
+                              "https://api.dicebear.com/10.x/moods/svg?seed=" +
+                              c.contact.id
+                            }
+                            alt={c.contact.username ?? "unknown"}
+                            width={36}
+                            height={36}
+                            className="rounded-full"
+                          />
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-baseline justify-between gap-2">
+                              <span className="truncate text-sm font-medium text-foreground">
+                                @{c.contact.username ?? "unknown"}
+                              </span>
+                              <span className="shrink-0 text-[11px] text-muted-foreground">
+                                {formatTime(c.updatedTime, nowMs)}
+                              </span>
+                            </div>
+                            {c.lastMessage && (
+                              <p className="mt-0.5 truncate text-xs text-muted-foreground max-w-54 text-ellipsis">
+                                {c.lastMessage.fromMe ? "You: " : ""}
+                                {c.lastMessage.text || "(no text)"}
+                              </p>
+                            )}
+                          </div>
                         </div>
-                        {c.lastMessage && (
-                          <p className="mt-0.5 truncate text-xs text-muted-foreground">
-                            {c.lastMessage.fromMe ? "You: " : ""}
-                            {c.lastMessage.text || "(no text)"}
-                          </p>
-                        )}
                       </button>
                     );
                   })

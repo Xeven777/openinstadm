@@ -123,7 +123,7 @@ openssl rand -hex 16
 
    > **Tip**: Prefer the pooler/connection-URL, not the direct one, on Supabase/Neon — Prisma handles pooled connections much better. Make sure the `sslmode=require` (or `?ssl=true` for Supabase) param is present, or Prisma will refuse to connect.
 
-   Docker alternative (if you ever want it): `docker-compose.yml` in the project root provides the exact same Postgres (port `5432`) and Redis (port `6379`) for consistent local dev. See the "To reset everything" snippet below.
+   Docker alternative (if you ever want it): `infra/docker/docker-compose.yml` provides the exact same Postgres (port `5432`) and Redis (port `6379`) for consistent local dev. Run it from the repository root with the `-f infra/docker/docker-compose.yml` option. See the "To reset everything" snippet below.
 
 4. **Initialize the Database**:
    Run the following commands to create the tables in your database:
@@ -138,8 +138,8 @@ openssl rand -hex 16
    **To reset everything later** (stop containers, delete all DB/queue data, start fresh):
 
    ```bash
-   docker-compose down -v
-   docker-compose up -d
+   docker compose -f infra/docker/docker-compose.yml down -v
+   docker compose -f infra/docker/docker-compose.yml up -d
    npm run db:generate && npm run db:migrate
    ```
 

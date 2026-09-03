@@ -8,7 +8,7 @@ import {
   getInvitationExpiry,
 } from "@/lib/workspace-invitations";
 import {
-  canManageWorkspace,
+  canManageMembers,
   getCurrentWorkspaceContext,
 } from "@/lib/workspace-access";
 
@@ -30,9 +30,9 @@ export async function POST(request: NextRequest) {
       { status: 401 }
     );
   }
-  if (!canManageWorkspace(context.role)) {
+  if (!canManageMembers(context)) {
     return NextResponse.json(
-      { success: false, error: "Only owners and admins can resend invites" },
+      { success: false, error: "You do not have permission to resend invites" },
       { status: 403 }
     );
   }
@@ -77,10 +77,8 @@ export async function POST(request: NextRequest) {
   const emailSent = await sendInviteEmail({
     to: invitation.email,
     workspaceName: invitation.workspace.name,
-    // Invitations are only ever created as ADMIN or MEMBER (zod-enforced).
-    role: invitation.role === "OWNER" ? "MEMBER" : invitation.role,
     inviteUrl: buildInvitationUrl(updated.token),
-    invitedBy: inviter?.name || inviter?.email || "A workspace admin",
+    invitedBy: inviter?.name || inviter?.email || "A workspace member",
   });
 
   invalidateMembersCache(context.workspaceId);
@@ -88,6 +86,10 @@ export async function POST(request: NextRequest) {
   return NextResponse.json({
     success: true,
     emailSent,
-    data: await getWorkspaceMembers(context.workspaceId, context.role),
+    data: await getWorkspaceMembers(
+      context.workspaceId,
+      context.role,
+      context.permissions
+    ),
   });
 }

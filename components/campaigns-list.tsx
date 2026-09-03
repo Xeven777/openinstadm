@@ -43,6 +43,7 @@ import { cn } from "@/lib/utils";
 import { queryKeys } from "@/lib/query/keys";
 import { fetchPosts } from "@/lib/query/api";
 import type { CampaignListItem as Campaign } from "@/lib/server/automations";
+import { canManageAutomations, useWorkspaceContext } from "@/lib/workspace-context";
 
 interface CampaignsListProps {
   campaigns: Campaign[];
@@ -51,6 +52,7 @@ interface CampaignsListProps {
 
 export default function CampaignsList({ campaigns, accounts }: CampaignsListProps) {
   const router = useRouter();
+  const canManage = canManageAutomations(useWorkspaceContext());
   const [selectedAccountId, setSelectedAccountId] = useState("all");
   // Optimistic mutation state, applied as an overlay on top of server data so
   // an in-flight navigation can never revert a toggle/delete.
@@ -310,7 +312,7 @@ export default function CampaignsList({ campaigns, accounts }: CampaignsListProp
               onChange={handleAccountChange}
             />
           )}
-          <Link
+           {canManage && <Link
             href="/campaigns/import"
             className={cn(
               buttonVariants({ variant: "outline" }),
@@ -318,8 +320,8 @@ export default function CampaignsList({ campaigns, accounts }: CampaignsListProp
             )}
           >
             Import
-          </Link>
-          <Link
+           </Link>}
+           {canManage && <Link
             href="/campaigns/new"
             className={cn(
               buttonVariants({ variant: "default" }),
@@ -328,7 +330,7 @@ export default function CampaignsList({ campaigns, accounts }: CampaignsListProp
           >
             <Plus weight="bold" />
             New Campaign
-          </Link>
+           </Link>}
           </div>
         </div>
         {automations.length > 0 && (
@@ -596,16 +598,14 @@ export default function CampaignsList({ campaigns, accounts }: CampaignsListProp
                       </Button>
                     )}
                     {/* Toggle */}
-                    <Switch
-                      checked={auto.isActive}
-                      onCheckedChange={() =>
-                        handleToggle(auto.id, auto.isActive)
-                      }
-                      aria-label="Toggle campaign"
-                    />
+                     {canManage && <Switch
+                       checked={auto.isActive}
+                       onCheckedChange={() => handleToggle(auto.id, auto.isActive)}
+                       aria-label="Toggle campaign"
+                     />}
 
                     {/* Kebab menu */}
-                    <DropdownMenu
+                     {canManage && <DropdownMenu
                       open={menuOpenId === auto.id}
                       onOpenChange={(open) =>
                         setMenuOpenId(open ? auto.id : null)
@@ -640,7 +640,7 @@ export default function CampaignsList({ campaigns, accounts }: CampaignsListProp
                           Delete
                         </DropdownMenuItem>
                       </DropdownMenuContent>
-                    </DropdownMenu>
+                     </DropdownMenu>}
                   </div>
                 </div>
               </CardContent>

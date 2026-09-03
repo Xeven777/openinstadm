@@ -7,6 +7,7 @@ import FeaturesSection from "@/components/sections/features";
 import HowWorks from "@/components/sections/how-works";
 import Footer from "@/components/sections/footer";
 import Cta from "@/components/sections/Cta";
+import Faq from "@/components/sections/faq";
 
 function AppWindow({
   label,
@@ -178,6 +179,8 @@ export default async function Home() {
       </section>
 
       <Cta />
+
+      <Faq />
 
       <Footer />
     </main>

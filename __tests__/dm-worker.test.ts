@@ -17,6 +17,25 @@ const {
   mockReleaseWorkspaceDMReservation,
 } = vi.hoisted(() => ({
   mockPrisma: {
+    $transaction: vi.fn(async (cb: (tx: unknown) => unknown) => {
+      const tx = {
+        $executeRaw: vi.fn().mockResolvedValue(0),
+        dmLog: {
+          findUnique: (...args: unknown[]) =>
+            (mockPrisma.dmLog.findUnique as unknown as (...a: unknown[]) => unknown)(...args),
+          findFirst: (...args: unknown[]) =>
+            (mockPrisma.dmLog.findFirst as unknown as (...a: unknown[]) => unknown)(...args),
+          create: (...args: unknown[]) =>
+            (mockPrisma.dmLog.create as unknown as (...a: unknown[]) => unknown)(...args),
+          update: (...args: unknown[]) =>
+            (mockPrisma.dmLog.update as unknown as (...a: unknown[]) => unknown)(...args),
+          upsert: (...args: unknown[]) =>
+            (mockPrisma.dmLog.upsert as unknown as (...a: unknown[]) => unknown)(...args),
+        },
+      } as unknown as never;
+      return cb(tx);
+    }),
+    $executeRaw: vi.fn().mockResolvedValue(0),
     automation: {
       findMany: vi.fn(),
       findFirst: vi.fn(),
@@ -24,12 +43,15 @@ const {
     dmLog: {
       findUnique: vi.fn(),
       findFirst: vi.fn(),
+      findMany: vi.fn(),
       upsert: vi.fn(),
       update: vi.fn(),
+      updateMany: vi.fn(),
       create: vi.fn(),
     },
     instagramAccount: {
       findUnique: vi.fn(),
+      findFirst: vi.fn(),
     },
     operationalEvent: {
       create: vi.fn(),
@@ -216,12 +238,22 @@ beforeEach(() => {
   mockPrisma.dmLog.findUnique.mockResolvedValue(null);
   mockPrisma.dmLog.create.mockResolvedValue({});
   // Two different lookups share findFirst: the cross-campaign private-reply
-  // check (keyed on status SENT) and the postback's name lookup. Only the
+  // check (keyed on status SENT or {in: [...]}) and the postback's name lookup. Only the
   // latter should resolve by default, or every comment would look like a
   // duplicate of an already-answered one.
   mockPrisma.dmLog.findFirst.mockImplementation(
-    async (args: { where?: { status?: string } } = {}) =>
-      args.where?.status === "SENT" ? null : { commenterName: "commenter_user" }
+    async (args: { where?: Record<string, unknown> } = {}) => {
+      const where = args.where ?? {};
+      const status: unknown = where.status;
+      // privateReplyUsedBy: commentId + status {in: [...]} -> no duplicate
+      if (where.commentId && status && typeof status === "object" && "in" in (status as Record<string, unknown>))
+        return null;
+      // fallback dedupe: commentId + instagramAccountId -> no existing fallback by default
+      if (where.commentId && where.instagramAccountId) return null;
+      if (typeof status === "string" && status === "SENT") return null;
+      if (where.commenterId) return { commenterName: "commenter_user" } as unknown as never;
+      return { commenterName: "commenter_user" } as unknown as never;
+    }
   );
   mockPrisma.dmLog.upsert.mockResolvedValue({});
   mockPrisma.dmLog.update.mockResolvedValue({});
@@ -821,10 +853,14 @@ describe("DM Worker — Full Pipeline", () => {
 describe("DM Worker — one private reply per comment", () => {
   it("should skip a campaign when another already used the comment's private reply", async () => {
     mockPrisma.dmLog.findFirst.mockImplementation(
-      async (args: { where?: { status?: string } } = {}) =>
-        args.where?.status === "SENT"
-          ? { automation: { name: "openinstadm 1" } }
-          : { commenterName: "commenter_user" }
+      async (args: { where?: Record<string, unknown> } = {}) => {
+        const status: unknown = (args.where as Record<string, unknown> | undefined)?.status;
+        if (status && typeof status === "object" && "in" in (status as Record<string, unknown>))
+          return { automation: { name: "openinstadm 1" } } as unknown as never;
+        return (status as string) === "SENT"
+          ? ({ automation: { name: "openinstadm 1" } } as unknown as never)
+          : ({ commenterName: "commenter_user" } as unknown as never);
+      }
     );
 
     const processor = getProcessor();
@@ -832,14 +868,16 @@ describe("DM Worker — one private reply per comment", () => {
 
     expect(mockSendPrivateReply).not.toHaveBeenCalled();
     expect(mockReserveWorkspaceDMSend).not.toHaveBeenCalled();
-    expect(mockPrisma.dmLog.update).toHaveBeenCalledWith(
-      expect.objectContaining({
-        data: expect.objectContaining({
-          status: "SKIPPED_DEDUP",
-          errorMessage: expect.stringContaining("openinstadm 1"),
-        }),
-      })
-    );
+    const dedupCalled =
+      (mockPrisma.dmLog.update as unknown as { mock: { calls: unknown[] } }).mock.calls.some(
+        (c: unknown) =>
+          JSON.stringify(c).includes("SKIPPED_DEDUP") && JSON.stringify(c).includes("openinstadm 1")
+      ) ||
+      (mockPrisma.dmLog.create as unknown as { mock: { calls: unknown[] } }).mock.calls.some(
+        (c: unknown) =>
+          JSON.stringify(c).includes("SKIPPED_DEDUP") && JSON.stringify(c).includes("openinstadm 1")
+      );
+    expect(dedupCalled).toBe(true);
   });
 
   it("should not fall back to a plain-text private reply when the window is the problem", async () => {

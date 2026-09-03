@@ -1,5 +1,9 @@
-import type { Workspace, WorkspaceRole } from "@/app/generated/prisma/client";
-import { cacheLife, cacheTag } from "next/cache";
+import type {
+  Workspace,
+  WorkspacePermission,
+  WorkspaceRole,
+} from "@/app/generated/prisma/client";
+import { cacheLife, cacheTag, revalidateTag } from "next/cache";
 import { cookies } from "next/headers";
 import { getCurrentUserId } from "@/lib/auth";
 import { prisma } from "@/lib/db/client";
@@ -11,23 +15,35 @@ export type WorkspaceContext = {
   workspaceId: string;
   workspace: Workspace;
   role: WorkspaceRole;
+  permissions: WorkspacePermission[];
 };
 
-const ROLE_ORDER: Record<WorkspaceRole, number> = {
-  MEMBER: 1,
-  ADMIN: 2,
-  OWNER: 3,
-};
+export type WorkspaceAccess = Pick<
+  WorkspaceContext,
+  "role" | "permissions"
+>;
 
-export function hasWorkspaceRole(
-  role: WorkspaceRole,
-  minimumRole: WorkspaceRole
+export function hasWorkspacePermission(
+  access: WorkspaceAccess,
+  permission: WorkspacePermission
 ) {
-  return ROLE_ORDER[role] >= ROLE_ORDER[minimumRole];
+  return access.role === "OWNER" || access.permissions.includes(permission);
 }
 
-export function canManageWorkspace(role: WorkspaceRole) {
-  return hasWorkspaceRole(role, "ADMIN");
+export function canManageAutomations(access: WorkspaceAccess) {
+  return hasWorkspacePermission(access, "MANAGE_AUTOMATIONS");
+}
+
+export function canManageInstagramAccounts(access: WorkspaceAccess) {
+  return hasWorkspacePermission(access, "MANAGE_INSTAGRAM_ACCOUNTS");
+}
+
+export function canManageMembers(access: WorkspaceAccess) {
+  return hasWorkspacePermission(access, "MANAGE_MEMBERS");
+}
+
+export function canGrantMemberPermissions(access: WorkspaceAccess) {
+  return access.role === "OWNER";
 }
 
 export function canManageBilling(role: WorkspaceRole) {
@@ -68,6 +84,7 @@ async function getCachedWorkspaceContext(
   "use cache";
   cacheLife({ stale: 30, revalidate: 60, expire: 300 });
   cacheTag(`workspace-ctx:${userId}:${requestedWorkspaceId ?? "primary"}`);
+  cacheTag(`workspace-context:${userId}`);
 
   const memberships = await prisma.workspaceMember.findMany({
     where: { userId },
@@ -82,11 +99,13 @@ async function getCachedWorkspaceContext(
     memberships[0];
 
   if (membership) {
+    cacheTag(`workspace-context:${userId}:${membership.workspaceId}`);
     return {
       userId,
       workspaceId: membership.workspaceId,
       workspace: membership.workspace,
       role: membership.role,
+      permissions: membership.permissions,
     };
   }
 
@@ -109,6 +128,16 @@ async function getCachedWorkspaceContext(
     workspaceId: workspace.id,
     workspace,
     role: createdMembership?.role ?? "OWNER",
+    permissions: createdMembership?.permissions ?? [],
   };
+}
+
+/** Invalidate a member's cached access immediately after permissions change. */
+export function invalidateWorkspaceContext(
+  userId: string,
+  workspaceId: string
+): void {
+  revalidateTag(`workspace-context:${userId}`, { expire: 0 });
+  revalidateTag(`workspace-context:${userId}:${workspaceId}`, { expire: 0 });
 }
 

@@ -4,7 +4,7 @@
  * Settings — Team island
  *
  * The settings page is a Server Component; this island owns the team section's
- * interactivity (invite form, role changes, member removal, leave workspace,
+ * interactivity (invite form, permission changes, member removal, leave workspace,
  * copy/resent/revoke invite links). Mutations POST/PATCH/DELETE to the members
  * API, then `router.refresh()` re-renders the Server Component so the
  * member/invitation list stays in sync with the server. Every action surfaces
@@ -20,16 +20,18 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import type { WorkspaceMembersPayload } from "@/lib/server/members";
+import {
+  WORKSPACE_PERMISSION_LABELS,
+  type WorkspacePermission,
+} from "@/lib/workspace-context";
 
-type MemberRole = "ADMIN" | "MEMBER";
+const PERMISSIONS = (Object.keys(WORKSPACE_PERMISSION_LABELS) as WorkspacePermission[]).map(
+  (value) => ({ value, label: WORKSPACE_PERMISSION_LABELS[value] }),
+);
+
+type MemberPermission = WorkspacePermission;
 
 function memberName(name: string | null, email: string | null): string {
   return name || email || "This member";
@@ -47,11 +49,13 @@ export default function SettingsTeam({
   const [confirmRemoveId, setConfirmRemoveId] = useState<string | null>(null);
   const [confirmLeave, setConfirmLeave] = useState(false);
   const [inviteEmail, setInviteEmail] = useState("");
-  const [inviteRole, setInviteRole] = useState<MemberRole>("MEMBER");
+  const [invitePermissions, setInvitePermissions] = useState<MemberPermission[]>([]);
   const [error, setError] = useState<string | null>(null);
 
   const canManageMembers =
-    members.currentUserRole === "OWNER" || members.currentUserRole === "ADMIN";
+    members.currentUserRole === "OWNER" ||
+    members.currentUserPermissions.includes("MANAGE_MEMBERS");
+  const canGrantPermissions = members.currentUserRole === "OWNER";
   const pendingInvites = members.invitations.filter(
     (invitation) => invitation.status === "PENDING"
   ).length;
@@ -64,12 +68,13 @@ export default function SettingsTeam({
       const res = await fetch("/api/workspace/members", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: inviteEmail, role: inviteRole }),
+        body: JSON.stringify({ email: inviteEmail, permissions: invitePermissions }),
       });
       const payload = await res.json();
       if (payload.success) {
         const email = inviteEmail.trim().toLowerCase();
         setInviteEmail("");
+        setInvitePermissions([]);
         if (payload.addedExistingMember) {
           gooeyToast.success(`${email} added to the workspace`, {
             description: payload.emailSent
@@ -88,30 +93,53 @@ export default function SettingsTeam({
         router.refresh();
       } else {
         setError(payload.error ?? "Could not invite member");
+        if (res.status === 409) {
+          gooeyToast.warning(payload.error ?? "This user is already a member");
+        }
       }
     } finally {
       setBusy(null);
     }
   }
 
-  async function changeRole(memberId: string, role: MemberRole) {
-    setBusy(`role:${memberId}`);
+  async function updatePermissions(
+    memberId: string,
+    permissions: MemberPermission[]
+  ) {
+    setBusy(`permissions:${memberId}`);
     try {
       const res = await fetch("/api/workspace/members", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ memberId, role }),
+        body: JSON.stringify({ memberId, permissions }),
       });
       const payload = await res.json();
       if (payload.success) {
-        gooeyToast.success(`Role updated to ${role.toLowerCase()}`);
+        gooeyToast.success("Member permissions updated");
         router.refresh();
       } else {
-        gooeyToast.error(payload.error ?? "Could not update role");
+        gooeyToast.error(payload.error ?? "Could not update permissions");
       }
     } finally {
       setBusy(null);
     }
+  }
+
+  function togglePermission(
+    permissions: MemberPermission[],
+    permission: MemberPermission,
+    checked: boolean
+  ) {
+    return checked
+      ? [...permissions, permission]
+      : permissions.filter((value) => value !== permission);
+  }
+
+  function permissionSummary(permissions: MemberPermission[]) {
+    if (permissions.length === 0) return "Standard member access";
+    return PERMISSIONS.filter((permission) => permissions.includes(permission.value))
+      .map((permission) => permission.label)
+      .join(" · ");
   }
 
   async function removeMember(memberId: string, displayName: string) {
@@ -211,21 +239,6 @@ export default function SettingsTeam({
     }
   }
 
-  function getInitials(name: string | null, email: string | null): string {
-    if (name) {
-      return name
-        .split(/\s+/)
-        .map((w) => w[0])
-        .join("")
-        .toUpperCase()
-        .slice(0, 2);
-    }
-    if (email) {
-      return email.slice(0, 2).toUpperCase();
-    }
-    return "??";
-  }
-
   return (
     <Card>
       <CardContent className="gap-4">
@@ -240,6 +253,23 @@ export default function SettingsTeam({
 
         <Separator />
 
+        {members.currentUserRole !== "OWNER" && (
+          <div className="rounded-lg border border-border bg-muted/40 px-3 py-2.5">
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              Your access
+            </p>
+            <p className="mt-1 text-sm text-foreground">
+              {members.currentUserPermissions.length === 0
+                ? "Standard member access"
+                : members.currentUserPermissions
+                    .map((permission) => WORKSPACE_PERMISSION_LABELS[permission as WorkspacePermission])
+                    .join(" · ")}
+            </p>
+          </div>
+        )}
+
+        {members.currentUserRole !== "OWNER" && <Separator />}
+
         <div className="space-y-1">
           {members.members.map((member) => {
             const isSelf = member.user.id === currentUserId;
@@ -251,50 +281,35 @@ export default function SettingsTeam({
                 className="flex flex-wrap items-center gap-3 rounded-lg px-3 py-2.5 transition-colors hover:bg-muted/50"
               >
                 <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary">
-                  {getInitials(member.user.name, member.user.email)}
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={
+                      "https://api.dicebear.com/10.x/thumbs/svg?seed=" +
+                      member.user.id
+                    }
+                    alt={member.user.name ?? member.user.email ?? "M"}
+                    width={36}
+                    height={36}
+                    className="rounded-full"
+                  />
                 </div>
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-medium text-foreground">
                     {member.user.name ?? member.user.email}
-                    {isSelf && <span className="text-muted-foreground"> (you)</span>}
+                    {isSelf && (
+                      <span className="text-muted-foreground"> (you)</span>
+                    )}
                   </p>
                   <p className="truncate text-sm text-muted-foreground">
                     {member.user.email}
                   </p>
                 </div>
-                <Badge
-                  variant={
-                    isOwner
-                      ? "default"
-                      : member.role === "ADMIN"
-                        ? "secondary"
-                        : "outline"
-                  }
-                >
+                <Badge variant={isOwner ? "default" : "outline"}>
                   {member.role}
                 </Badge>
 
                 {!isOwner && canManageMembers && !isSelf && (
                   <>
-                    <Select
-                      value={member.role}
-                      onValueChange={(value) =>
-                        void changeRole(member.id, (value ?? "MEMBER") as MemberRole)
-                      }
-                    >
-                      <SelectTrigger
-                        className="w-32"
-                        disabled={busy === `role:${member.id}`}
-                        aria-label={`Change role for ${member.user.email ?? member.user.name ?? "member"}`}
-                      >
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="MEMBER">Member</SelectItem>
-                        <SelectItem value="ADMIN">Admin</SelectItem>
-                      </SelectContent>
-                    </Select>
-
                     {isConfirming ? (
                       <div className="flex items-center gap-2">
                         <Button
@@ -304,7 +319,7 @@ export default function SettingsTeam({
                           onClick={() =>
                             void removeMember(
                               member.id,
-                              memberName(member.user.name, member.user.email)
+                              memberName(member.user.name, member.user.email),
                             )
                           }
                           disabled={busy === `member:${member.id}`}
@@ -330,9 +345,9 @@ export default function SettingsTeam({
                           window.setTimeout(
                             () =>
                               setConfirmRemoveId((cur) =>
-                                cur === member.id ? null : cur
+                                cur === member.id ? null : cur,
                               ),
-                            4000
+                            4000,
                           );
                         }}
                         aria-label={`Remove ${member.user.email ?? member.user.name ?? "member"}`}
@@ -344,8 +359,45 @@ export default function SettingsTeam({
                   </>
                 )}
 
-                {isSelf && !isOwner && (
-                  confirmLeave ? (
+                {!isOwner && canGrantPermissions && (
+                  <div className="w-full space-y-2 border-t border-border/60 pt-3 sm:ml-12">
+                    <p className="text-xs font-medium text-muted-foreground">
+                      Permissions
+                    </p>
+                    <div className="flex flex-wrap gap-x-4 gap-y-2">
+                      {PERMISSIONS.map((permission) => (
+                        <label
+                          key={permission.value}
+                          className="flex items-center gap-2 text-xs text-muted-foreground"
+                        >
+                          <Switch
+                            size="sm"
+                            checked={member.permissions.includes(
+                              permission.value,
+                            )}
+                            onCheckedChange={(checked) =>
+                              void updatePermissions(
+                                member.id,
+                                togglePermission(
+                                  member.permissions,
+                                  permission.value,
+                                  checked,
+                                ),
+                              )
+                            }
+                            disabled={busy === `permissions:${member.id}`}
+                            aria-label={`${permission.label} for ${member.user.email ?? member.user.name ?? "member"}`}
+                          />
+                          {permission.label}
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {isSelf &&
+                  !isOwner &&
+                  (confirmLeave ? (
                     <div className="flex items-center gap-2">
                       <Button
                         type="button"
@@ -376,14 +428,13 @@ export default function SettingsTeam({
                       <SignOut className="size-3.5" />
                       Leave workspace
                     </Button>
-                  )
-                )}
+                  ))}
               </div>
             );
           })}
         </div>
 
-        {members.invitations.length > 0 && (
+        {canManageMembers && members.invitations.length > 0 && (
           <>
             <Separator />
             <div>
@@ -412,7 +463,7 @@ export default function SettingsTeam({
                           )}
                         </div>
                         <p className="truncate text-xs text-muted-foreground">
-                          {invitation.role.toLowerCase()} · expires{" "}
+                          {permissionSummary(invitation.permissions)} · expires{" "}
                           {new Date(invitation.expiresAt).toLocaleDateString()}
                         </p>
                       </div>
@@ -463,7 +514,7 @@ export default function SettingsTeam({
             <Separator />
             <form
               onSubmit={inviteMember}
-              className="grid gap-3 sm:grid-cols-7 sm:items-center"
+              className="grid gap-3 sm:grid-cols-5 sm:items-center"
             >
               <Input
                 type="email"
@@ -473,25 +524,38 @@ export default function SettingsTeam({
                 required
                 className="sm:col-span-4"
               />
-              <Select
-                value={inviteRole}
-                onValueChange={(value) =>
-                  setInviteRole((value ?? "MEMBER") as MemberRole)
-                }
-              >
-                <SelectTrigger className="w-full sm:col-span-2">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="MEMBER">Member</SelectItem>
-                  <SelectItem value="ADMIN">Admin</SelectItem>
-                </SelectContent>
-              </Select>
               <Button type="submit" disabled={busy === "invite"} className="">
                 {busy === "invite" ? "Inviting..." : "Invite"}
               </Button>
+              {canGrantPermissions && (
+                <div className="sm:col-span-5">
+                  <p className="mb-2 text-xs text-muted-foreground">
+                    Optional permissions for this member
+                  </p>
+                  <div className="flex flex-wrap gap-x-4 gap-y-2">
+                    {PERMISSIONS.map((permission) => (
+                      <label
+                        key={permission.value}
+                        className="flex items-center gap-2 text-xs text-muted-foreground"
+                      >
+                        <Switch
+                          size="sm"
+                          checked={invitePermissions.includes(permission.value)}
+                          onCheckedChange={(checked) =>
+                            setInvitePermissions((current) =>
+                              togglePermission(current, permission.value, checked)
+                            )
+                          }
+                          disabled={busy === "invite"}
+                        />
+                        {permission.label}
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              )}
               {error && (
-                <p className="sm:col-span-3 text-sm text-destructive">
+                <p className="sm:col-span-5 text-sm text-destructive">
                   {error}
                 </p>
               )}

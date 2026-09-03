@@ -13,6 +13,7 @@ import { useRouter } from "next/navigation";
 import AccountSelect, { type AccountOption } from "@/components/account-select";
 import { parseCsv } from "@/lib/utils/csv";
 import { IMPORT_QUEUE_KEY, IMPORT_ACCOUNT_KEY } from "@/lib/import-queue";
+import { canManageAutomations, useWorkspaceContext } from "@/lib/workspace-context";
 
 const SAMPLE = `keywords,dm_message,public_reply,tracked_url,opening_dm,opening_dm_button
 "yc","here it is: {link}","sent. check dms","https://events.ycombinator.com/startup-school-2026","hey! click below for the referral","send link"
@@ -20,6 +21,7 @@ const SAMPLE = `keywords,dm_message,public_reply,tracked_url,opening_dm,opening_
 
 export default function ImportCampaignsPage() {
   const router = useRouter();
+  const canManage = canManageAutomations(useWorkspaceContext());
   const [accounts, setAccounts] = useState<AccountOption[]>([]);
   const [selectedAccountId, setSelectedAccountId] = useState("");
   const [csv, setCsv] = useState("");
@@ -84,6 +86,11 @@ export default function ImportCampaignsPage() {
 
   return (
     <div className="max-w-2xl mx-auto space-y-6">
+      {!canManage && (
+        <div className="rounded border border-border bg-muted/40 px-4 py-3 text-sm text-muted-foreground">
+          You have view-only access to campaigns.
+        </div>
+      )}
       <div>
         <h1 className="text-lg font-semibold">Import campaigns</h1>
         <p className="text-sm text-muted-foreground mt-1">
@@ -120,6 +127,7 @@ export default function ImportCampaignsPage() {
             onChange={setSelectedAccountId}
             includeAll={false}
             label="Account"
+            disabled={!canManage}
           />
         </div>
       )}
@@ -128,6 +136,7 @@ export default function ImportCampaignsPage() {
         <label className="block text-sm font-medium text-foreground">CSV</label>
         <textarea
           value={csv}
+          disabled={!canManage}
           onChange={(e) => setCsv(e.target.value)}
           placeholder={SAMPLE}
           rows={10}
@@ -135,7 +144,8 @@ export default function ImportCampaignsPage() {
         />
         <button
           type="button"
-          onClick={() => setCsv(SAMPLE)}
+           onClick={() => setCsv(SAMPLE)}
+           disabled={!canManage}
           className="text-xs text-muted-foreground hover:text-foreground"
         >
           Fill with a sample
@@ -145,6 +155,7 @@ export default function ImportCampaignsPage() {
       <div className="flex items-center gap-4">
         <button
           onClick={startImport}
+          disabled={!canManage}
           className="px-5 py-2 rounded bg-primary text-sm font-medium text-primary-foreground hover:bg-primary/80"
         >
           Review and import

@@ -196,13 +196,22 @@ async function processComment(job: Job<ProcessCommentJob>): Promise<void> {
     commenterId,
     commenterName,
     mediaId,
+    originalMediaId,
   } = job.data;
   const requeueAttempt = job.data.requeueAttempt ?? 0;
 
   const automations = await prisma.automation.findMany({
     where: {
       // Match campaigns bound to this specific post, plus any-post campaigns.
-      OR: [{ postId: mediaId }, { matchAnyPost: true }],
+      // When the polling reconciler sweeps an ad copy, mediaId is the ad's id
+      // and originalMediaId is the post the campaign is bound to. Without the
+      // second clause the worker finds no campaign and drops the comment, so
+      // the sweep re-enqueues it every 5m and never delivers (DmLog stays empty).
+      OR: [
+        { postId: mediaId },
+        ...(originalMediaId ? [{ postId: originalMediaId } as const] : []),
+        { matchAnyPost: true },
+      ],
       isActive: true,
       instagramAccount: {
         instagramId: instagramAccountId,
@@ -234,27 +243,6 @@ async function processComment(job: Job<ProcessCommentJob>): Promise<void> {
         );
 
     if (!matchResult.matched) {
-      continue;
-    }
-
-    const existingLog = await prisma.dmLog.findUnique({
-      where: {
-        automationId_commentId: {
-          automationId: automation.id,
-          commentId,
-        },
-      },
-    });
-
-    const alreadyDmd = existingLog?.status === "SENT";
-    const alreadyPublicReplied = Boolean(existingLog?.publicReplySentAt);
-    const needsDm = !alreadyDmd;
-
-    // Skip only when there is genuinely nothing left to do. A comment whose DM
-    // already sent but whose public reply never posted (e.g. it hit a rate
-    // limit) must still come back so the public reply can be retried.
-    if (existingLog?.status === "SKIPPED_PLAN_LIMIT") continue;
-    if (alreadyDmd && (alreadyPublicReplied || !automation.publicReplyEnabled)) {
       continue;
     }
 
@@ -317,41 +305,140 @@ async function processComment(job: Job<ProcessCommentJob>): Promise<void> {
       continue;
     }
 
-    // Ensure a log row exists before the public reply leg (which updates it).
-    // Only (re)set PENDING when the DM will actually be attempted, so a prior
-    // SENT is never clobbered while we come back just to retry the public reply.
-    if (!existingLog) {
-      await prisma.dmLog.create({
-        data: {
-          workspaceId: automation.workspaceId,
-          automationId: automation.id,
-          instagramAccountId: automation.instagramAccountId,
-          commenterId,
-          commenterName,
-          commentText,
-          commentId,
-          matchedKeyword: matchResult.matchedKeyword,
-          status: "PENDING",
-          attempts: job.attemptsMade + 1,
-        },
+    // Atomic reservation with advisory lock. Two workers can both read
+    // "no sent log yet" and both attempt a private reply; the DB unique key
+    // on (automationId, commentId) protects the row creation, but the
+    // cross-campaign "one private reply per comment" check and the SENT
+    // check must be atomic with the PENDING claim — otherwise both pass
+    // the read, both call Meta, and one burns the single allowed reply.
+    let txResult: {
+      action: "proceed" | "publicOnly" | "dedup" | "skip";
+      existingLog: { status: string; publicReplySentAt: Date | null } | null;
+    } | null = null;
+    try {
+      txResult = await prisma.$transaction(async (tx) => {
+        await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${commentId}))`;
+
+        const dbExisting = await tx.dmLog.findUnique({
+          where: {
+            automationId_commentId: {
+              automationId: automation.id,
+              commentId,
+            },
+          },
+          select: { status: true, publicReplySentAt: true },
+        });
+
+        if (dbExisting?.status === "SKIPPED_PLAN_LIMIT") {
+          return { action: "skip" as const, existingLog: dbExisting as typeof dbExisting };
+        }
+        if (dbExisting?.status === "PENDING") {
+          return { action: "skip" as const, existingLog: dbExisting as typeof dbExisting };
+        }
+        const alreadyDmd = dbExisting?.status === "SENT";
+        const alreadyPublicReplied = Boolean(dbExisting?.publicReplySentAt);
+        const needsDmLocal = !alreadyDmd;
+        if (alreadyDmd && (alreadyPublicReplied || !automation.publicReplyEnabled)) {
+          return { action: "skip" as const, existingLog: dbExisting as typeof dbExisting };
+        }
+        if (!needsDmLocal) {
+          return { action: "publicOnly" as const, existingLog: dbExisting as typeof dbExisting };
+        }
+
+        const privateReplyUsedBy = await tx.dmLog.findFirst({
+          where: {
+            commentId,
+            status: { in: ["SENT", "PENDING"] },
+            automationId: { not: automation.id },
+          },
+          select: { automation: { select: { name: true } } },
+        });
+        if (privateReplyUsedBy) {
+          const dedupName = privateReplyUsedBy.automation?.name ?? "unknown";
+          if (!dbExisting) {
+            await tx.dmLog.create({
+              data: {
+                workspaceId: automation.workspaceId,
+                automationId: automation.id,
+                instagramAccountId: automation.instagramAccountId,
+                commenterId,
+                commenterName,
+                commentText,
+                commentId,
+                matchedKeyword: matchResult.matchedKeyword,
+                status: "SKIPPED_DEDUP",
+                errorMessage: `Another campaign (${dedupName}) already sent the one private reply Instagram allows for this comment`,
+              },
+            });
+          } else {
+            await tx.dmLog.update({
+              where: {
+                automationId_commentId: { automationId: automation.id, commentId },
+              },
+              data: {
+                status: "SKIPPED_DEDUP",
+                matchedKeyword: matchResult.matchedKeyword,
+                errorMessage: `Another campaign (${dedupName}) already sent the one private reply Instagram allows for this comment`,
+              },
+            });
+          }
+          return { action: "dedup" as const, existingLog: dbExisting as typeof dbExisting };
+        }
+
+        if (!dbExisting) {
+          await tx.dmLog.create({
+            data: {
+              workspaceId: automation.workspaceId,
+              automationId: automation.id,
+              instagramAccountId: automation.instagramAccountId,
+              commenterId,
+              commenterName,
+              commentText,
+              commentId,
+              matchedKeyword: matchResult.matchedKeyword,
+              status: "PENDING",
+              attempts: job.attemptsMade + 1,
+            },
+          });
+        } else {
+          await tx.dmLog.update({
+            where: {
+              automationId_commentId: { automationId: automation.id, commentId },
+            },
+            data: {
+              status: "PENDING",
+              attempts: job.attemptsMade + 1,
+              matchedKeyword: matchResult.matchedKeyword,
+              errorMessage: null,
+            },
+          });
+        }
+        return { action: "proceed" as const, existingLog: dbExisting as typeof dbExisting };
       });
-    } else if (needsDm) {
-      await prisma.dmLog.update({
-        where: {
-          automationId_commentId: { automationId: automation.id, commentId },
-        },
-        data: {
-          status: "PENDING",
-          attempts: job.attemptsMade + 1,
-          matchedKeyword: matchResult.matchedKeyword,
-          errorMessage: null,
-        },
-      });
+    } catch (error) {
+      // Unique violation (P2002) means a concurrent worker won the claim.
+      // Treat it as a dedup skip — the winner will send the DM.
+      const isUniqueViolation =
+        typeof error === "object" &&
+        error !== null &&
+        "code" in error &&
+        (error as { code?: string }).code === "P2002";
+      if (isUniqueViolation) {
+        continue;
+      }
+      throw error;
     }
+
+    const existingLog = txResult?.existingLog ?? null;
+    const reservationAction = txResult?.action ?? "skip";
+    if (reservationAction === "skip") continue;
 
     // Public reply leg — decoupled from the DM and posted first so a DM failure
     // (e.g. a non-follower whose messaging is restricted) never suppresses it.
-    // Idempotent across retries via publicReplySentAt.
+    // Idempotent across retries via publicReplySentAt. For the atomic path we
+    // use the snapshot captured inside the lock; it reflects the row before we
+    // claimed PENDING, so a concurrent duplicate that also claimed will still
+    // have its own row and will be skipped above.
     const replyPool =
       automation.publicReplyMessages.length > 0
         ? automation.publicReplyMessages
@@ -393,38 +480,10 @@ async function processComment(job: Job<ProcessCommentJob>): Promise<void> {
       }
     }
 
-    // DM already sent on an earlier pass; the public reply retry above was all
-    // this run needed. Don't re-send the DM.
-    if (!needsDm) continue;
-
-    // Meta allows exactly ONE private reply per comment, ever — across every
-    // campaign. When several campaigns match the same comment (duplicated
-    // campaigns, or an any-post campaign overlapping a post-specific one), only
-    // the first can deliver; the rest would fail with "The comment is invalid
-    // for a private reply". Skip them explicitly instead of burning an API call
-    // and logging a failure the user can do nothing about. The public reply
-    // above still goes out per campaign — only the DM leg is deduped.
-    const privateReplyUsedBy = await prisma.dmLog.findFirst({
-      where: {
-        commentId,
-        status: "SENT",
-        automationId: { not: automation.id },
-      },
-      select: { automation: { select: { name: true } } },
-    });
-    if (privateReplyUsedBy) {
-      await prisma.dmLog.update({
-        where: {
-          automationId_commentId: { automationId: automation.id, commentId },
-        },
-        data: {
-          status: "SKIPPED_DEDUP",
-          matchedKeyword: matchResult.matchedKeyword,
-          errorMessage: `Another campaign (${privateReplyUsedBy.automation?.name ?? "unknown"}) already sent the one private reply Instagram allows for this comment`,
-        },
-      });
-      continue;
-    }
+    // DM already sent on an earlier pass, or the slot was taken by another
+    // campaign while we held the lock; the public reply retry above was all
+    // this run needed.
+    if (reservationAction !== "proceed") continue;
 
     const usage = await reserveWorkspaceDMSend(automation.workspaceId);
     if (!usage.allowed) {
@@ -956,6 +1015,7 @@ async function processMessage(job: Job<ProcessMessageJob>): Promise<void> {
   });
 
   const dedupeId = `dm:${messageId}`;
+  let matchedAny = false;
 
   for (const automation of automations) {
     const matchResult = automation.matchAnyWord
@@ -967,6 +1027,7 @@ async function processMessage(job: Job<ProcessMessageJob>): Promise<void> {
         );
 
     if (!matchResult.matched) continue;
+    matchedAny = true;
 
     const existingLog = await prisma.dmLog.findUnique({
       where: {
@@ -1060,6 +1121,63 @@ async function processMessage(job: Job<ProcessMessageJob>): Promise<void> {
     if (automation.requireFollow) {
       const follows = await getUserFollowStatus(accessToken, senderId);
       sendFollowPrompt = follows !== true;
+    }
+
+    // Atomic DM deduplication: two workers can both pass the early
+    // existingLog check and both reach the Meta call. Claim PENDING
+    // atomically with an advisory lock so only one proceeds to the
+    // actual send.
+    try {
+      let canProceed = true;
+      await prisma.$transaction(async (tx) => {
+        await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${dedupeId + ":" + automation.id}))`;
+        const existing = await tx.dmLog.findUnique({
+          where: {
+            automationId_commentId: {
+              automationId: automation.id,
+              commentId: dedupeId,
+            },
+          },
+          select: { status: true },
+        });
+        if (
+          existing?.status === "SENT" ||
+          existing?.status === "SKIPPED_PLAN_LIMIT" ||
+          existing?.status === "PENDING"
+        ) {
+          canProceed = false;
+          return;
+        }
+        await tx.dmLog.upsert({
+          where: {
+            automationId_commentId: {
+              automationId: automation.id,
+              commentId: dedupeId,
+            },
+          },
+          create: {
+            ...logBase,
+            commenterName,
+            status: "PENDING",
+            attempts: job.attemptsMade + 1,
+          },
+          update: {
+            status: "PENDING",
+            attempts: job.attemptsMade + 1,
+            matchedKeyword: matchResult.matchedKeyword,
+            errorMessage: null,
+          },
+        });
+      });
+      if (!canProceed) continue;
+    } catch (error) {
+      const isUniqueViolation =
+        typeof error === "object" &&
+        error !== null &&
+        "code" in error &&
+        (error as { code?: string }).code === "P2002";
+      if (isUniqueViolation) continue;
+      throw error;
     }
 
     const usage = await reserveWorkspaceDMSend(automation.workspaceId);
@@ -1176,6 +1294,166 @@ async function processMessage(job: Job<ProcessMessageJob>): Promise<void> {
       throw error;
     }
   }
+
+  // Fallback auto-responder: plain-text DM when no campaign matched.
+  // Fires once per inbound message id, after all keyword checks fail.
+  if (!matchedAny) {
+    const account = await prisma.instagramAccount.findUnique({
+      where: { instagramId: instagramAccountId },
+      select: {
+        id: true,
+        workspaceId: true,
+        instagramId: true,
+        accessToken: true,
+        fallbackReplyEnabled: true,
+        fallbackReplyMessage: true,
+      },
+    });
+
+    const fallbackMessage = account?.fallbackReplyMessage?.trim() ?? "";
+    if (account?.fallbackReplyEnabled && fallbackMessage) {
+      const fallbackDedupeId = `dm:fallback:${messageId}`;
+
+      // Reuse a name captured earlier so {username} renders even for fallback.
+      const priorLog = await prisma.dmLog.findFirst({
+        where: { commenterId: senderId },
+        select: { commenterName: true },
+      });
+      const commenterName = priorLog?.commenterName ?? null;
+
+      if (!account.accessToken) {
+        await prisma.dmLog.create({
+          data: {
+            workspaceId: account.workspaceId,
+            automationId: null,
+            instagramAccountId: account.id,
+            commenterId: senderId,
+            commenterName,
+            commentText: messageText,
+            commentId: fallbackDedupeId,
+            status: "FAILED",
+            errorMessage: "No Instagram access token available",
+          },
+        });
+      } else {
+        let accessToken: string;
+        try {
+          accessToken = decryptToken(account.accessToken);
+        } catch {
+          await prisma.dmLog.create({
+            data: {
+              workspaceId: account.workspaceId,
+              automationId: null,
+              instagramAccountId: account.id,
+              commenterId: senderId,
+              commenterName,
+              commentText: messageText,
+              commentId: fallbackDedupeId,
+              status: "FAILED",
+              errorMessage: "Failed to decrypt Instagram access token",
+            },
+          });
+          return;
+        }
+
+        // Advisory lock + pending claim so concurrent workers don't double-send.
+        let canProceed = true;
+        try {
+          await prisma.$transaction(async (tx) => {
+            await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${fallbackDedupeId}))`;
+            const existing = await tx.dmLog.findFirst({
+              where: {
+                commentId: fallbackDedupeId,
+                instagramAccountId: account.id,
+              },
+              select: { status: true },
+            });
+            if (
+              existing?.status === "SENT" ||
+              existing?.status === "SKIPPED_PLAN_LIMIT" ||
+              existing?.status === "PENDING"
+            ) {
+              canProceed = false;
+              return;
+            }
+            await tx.dmLog.create({
+              data: {
+                workspaceId: account.workspaceId,
+                automationId: null,
+                instagramAccountId: account.id,
+                commenterId: senderId,
+                commenterName,
+                commentText: messageText,
+                commentId: fallbackDedupeId,
+                status: "PENDING",
+                attempts: job.attemptsMade + 1,
+              },
+            });
+          });
+        } catch (error) {
+          const isUniqueViolation =
+            typeof error === "object" &&
+            error !== null &&
+            "code" in error &&
+            (error as { code?: string }).code === "P2002";
+          if (isUniqueViolation) return;
+          throw error;
+        }
+        if (!canProceed) return;
+
+        const usage = await reserveWorkspaceDMSend(account.workspaceId);
+        if (!usage.allowed) {
+          await prisma.dmLog.updateMany({
+            where: {
+              commentId: fallbackDedupeId,
+              instagramAccountId: account.id,
+              workspaceId: account.workspaceId,
+            },
+            data: {
+              status: "SKIPPED_PLAN_LIMIT",
+              errorMessage: `Monthly DM limit reached (${usage.limit})`,
+            },
+          });
+          return;
+        }
+
+        try {
+          const rendered = renderMessageWithoutLink({
+            message: fallbackMessage,
+            commenterName,
+          });
+          await sendDirectMessage(accessToken, account.instagramId, senderId, rendered);
+          await prisma.dmLog.updateMany({
+            where: {
+              commentId: fallbackDedupeId,
+              instagramAccountId: account.id,
+              workspaceId: account.workspaceId,
+            },
+            data: {
+              status: "SENT",
+              dmSentAt: new Date(),
+              errorMessage: null,
+            },
+          });
+        } catch (error) {
+          await releaseWorkspaceDMReservation(account.workspaceId, usage.periodStart);
+          await prisma.dmLog.updateMany({
+            where: {
+              commentId: fallbackDedupeId,
+              instagramAccountId: account.id,
+              workspaceId: account.workspaceId,
+            },
+            data: {
+              status: "FAILED",
+              attempts: job.attemptsMade + 1,
+              errorMessage: formatError(error),
+            },
+          });
+          throw error;
+        }
+      }
+    }
+  }
 }
 
 async function processJob(job: Job<DmQueueJob>): Promise<void> {
@@ -1243,6 +1521,8 @@ export function createDMWorker(): Worker<DmQueueJob> {
     {
       connection: getRedisConnection(),
       concurrency: 5,
+      drainDelay: 10,
+      stalledInterval: 120000,
       settings: {
         backoffStrategy: (attemptsMade: number) =>
           BACKOFF_DELAYS[Math.min(attemptsMade - 1, BACKOFF_DELAYS.length - 1)],

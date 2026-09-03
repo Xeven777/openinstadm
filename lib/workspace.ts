@@ -1,7 +1,11 @@
 import { cacheLife, cacheTag, revalidateTag } from "next/cache";
 import { prisma } from "@/lib/db/client";
 import { invalidateMembersCache } from "@/lib/server/members";
-import type { Workspace, WorkspaceRole } from "@/app/generated/prisma/client";
+import type {
+  Workspace,
+  WorkspacePermission,
+  WorkspaceRole,
+} from "@/app/generated/prisma/client";
 
 function normalizeInviteEmail(email: string) {
   return email.trim().toLowerCase();
@@ -35,11 +39,13 @@ export async function acceptPendingInvitationsForUser(
         create: {
           workspaceId: invitation.workspaceId,
           userId,
-          role: invitation.role,
+          role: "MEMBER",
+          permissions: invitation.permissions,
         },
-        update: {
-          role: invitation.role,
-        },
+        // An already-added member may have permissions changed after this
+        // invitation was issued. Accepting a stale invite must not overwrite
+        // the owner's newer decision.
+        update: {},
       }),
       prisma.workspaceInvitation.update({
         where: { id: invitation.id },
@@ -58,6 +64,7 @@ export interface UserWorkspace {
   id: string;
   name: string;
   role: WorkspaceRole;
+  permissions: WorkspacePermission[];
 }
 
 /**
@@ -79,6 +86,7 @@ export async function getUserWorkspaces(userId: string): Promise<UserWorkspace[]
     id: membership.workspaceId,
     name: membership.workspace.name,
     role: membership.role,
+    permissions: membership.permissions,
   }));
 }
 
@@ -89,11 +97,13 @@ export async function getUserWorkspaces(userId: string): Promise<UserWorkspace[]
  */
 export function invalidateUserWorkspaces(userId: string): void {
   revalidateTag(`workspaces:${userId}`, { expire: 0 });
+  revalidateTag(`workspace-context:${userId}`, { expire: 0 });
 }
 
 export async function getWorkspaceMembership(userId: string): Promise<{
   workspace: Workspace;
   role: WorkspaceRole;
+  permissions: WorkspacePermission[];
 } | null> {
   const membership = await prisma.workspaceMember.findFirst({
     where: { userId },
@@ -106,6 +116,7 @@ export async function getWorkspaceMembership(userId: string): Promise<{
   return {
     workspace: membership.workspace,
     role: membership.role,
+    permissions: membership.permissions,
   };
 }
 

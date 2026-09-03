@@ -263,10 +263,10 @@ export async function getCampaignList(
 
   backfillMissingShareSlugs(automations);
 
-  const [statusCounts, clickCounts, keywordCounts] = await Promise.all([
+  const [statusCountsRaw, clickCounts, keywordCountsRaw] = await Promise.all([
     prisma.dmLog.groupBy({
       by: ["automationId", "status"],
-      where: { workspaceId },
+      where: { workspaceId, automationId: { not: null } },
       _count: { _all: true },
     }),
     prisma.linkClick.groupBy({
@@ -276,10 +276,13 @@ export async function getCampaignList(
     }),
     prisma.dmLog.groupBy({
       by: ["automationId", "matchedKeyword"],
-      where: { workspaceId, matchedKeyword: { not: null } },
+      where: { workspaceId, automationId: { not: null }, matchedKeyword: { not: null } },
       _count: { _all: true },
     }),
   ]);
+
+  const statusCounts = statusCountsRaw as { automationId: string; status: string; _count: { _all: number } }[];
+  const keywordCounts = keywordCountsRaw as { automationId: string; matchedKeyword: string | null; _count: { _all: number } }[];
 
   const analytics = buildAnalyticsMap(
     automations,
@@ -341,9 +344,9 @@ export async function getCampaignDetail(
 
   const analytics = buildAnalyticsMap(
     [automation],
-    statusCounts,
+    statusCounts as { automationId: string; status: string; _count: { _all: number } }[],
     clickCounts,
-    keywordCounts
+    keywordCounts as { automationId: string; matchedKeyword: string | null; _count: { _all: number } }[]
   );
 
   return serializeCampaign(

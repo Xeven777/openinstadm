@@ -105,6 +105,8 @@ export async function getSettingsData(
         name: true,
         tokenExpiresAt: true,
         webhookSubscribed: true,
+        fallbackReplyEnabled: true,
+        fallbackReplyMessage: true,
       },
     }),
   ]);

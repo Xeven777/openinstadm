@@ -161,6 +161,12 @@
       0 0 80px oklch(0.768 0.233 130.85 / 6%);
   }
 
+  .faq-card-active {
+    box-shadow:
+      0 0 0 1px color-mix(in srgb, var(--primary) 20%, transparent),
+      0 16px 40px -12px color-mix(in srgb, var(--primary) 18%, transparent);
+  }
+
   .step-connector {
     position: relative;
   }

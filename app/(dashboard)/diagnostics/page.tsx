@@ -46,7 +46,10 @@ const QUEUE_TILES = [
 ] as const;
 
 function formatDate(value: string) {
-  return new Date(value).toLocaleString();
+  return new Date(value).toLocaleString("en-IN", {
+    dateStyle: "short",
+    timeStyle: "short",
+  });
 }
 
 function EmptyState({ label }: { label: string }) {
@@ -232,7 +235,7 @@ async function DiagnosticsOverview() {
                 className="flex flex-wrap items-start justify-between gap-x-3 gap-y-1 rounded-lg border border-border bg-muted/50 p-3 sm:p-4"
               >
                 <div className="min-w-0 flex-1">
-                  <p className="min-w-0 break-words text-sm font-medium text-foreground">
+                  <p className="min-w-0 wrap-break-word text-sm font-medium text-foreground">
                     {alert.message}
                   </p>
                   <p className="mt-1.5 text-xs text-muted-foreground">
@@ -276,7 +279,7 @@ async function DiagnosticsSections() {
                 >
                   <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-1">
                     <p className="min-w-0 flex-1 truncate text-sm font-medium text-foreground">
-                      {item.automation.name}
+                      {item.automation?.name ?? "Auto-reply"}
                     </p>
                     <StatusBadge status={item.status} />
                   </div>

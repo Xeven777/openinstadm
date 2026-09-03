@@ -1,5 +1,5 @@
 # OpenInstaDM — Local Development Services
-# Run: docker-compose up -d
+# Run from the repository root: docker compose -f infra/docker/docker-compose.yml up -d
 
 services:
   postgres:

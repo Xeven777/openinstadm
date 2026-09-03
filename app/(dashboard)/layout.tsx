@@ -68,6 +68,7 @@ async function AuthenticatedShell({
         userId: session.user.id,
         workspaceId: selected.id,
         role: selected.role,
+        permissions: selected.permissions,
       }}
     >
       <DashboardShell

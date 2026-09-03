@@ -81,7 +81,8 @@ model WorkspaceMember {
   id          String        @id @default(cuid())
   workspaceId String
   userId      String
-  role        WorkspaceRole @default(OWNER)
+  role        WorkspaceRole @default(MEMBER)
+  permissions WorkspacePermission[] @default([])
   createdAt   DateTime      @default(now())
 
   workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
@@ -96,6 +97,7 @@ model WorkspaceInvitation {
   workspaceId     String
   email           String
   role            WorkspaceRole             @default(MEMBER)
+  permissions     WorkspacePermission[] @default([])
   token           String                    @unique
   status          WorkspaceInvitationStatus @default(PENDING)
   invitedByUserId String?
@@ -114,16 +116,18 @@ model WorkspaceInvitation {
 }
 
 model InstagramAccount {
-  id                String    @id @default(cuid())
-  workspaceId       String
-  instagramId       String    @unique
-  username          String
-  name              String?
-  accessToken       String
-  tokenExpiresAt    DateTime?
-  webhookSubscribed Boolean   @default(false)
-  connectedAt       DateTime  @default(now())
-  updatedAt         DateTime  @updatedAt
+  id                     String    @id @default(cuid())
+  workspaceId            String
+  instagramId            String    @unique
+  username               String
+  name                   String?
+  accessToken            String
+  tokenExpiresAt         DateTime?
+  webhookSubscribed      Boolean   @default(false)
+  fallbackReplyEnabled   Boolean   @default(false)
+  fallbackReplyMessage   String?
+  connectedAt            DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
 
   workspace         Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   automations       Automation[]
@@ -231,9 +235,9 @@ model Automation {
 }
 
 model DmLog {
-  id                 String @id @default(cuid())
+  id                 String  @id @default(cuid())
   workspaceId        String
-  automationId       String
+  automationId       String?
   instagramAccountId String
 
   commenterId    String
@@ -241,8 +245,8 @@ model DmLog {
   commentText    String
   commentId      String
   matchedKeyword String?
-  status         DmStatus  @default(PENDING)
-  attempts       Int       @default(0)
+  status         DmStatus @default(PENDING)
+  attempts       Int      @default(0)
   dmSentAt       DateTime?
   errorMessage   String?
 
@@ -255,9 +259,9 @@ model DmLog {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  workspace        Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  automation       Automation       @relation(fields: [automationId], references: [id], onDelete: Cascade)
-  instagramAccount InstagramAccount @relation(fields: [instagramAccountId], references: [id], onDelete: Cascade)
+  workspace        Workspace         @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  automation       Automation?       @relation(fields: [automationId], references: [id], onDelete: Cascade)
+  instagramAccount InstagramAccount  @relation(fields: [instagramAccountId], references: [id], onDelete: Cascade)
 
   @@unique([automationId, commentId])
   @@index([workspaceId])
@@ -267,23 +271,8 @@ model DmLog {
   @@index([workspaceId, status, updatedAt])
   @@index([automationId])
   @@index([instagramAccountId])
+  @@index([instagramAccountId, commentId])
   @@index([status])
-}
-
-// Every comment the system has seen, from either the webhook or the polling
-// reconciler. This is the shared dedup set: a comment id present here has
-// already been queued for processing, so neither path acts on it twice. It is
-// distinct from DmLog (which only records comments that matched a campaign);
-// this records all comments so the reconciler doesn't re-sweep non-matching
-// ones every cycle.
-model ProcessedComment {
-  id                 String   @id @default(cuid())
-  instagramAccountId String
-  commentId          String   @unique
-  source             String // "WEBHOOK" | "POLLING"
-  seenAt             DateTime @default(now())
-
-  @@index([instagramAccountId])
 }
 
 model TrackedLink {
@@ -368,10 +357,14 @@ model OperationalEvent {
 
 enum WorkspaceRole {
   OWNER
-  ADMIN
   MEMBER
 }
 
+enum WorkspacePermission {
+  MANAGE_AUTOMATIONS
+  MANAGE_INSTAGRAM_ACCOUNTS
+  MANAGE_MEMBERS
+}
 enum WorkspaceInvitationStatus {
   PENDING
   ACCEPTED

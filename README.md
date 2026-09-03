@@ -32,7 +32,7 @@ OpenInstaDM is built around Meta's official Instagram private replies. It does n
 - Personalization. Use `{username}` in your message to greet the commenter by name.
 - Per-account rate limiting. Stays under Meta's documented cap of 750 private replies per hour, and queues the overflow instead of dropping it.
 - Multiple Instagram accounts. Connect several professional accounts under one workspace, each with its own limits.
-- Workspaces and roles. Owner, admin, and member roles with invite links, useful if you run this for clients.
+- Workspaces and permissions. Owners can grant members access to automations, Instagram accounts, or team management, useful if you run this for clients.
 - Campaign templates. Start from a preset instead of a blank form.
 - Inbox. Read your Instagram DM conversations and reply from the dashboard, inside Meta's 24-hour messaging window. Cached so it loads instantly on repeat visits.
 - DM logs. Every send, skip, and failure is logged with a reason.
@@ -65,7 +65,7 @@ git clone https://github.com/xeven777/OpenInstaDM.git
 cd openinstadm
 npm install
 cp .env.example .env      # then fill in the values, see docs/setup.md
-docker-compose up -d      # starts Postgres and Redis
+docker compose -f infra/docker/docker-compose.yml up -d  # starts Postgres and Redis
 npm run db:migrate
 npm run dev               # web app on http://localhost:3000
 npm run worker            # in a second terminal, this sends the DMs
