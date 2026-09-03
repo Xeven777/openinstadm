@@ -1,0 +1,30 @@
+# The worker image is built with the repository root as its context:
+#   docker build --file=infra/docker/dockerfile.worker .
+#
+# Docker therefore discovers this Dockerfile-specific ignore file next to the
+# Dockerfile. Keep the context allowlisted so web assets, local build output,
+# tests, documentation, secrets, and the root dependency tree are never sent
+# to the builder.
+**
+
+# Worker build manifests and esbuild configuration.
+!deploy/
+!deploy/worker/
+!deploy/worker/package.json
+!deploy/worker/package-lock.json
+!deploy/worker/build-worker.mjs
+!deploy/worker/runtime/
+!deploy/worker/runtime/package.json
+!deploy/worker/runtime/package-lock.json
+
+# Prisma Client generation only needs the schema and its configuration.
+!prisma/
+!prisma/schema.prisma
+!prisma.config.ts
+!tsconfig.json
+
+# Worker entrypoint and the application modules it bundles.
+!worker/
+!worker/**
+!lib/
+!lib/**

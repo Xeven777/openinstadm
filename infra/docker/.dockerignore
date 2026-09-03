@@ -1,9 +1,0 @@
-node_modules
-.next
-app/generated/prisma
-.git
-.env
-.env.*
-!.env.example
-coverage
-*.log
