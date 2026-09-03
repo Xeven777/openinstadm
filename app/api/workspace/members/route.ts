@@ -127,10 +127,11 @@ export async function POST(request: NextRequest) {
     (process.env.NEXTAUTH_URL ?? "http://localhost:3000").replace(/\/$/, "")
   }/dashboard`;
 
-  // Email delivery is best-effort — a failed send never fails the invite.
-  // The inviter still gets the copyable link in the UI as a fallback.
+  // Email delivery is best-effort — invite still succeeds without Resend.
+  // The invite link is always returned for manual sharing (copy-link flow).
   let emailSent = false;
   let addedExistingMember = false;
+  let inviteUrl: string | null = null;
 
   if (existingUser) {
     const existingMembership = await prisma.workspaceMember.findUnique({
@@ -201,10 +202,11 @@ export async function POST(request: NextRequest) {
       },
     });
 
+    inviteUrl = buildInvitationUrl(invitation.token);
     emailSent = await sendInviteEmail({
       to: email,
       workspaceName,
-      inviteUrl: buildInvitationUrl(invitation.token),
+      inviteUrl,
       invitedBy,
     });
   }
@@ -214,6 +216,7 @@ export async function POST(request: NextRequest) {
   return NextResponse.json({
     success: true,
     emailSent,
+    inviteUrl,
     addedExistingMember,
     data: await getWorkspaceMembers(
       context.workspaceId,

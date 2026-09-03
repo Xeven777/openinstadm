@@ -79,16 +79,34 @@ export default function SettingsTeam({
           gooeyToast.success(`${email} added to the workspace`, {
             description: payload.emailSent
               ? "We've emailed them a sign-in link."
-              : "Email couldn't be sent — they can sign in as usual.",
-          });
-        } else if (payload.emailSent) {
-          gooeyToast.success(`Invite sent to ${email}`, {
-            description: "They'll get an email with an accept link.",
+              : "They can sign in as usual.",
           });
         } else {
-          gooeyToast.warning(`Invite created for ${email}`, {
-            description: "Email delivery failed — use Copy link to share it.",
-          });
+          const inviteUrl: string | null = payload.inviteUrl ?? null;
+          if (inviteUrl) {
+            try {
+              await navigator.clipboard.writeText(inviteUrl);
+              gooeyToast.success(`Invite link ready for ${email}`, {
+                description: payload.emailSent
+                  ? "Email sent — link also copied to clipboard."
+                  : "Link copied — share it via Slack, WhatsApp, etc.",
+              });
+            } catch {
+              gooeyToast.success(`Invite created for ${email}`, {
+                description: payload.emailSent
+                  ? "Email sent — use Copy link if needed."
+                  : "Use Copy link to share it.",
+              });
+            }
+          } else if (payload.emailSent) {
+            gooeyToast.success(`Invite sent to ${email}`, {
+              description: "They'll get an email with an accept link.",
+            });
+          } else {
+            gooeyToast.success(`Invite created for ${email}`, {
+              description: "Use Copy link to share it.",
+            });
+          }
         }
         router.refresh();
       } else {
@@ -214,11 +232,25 @@ export default function SettingsTeam({
       });
       const payload = await res.json();
       if (payload.success) {
-        gooeyToast.success(`Invite resent to ${email}`, {
-          description: payload.emailSent
-            ? "Check their inbox for a fresh accept link."
-            : "Email delivery failed — use Copy link to share it.",
-        });
+        const inviteUrl: string | null = payload.inviteUrl ?? null;
+        if (inviteUrl && !payload.emailSent) {
+          try {
+            await navigator.clipboard.writeText(inviteUrl);
+            gooeyToast.success(`Invite renewed for ${email}`, {
+              description: "Link copied — share it via Slack, WhatsApp, etc.",
+            });
+          } catch {
+            gooeyToast.success(`Invite renewed for ${email}`, {
+              description: "Use Copy link to share it.",
+            });
+          }
+        } else {
+          gooeyToast.success(`Invite renewed for ${email}`, {
+            description: payload.emailSent
+              ? "Email sent with a fresh link."
+              : "Use Copy link to share it.",
+          });
+        }
         router.refresh();
       } else {
         gooeyToast.error(payload.error ?? "Could not resend invite");
@@ -487,7 +519,7 @@ export default function SettingsTeam({
                           }
                           disabled={busy === `invite:${invitation.id}`}
                         >
-                          {expired ? "Resend (reactivate)" : "Resend"}
+                          {expired ? "Reactivate" : "Renew"}
                         </Button>
                         <Button
                           type="button"

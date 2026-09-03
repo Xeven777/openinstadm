@@ -1,5 +1,7 @@
 import { connection } from "next/server";
 import NextAuth, { type NextAuthConfig } from "next-auth";
+import GitHub from "next-auth/providers/github";
+import Google from "next-auth/providers/google";
 import Resend from "next-auth/providers/resend";
 import { PrismaAdapter } from "@auth/prisma-adapter";
 import { prisma } from "@/lib/db/client";
@@ -8,15 +10,49 @@ import { sendVerificationRequest } from "@/lib/server/magic-link-email";
 
 type AdapterPrismaClient = Parameters<typeof PrismaAdapter>[0];
 
+export const hasResend = !!process.env.RESEND_API_KEY;
+const hasGoogle =
+  !!process.env.GOOGLE_CLIENT_ID && !!process.env.GOOGLE_CLIENT_SECRET;
+const githubId = process.env.GITHUB_ID ?? process.env.GITHUB_CLIENT_ID;
+const githubSecret =
+  process.env.GITHUB_SECRET ?? process.env.GITHUB_CLIENT_SECRET;
+const hasGitHub = !!githubId && !!githubSecret;
+
+function buildProviders(): NextAuthConfig["providers"] {
+  const providers: NextAuthConfig["providers"] = [];
+  if (hasGoogle) {
+    providers.push(
+      Google({
+        clientId: process.env.GOOGLE_CLIENT_ID!,
+        clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
+      })
+    );
+  }
+  if (hasGitHub) {
+    providers.push(
+      GitHub({
+        clientId: githubId!,
+        clientSecret: githubSecret!,
+      })
+    );
+  }
+  if (hasResend) {
+    providers.push(
+      Resend({
+        apiKey: process.env.RESEND_API_KEY!,
+        from: process.env.EMAIL_FROM ?? "OpenInstaDM <login@example.com>",
+        sendVerificationRequest,
+      })
+    );
+  }
+  // Allow boot even if no provider is configured — /login will show a setup hint.
+  // This keeps local dev and CI from crashing when env is still being wired.
+  return providers;
+}
+
 export const authConfig = {
   adapter: PrismaAdapter(prisma as unknown as AdapterPrismaClient),
-  providers: [
-    Resend({
-      apiKey: process.env.RESEND_API_KEY ?? "missing-resend-api-key",
-      from: process.env.EMAIL_FROM ?? "OpenInstaDM <login@example.com>",
-      sendVerificationRequest,
-    }),
-  ],
+  providers: buildProviders(),
   callbacks: {
     async jwt({ token, user }) {
       // On sign-in, embed the user ID and name in the JWT so session lookups never
@@ -45,7 +81,7 @@ export const authConfig = {
   },
   pages: {
     signIn: "/login",
-    verifyRequest: "/verify-request",
+    ...(hasResend ? { verifyRequest: "/verify-request" } : {}),
   },
   session: {
     strategy: "jwt",

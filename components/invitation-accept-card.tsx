@@ -47,8 +47,6 @@ export default function InvitationAcceptCard({
   }
 
   if (!isSignedIn) {
-    // Send the invitee through the magic-link flow and bring them back here,
-    // so accepting is one click after they land.
     const callbackUrl = encodeURIComponent(`/invite/${token}`);
     return (
       <div className="space-y-3">
@@ -59,8 +57,7 @@ export default function InvitationAcceptCard({
           Sign in to accept
         </a>
         <p className="text-xs text-muted-foreground">
-          We&apos;ll email you a magic link for {invitedEmail}, then bring you
-          back here to accept.
+          Sign in with Google, GitHub, or email for {invitedEmail} — we&apos;ll bring you back here to accept.
         </p>
       </div>
     );

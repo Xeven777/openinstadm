@@ -74,10 +74,11 @@ export async function POST(request: NextRequest) {
     select: { name: true, email: true },
   });
 
+  const inviteUrl = buildInvitationUrl(updated.token);
   const emailSent = await sendInviteEmail({
     to: invitation.email,
     workspaceName: invitation.workspace.name,
-    inviteUrl: buildInvitationUrl(updated.token),
+    inviteUrl,
     invitedBy: inviter?.name || inviter?.email || "A workspace member",
   });
 
@@ -86,6 +87,7 @@ export async function POST(request: NextRequest) {
   return NextResponse.json({
     success: true,
     emailSent,
+    inviteUrl,
     data: await getWorkspaceMembers(
       context.workspaceId,
       context.role,
