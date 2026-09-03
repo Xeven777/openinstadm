@@ -31,6 +31,10 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
+        <meta
+          name="google-site-verification"
+          content="1ywEvz4B5lYEEfkF2hEWRlDFzCAVq-5_Qb37AgpM7Wg"
+        />
         <meta name="apple-mobile-web-app-title" content="OpenInstaDM" />
         {process.env.NODE_ENV === "development" && (
           <Script
