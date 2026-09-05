@@ -365,3 +365,32 @@
     transform: translateX(-3px) rotate(-1.2deg);
   }
 }
+
+.glow-card {
+  background-color: #fbfef3;
+  background-image:
+    radial-gradient(at 88% 40%, #ffffff 0px, transparent 85%),
+    radial-gradient(at 49% 30%, #ffffff 0px, transparent 85%),
+    radial-gradient(at 14% 26%, #ffffff 0px, transparent 85%),
+    radial-gradient(at 0% 64%, rgb(144 218 35 / 28%) 0px, transparent 85%),
+    radial-gradient(at 41% 94%, rgb(132 204 22 / 22%) 0px, transparent 85%),
+    radial-gradient(at 100% 99%, rgb(190 242 100 / 45%) 0px, transparent 85%);
+
+  border-radius: 1rem;
+  box-shadow:
+    inset 0 1px 0 #ffffff,
+    inset 0 -12px 24px rgb(190 242 100 / 20%);
+}
+
+.dark .glow-card {
+  background-color: #000;
+  background-image:
+    radial-gradient(at 88% 40%, black 0px, black 85%),
+    radial-gradient(at 49% 30%, black 0px, transparent 85%),
+    radial-gradient(at 14% 26%, black 0px, transparent 85%),
+    radial-gradient(at 0% 64%, #90da23 0px, transparent 85%),
+    radial-gradient(at 41% 94%, #6bb300 0px, transparent 85%),
+    radial-gradient(at 100% 99%, #1f3300 0px, transparent 85%);
+
+  box-shadow: inset 0 -16px 24px #f2ffdc40;
+}

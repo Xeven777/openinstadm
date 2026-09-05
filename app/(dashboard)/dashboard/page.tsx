@@ -287,7 +287,7 @@ async function SummaryRegion({
       </div>
 
       {/* Secondary metric strip — engagement + audience + health, no card boxes. */}
-      <div className="grid grid-cols-1 gap-6 rounded-xl border border-border bg-card px-5 py-4 shadow-xs sm:grid-cols-4 sm:gap-0 sm:divide-x sm:divide-border">
+      <div className="grid grid-cols-1 gap-6 rounded-xl border border-border px-5 sm:py-6 py-14 bg-background glow-card shadow-xs sm:grid-cols-4 sm:gap-0 sm:divide-x sm:divide-border">
         <div className="sm:px-5 sm:first:pl-0">
           <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
             Clicks this month

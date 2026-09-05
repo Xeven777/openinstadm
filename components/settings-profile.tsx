@@ -3,10 +3,10 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { gooeyToast } from "goey-toast";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { Check, CircleNotch, WarningCircle } from "@phosphor-icons/react";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Separator } from "@/components/ui/separator";
+import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 
 export default function SettingsProfile({
@@ -21,7 +21,8 @@ export default function SettingsProfile({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  async function handleSave() {
+  async function handleSave(e?: React.FormEvent) {
+    e?.preventDefault();
     const trimmed = name.trim();
     if (!trimmed) {
       setError("Name cannot be empty");
@@ -32,7 +33,9 @@ export default function SettingsProfile({
       return;
     }
     if (!/^[a-zA-Z0-9\s\-'.]{1,50}$/.test(trimmed)) {
-      setError("Name can only contain letters, numbers, spaces, hyphens, apostrophes, and periods");
+      setError(
+        "Name can only contain letters, numbers, spaces, hyphens, apostrophes, and periods",
+      );
       return;
     }
 
@@ -63,59 +66,93 @@ export default function SettingsProfile({
     }
   }
 
-  const displayName = userName?.trim() ? userName : userEmail?.split("@")[0] ?? "User";
+  const savedName = userName?.trim() ?? "";
+  const isDirty = name.trim() !== savedName;
 
   return (
-    <Card>
-      <CardHeader className="pb-3">
-        <CardTitle className="text-base">Profile</CardTitle>
-      </CardHeader>
-      <CardContent className="gap-4">
-        <div className="space-y-3">
-          <div className="flex items-center gap-3">
-            <label htmlFor="profile-name" className="text-sm font-medium text-foreground w-24">
-              Name
-            </label>
+    <Card className="glow-card bg-background">
+      <CardContent className="flex items-start gap-3">
+        <div className="min-w-0 flex-1 w-full">
+          {/* Title row */}
+          <div className="flex min-w-0 items-baseline justify-between gap-2">
+            <h2 className="text-sm font-medium text-foreground">Profile</h2>
+            {userEmail && (
+              <p
+                className="truncate text-xs text-muted-foreground"
+                title={userEmail}
+              >
+                {userEmail}
+              </p>
+            )}
+          </div>
+
+          {/* Inline edit row */}
+          <form onSubmit={handleSave} className="mt-2 flex items-center gap-2">
             <Input
               id="profile-name"
               value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="Enter your name"
+              onChange={(e) => {
+                setName(e.target.value);
+                if (error) setError(null);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Escape") {
+                  setName(savedName);
+                  setError(null);
+                }
+              }}
+              placeholder="Your name"
               maxLength={50}
-              className="flex-1 max-w-md"
+              autoComplete="name"
               disabled={saving}
+              aria-invalid={!!error}
+              className={cn("h-8 flex-1", error && "border-destructive")}
             />
-          </div>
+            <Button
+              type="submit"
+              size="sm"
+              disabled={saving || !isDirty || !name.trim()}
+              className="shrink-0"
+            >
+              {saving ? (
+                <>
+                  <CircleNotch weight="bold" className="animate-spin" />
+                  Saving
+                </>
+              ) : !isDirty ? (
+                <>
+                  <Check weight="bold" />
+                  Saved
+                </>
+              ) : (
+                "Save"
+              )}
+            </Button>
+          </form>
 
-          {error && (
-            <p className="text-sm text-destructive ml-6">{error}</p>
-          )}
-
-          <p className="text-xs text-muted-foreground ml-6">
-            This name appears in the sidebar, team list, and workspace creation.
-            {userName ? "" : " Currently using email prefix as fallback."}
-          </p>
-
-          <Button
-            onClick={handleSave}
-            disabled={saving || name.trim() === (userName?.trim() ?? "")}
-            className={cn(
-              buttonVariants({ variant: "default" }),
-              "ml-6",
-              name.trim() === (userName?.trim() ?? "") && "opacity-50"
+          {/* Status / hint line */}
+          <div className="mt-1.5 flex items-center justify-between gap-2">
+            {error ? (
+              <p className="flex min-w-0 items-center gap-1 text-xs text-destructive">
+                <WarningCircle weight="fill" className="size-3.5 shrink-0" />
+                <span className="truncate">{error}</span>
+              </p>
+            ) : (
+              <p className="truncate text-xs text-muted-foreground">
+                Shown in the sidebar and team list
+              </p>
             )}
-          >
-            {saving ? "Saving..." : "Save"}
-          </Button>
-        </div>
-
-        <Separator />
-
-        <div className="text-sm text-muted-foreground">
-          <p>Email: <span className="text-foreground font-medium ml-1">{userEmail ?? "—"}</span></p>
-          <p className="mt-1">
-            Display name: <span className="text-foreground font-medium ml-1">{displayName}</span>
-          </p>
+            <span
+              className={cn(
+                "shrink-0 text-[11px] tabular-nums",
+                name.trim().length >= 50
+                  ? "text-destructive"
+                  : "text-muted-foreground/70",
+              )}
+            >
+              {name.trim().length}/50
+            </span>
+          </div>
         </div>
       </CardContent>
     </Card>

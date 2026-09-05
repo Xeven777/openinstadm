@@ -456,7 +456,7 @@ export default function InboxPage() {
         )}
       </div>
 
-      <Card className="h-[calc(100svh-16rem)] max-h-[880px] min-h-[480px] gap-0 overflow-hidden py-0 sm:h-[calc(100dvh-13rem)]">
+      <Card className="h-[calc(100svh-16rem)] max-h-220 min-h-120 gap-0 overflow-hidden py-0 sm:h-[calc(100dvh-13rem)]">
         {accountsQuery.isSuccess && accounts.length === 0 ? (
           <div className="flex h-full flex-col items-center justify-center gap-2 p-8 text-center">
             <span className="flex size-12 items-center justify-center rounded-2xl bg-muted text-muted-foreground">
@@ -709,7 +709,7 @@ export default function InboxPage() {
                                   )}
                                   <div
                                     className={cn(
-                                      "max-w-[85%] min-w-0 px-3.5 py-2 text-sm leading-relaxed break-words shadow-xs sm:max-w-[75%]",
+                                      "max-w-[85%] min-w-0 px-3.5 py-2 text-sm leading-relaxed wrap-break-word shadow-xs sm:max-w-[75%]",
                                       m.fromMe
                                         ? "rounded-2xl rounded-br-xs bg-primary text-primary-foreground"
                                         : "rounded-2xl rounded-bl-xs border border-border/60 bg-muted/80 text-foreground",
