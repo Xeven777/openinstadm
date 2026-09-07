@@ -1,10 +1,10 @@
 import type { SeoPageConfig } from "@/components/seo-page-shell";
 
-const templateLinks = [
-  { label: "DTC product link template", href: "/templates/dtc-product-link" },
-  { label: "Real estate lead form template", href: "/templates/real-estate-lead-form" },
-  { label: "Fitness plan template", href: "/templates/fitness-plan" },
-  { label: "Browse every template", href: "/templates" },
+const relatedLinks = [
+  { label: "Instagram Auto DM", href: "/instagram-auto-dm" },
+  { label: "Comment LINK automation", href: "/comment-link-automation" },
+  { label: "Keyword automation", href: "/instagram-keyword-automation" },
+  { label: "Lead magnet automation", href: "/instagram-lead-magnet-automation" },
 ];
 
 export const manychatAlternativePage: SeoPageConfig = {
@@ -16,7 +16,7 @@ export const manychatAlternativePage: SeoPageConfig = {
   bullets: [
     "Built around Instagram comments, posts, reels, and private replies.",
     "Official Meta API flow with no scraping or password sharing.",
-    "Campaign templates, tracked links, and shareable client reports.",
+    "Campaign playbooks, tracked links, and shareable client reports.",
     "Open-source core with hosted SaaS for agencies that want managed reliability.",
   ],
   sections: [
@@ -51,7 +51,7 @@ export const manychatAlternativePage: SeoPageConfig = {
       other: "General DM automation across many channels and use cases.",
     },
   ],
-  templateLinks,
+  relatedLinks,
   faqs: [
     {
       title: "Is OpenInstaDM a full Manychat replacement?",
@@ -60,63 +60,6 @@ export const manychatAlternativePage: SeoPageConfig = {
     {
       title: "Does it support agencies?",
       body: "Yes. It supports multiple Instagram accounts, workspace members, account filters, analytics, and shareable reports, with no account limit.",
-    },
-  ],
-};
-
-export const templatesSeoPage: SeoPageConfig = {
-  eyebrow: "Instagram comment-to-DM templates",
-  title: "Instagram comment-to-DM templates for high-intent campaign replies",
-  description:
-    "Start with proven campaign patterns for product links, lead magnets, price replies, launch waitlists, coaching offers, events, and local services.",
-  primaryCta: "Use a template",
-  bullets: [
-    "Template intent carries into signup and campaign creation.",
-    "Each template includes keywords, a campaign goal, and reply copy.",
-    "Tracked links turn template replies into measurable clicks.",
-    "Agencies can reuse templates across client accounts.",
-  ],
-  sections: [
-    {
-      title: "Product link drops",
-      body: "Use LINK, SHOP, BUY, or SIZE comments to send exact product pages, launch bundles, or collection links.",
-    },
-    {
-      title: "Lead magnets",
-      body: "Use GUIDE, CHECKLIST, PLAN, or START comments to send free resources and follow-up offers.",
-    },
-    {
-      title: "Local services",
-      body: "Use PRICE, BOOK, INFO, or TOUR comments to deliver booking links, quote forms, and local offer pages.",
-    },
-  ],
-  comparisonTitle: "Template campaigns vs manual inbox replies",
-  comparisons: [
-    {
-      label: "Speed",
-      ours: "Launch from reusable campaign templates in minutes.",
-      other: "Reply manually or rebuild the same campaign copy each time.",
-    },
-    {
-      label: "Measurement",
-      ours: "Use tracked links and keyword analytics per campaign.",
-      other: "Rely on screenshots, inbox memory, or scattered link data.",
-    },
-    {
-      label: "Reuse",
-      ours: "Clone the same playbook across posts, reels, and client accounts.",
-      other: "Repeat setup work for every campaign.",
-    },
-  ],
-  templateLinks,
-  faqs: [
-    {
-      title: "Can I edit the template copy?",
-      body: "Yes. Templates are starting points. You can change keywords, private reply text, tracked destination URLs, and active status before launching.",
-    },
-    {
-      title: "Do templates work for reels?",
-      body: "Yes. Campaigns can target Instagram posts or reels returned by the connected professional account.",
     },
   ],
 };
@@ -140,7 +83,7 @@ export const agenciesSeoPage: SeoPageConfig = {
     },
     {
       title: "Repeatable offers",
-      body: "Use templates to package lead magnets, product drops, price replies, and launch waitlists as repeatable agency services.",
+      body: "Use repeatable playbooks to package lead magnets, product drops, price replies, and launch waitlists as repeatable agency services.",
     },
     {
       title: "Proof of work",
@@ -165,7 +108,7 @@ export const agenciesSeoPage: SeoPageConfig = {
       other: "Client work can get mixed across broad automation workspaces.",
     },
   ],
-  templateLinks,
+  relatedLinks,
   faqs: [
     {
       title: "How many Instagram accounts can agencies connect?",
@@ -222,7 +165,7 @@ export const commentLinkSeoPage: SeoPageConfig = {
       other: "Unsafe browser automation or scraping can put accounts at risk.",
     },
   ],
-  templateLinks,
+  relatedLinks,
   faqs: [
     {
       title: "Can I use keywords other than LINK?",
@@ -279,7 +222,7 @@ export const linkdmAlternativePage: SeoPageConfig = {
       other: "Single-account focus; agency reporting often manual.",
     },
   ],
-  templateLinks,
+  relatedLinks,
   faqs: [
     {
       title: "Can I migrate from LinkDM easily?",
@@ -327,7 +270,7 @@ export const chatfuelAlternativePage: SeoPageConfig = {
     },
     {
       label: "Setup time",
-      ours: "Minutes per campaign, reproducible via templates.",
+      ours: "Minutes per campaign, reproducible across posts and clients.",
       other: "Longer to model flows, handoffs, and channel rules.",
     },
     {
@@ -336,7 +279,7 @@ export const chatfuelAlternativePage: SeoPageConfig = {
       other: "Bot-level analytics that need slicing for campaign proof.",
     },
   ],
-  templateLinks,
+  relatedLinks,
   faqs: [
     {
       title: "Should I replace Chatfuel entirely?",
@@ -393,7 +336,7 @@ export const instagramAutoDmPage: SeoPageConfig = {
       other: "Inbox memory and screenshots for proof.",
     },
   ],
-  templateLinks,
+  relatedLinks,
   faqs: [
     {
       title: "Will Instagram flag Auto DM?",
@@ -425,7 +368,7 @@ export const instagramKeywordAutomationPage: SeoPageConfig = {
     },
     {
       title: "Template the playbook",
-      body: "Save product, lead-magnet, and local-service keyword sets as templates and clone them across posts and reels.",
+      body: "Save product, lead-magnet, and local-service keyword sets as repeatable playbooks and reuse them across posts and reels.",
     },
     {
       title: "See what worked",
@@ -446,11 +389,11 @@ export const instagramKeywordAutomationPage: SeoPageConfig = {
     },
     {
       label: "Reuse",
-      ours: "Templates carry intent into future campaigns.",
+      ours: "Saved playbooks carry intent into future campaigns.",
       other: "Rebuild keywords and replies each launch.",
     },
   ],
-  templateLinks,
+  relatedLinks,
   faqs: [
     {
       title: "Can I use phrases like “send guide”?",
@@ -507,7 +450,7 @@ export const autoReplyInstagramCommentsPage: SeoPageConfig = {
       other: "Manual tallies or no report at all.",
     },
   ],
-  templateLinks,
+  relatedLinks,
   faqs: [
     {
       title: "Can I auto-reply to every comment?",
@@ -530,7 +473,7 @@ export const instagramLeadMagnetAutomationPage: SeoPageConfig = {
     "Keywords like GUIDE, CHECKLIST, PLAN, START, FREE trigger the asset DM.",
     "Optional follow-gate before delivering the link — perfect for growth.",
     "Tracked link proves which post/reel and keyword drove the lead.",
-    "Reuse across launches, cohorts, and client accounts via templates.",
+    "Reuse the same setup across launches, cohorts, and client accounts.",
   ],
   sections: [
     {
@@ -564,7 +507,7 @@ export const instagramLeadMagnetAutomationPage: SeoPageConfig = {
       other: "No link between a post and actual asset downloads.",
     },
   ],
-  templateLinks,
+  relatedLinks,
   faqs: [
     {
       title: "Can I swap the lead magnet file later?",

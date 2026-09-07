@@ -11,7 +11,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
     "/linkdm-alternative",
     "/chatfuel-alternative",
     "/instagram-dm-automation-agencies",
-    "/instagram-comment-to-dm-templates",
+    "/instagram-comment-to-dm-examples",
     "/comment-link-automation",
     "/instagram-auto-dm",
     "/instagram-keyword-automation",

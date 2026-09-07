@@ -29,7 +29,7 @@ export interface SeoPageConfig {
     ours: string;
     other: string;
   }>;
-  templateLinks: Array<{
+  relatedLinks: Array<{
     label: string;
     href: string;
   }>;
@@ -68,13 +68,13 @@ export default function SeoPageShell({ config }: { config: SeoPageConfig }) {
                 <ArrowRightIcon weight="bold" className="size-4" />
               </Link>
               <Link
-                href="/templates"
+                href="/docs"
                 className={cn(
                   buttonVariants({ variant: "outline", size: "lg" }),
                   "rounded-full px-7 h-11 bg-background",
                 )}
               >
-                {config.secondaryCta ?? "Browse templates"}
+                {config.secondaryCta ?? "See how it works"}
               </Link>
             </div>
             <div className="mt-6 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
@@ -195,11 +195,11 @@ export default function SeoPageShell({ config }: { config: SeoPageConfig }) {
         </div>
       </section>
 
-      {/* Template links */}
+      {/* Related playbooks */}
       <section className="mx-auto grid w-full max-w-8xl gap-8 px-5 py-16 sm:px-6 lg:grid-cols-[0.9fr_1.1fr] lg:px-8">
         <div>
           <p className="text-xs font-bold uppercase tracking-widest text-primary">
-            Start from a template
+            Explore playbooks
           </p>
           <h2 className="mt-3 text-3xl font-bold tracking-tighter text-foreground sm:text-4xl">
             Launch faster than
@@ -207,9 +207,9 @@ export default function SeoPageShell({ config }: { config: SeoPageConfig }) {
             building a chatbot flow
           </h2>
           <p className="mt-4 text-sm leading-7 text-muted-foreground">
-            Use a campaign template, connect the right Instagram account, pick
-            the post, and ship a measurable comment-to-DM loop. Clone the same
-            playbook across client accounts.
+            Create a campaign, connect the right Instagram account, pick
+            the post, and ship a measurable comment-to-DM loop. Reuse the same
+            playbook across posts and client accounts.
           </p>
           <Link
             href="/login"
@@ -218,11 +218,11 @@ export default function SeoPageShell({ config }: { config: SeoPageConfig }) {
               "mt-6 rounded-full",
             )}
           >
-            Explore all templates <ArrowRightIcon className="ml-1 size-3.5" />
+            Start free <ArrowRightIcon className="ml-1 size-3.5" />
           </Link>
         </div>
         <div className="grid gap-3 sm:grid-cols-2">
-          {config.templateLinks.map((link) => (
+          {config.relatedLinks.map((link) => (
             <Link
               key={link.href}
               href={link.href}

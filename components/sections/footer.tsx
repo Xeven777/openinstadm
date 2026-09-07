@@ -30,8 +30,8 @@ const footerLinks = {
       href: "/instagram-dm-automation-agencies",
     },
     {
-      label: "Comment-to-DM templates",
-      href: "/instagram-comment-to-dm-templates",
+      label: "Comment-to-DM setup guide",
+      href: "/instagram-comment-to-dm-examples",
     },
     { label: "Comment link automation", href: "/comment-link-automation" },
     { label: "Instagram Auto DM", href: "/instagram-auto-dm" },

@@ -33,6 +33,15 @@ const nextConfig: NextConfig = {
     ],
   },
   reactCompiler: true,
+  async redirects() {
+    return [
+      {
+        source: "/instagram-comment-to-dm-templates",
+        destination: "/instagram-comment-to-dm-examples",
+        permanent: true,
+      },
+    ];
+  },
   turbopack: {
     root: process.cwd(),
   },

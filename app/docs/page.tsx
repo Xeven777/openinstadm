@@ -16,8 +16,9 @@ import {
   WarningCircle,
   Wrench,
 } from "@phosphor-icons/react/dist/ssr";
+import Footer from "@/components/sections/footer";
 import { Badge } from "@/components/ui/badge";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -82,7 +83,9 @@ export default function DocsPage() {
               <BookOpen weight="bold" className="size-3.5" /> Docs
             </Badge>
             <span className="text-muted-foreground">/</span>
-            <span className="text-sm font-medium text-foreground">Setup Guide</span>
+            <span className="text-sm font-medium text-foreground">
+              Setup Guide
+            </span>
             <Badge variant="secondary" className="ml-1">
               Beginner-friendly
             </Badge>
@@ -97,10 +100,13 @@ export default function DocsPage() {
                 </span>
               </h1>
               <p className="mt-5 max-w-2xl text-base leading-7 text-muted-foreground sm:text-lg">
-                This is the only guide you need. Follow it top to bottom — even if
-                you&apos;ve never touched Postgres, Redis, or a Meta app before.
-                Real time: <strong className="font-semibold text-foreground">~30 minutes</strong>,
-                mostly waiting on Meta&apos;s dashboard.
+                This is the only guide you need. Follow it top to bottom — even
+                if you&apos;ve never touched Postgres, Redis, or a Meta app
+                before. Real time:{" "}
+                <strong className="font-semibold text-foreground">
+                  ~30 minutes
+                </strong>
+                , mostly waiting on Meta&apos;s dashboard.
               </p>
 
               <div className="mt-6 flex flex-wrap gap-3">
@@ -114,7 +120,9 @@ export default function DocsPage() {
                   href="https://github.com/xeven777/OpenInstaDM"
                   target="_blank"
                   rel="noreferrer"
-                  className={cn(buttonVariants({ variant: "outline", size: "lg" }))}
+                  className={cn(
+                    buttonVariants({ variant: "outline", size: "lg" }),
+                  )}
                 >
                   View on GitHub
                 </a>
@@ -128,7 +136,8 @@ export default function DocsPage() {
                   <ListChecks weight="bold" className="size-3.5" /> 6 steps
                 </span>
                 <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-3 py-1.5 font-medium">
-                  <Wrench weight="bold" className="size-3.5" /> No Docker required
+                  <Wrench weight="bold" className="size-3.5" /> No Docker
+                  required
                 </span>
               </div>
             </div>
@@ -167,7 +176,7 @@ export default function DocsPage() {
                       </p>
                     </div>
                   </div>
-                  <div className="flex gap-3 rounded-lg border border-primary/20 bg-primary/[0.06] p-3">
+                  <div className="flex gap-3 rounded-lg border border-primary/20 bg-primary/6 p-3">
                     <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground">
                       <Database weight="bold" className="size-4" />
                     </span>
@@ -176,19 +185,23 @@ export default function DocsPage() {
                       <p className="text-xs leading-5 text-muted-foreground">
                         Same <InlineCode>DATABASE_URL</InlineCode> &{" "}
                         <InlineCode>REDIS_URL</InlineCode> &{" "}
-                        <InlineCode>ENCRYPTION_KEY</InlineCode> in both processes.
+                        <InlineCode>ENCRYPTION_KEY</InlineCode> in both
+                        processes.
                       </p>
                     </div>
                   </div>
                 </div>
                 <Alert className="border-amber-500/20 bg-amber-500/10">
-                  <WarningCircle weight="fill" className="size-4 text-amber-600" />
+                  <WarningCircle
+                    weight="fill"
+                    className="size-4 text-amber-600"
+                  />
                   <AlertTitle className="text-amber-900 dark:text-amber-100">
                     Encryption key must match
                   </AlertTitle>
                   <AlertDescription className="text-amber-900/80 dark:text-amber-100/80">
-                    The web app encrypts the Instagram token, the worker decrypts
-                    it. Different keys → every DM fails with{" "}
+                    The web app encrypts the Instagram token, the worker
+                    decrypts it. Different keys → every DM fails with{" "}
                     <InlineCode>Failed to decrypt</InlineCode>.
                   </AlertDescription>
                 </Alert>
@@ -239,7 +252,10 @@ export default function DocsPage() {
                 <Link
                   href="https://github.com/xeven777/OpenInstaDM/issues"
                   target="_blank"
-                  className={cn(buttonVariants({ variant: "outline", size: "sm" }), "w-full")}
+                  className={cn(
+                    buttonVariants({ variant: "outline", size: "sm" }),
+                    "w-full",
+                  )}
                 >
                   Open an issue
                 </Link>
@@ -270,10 +286,10 @@ export default function DocsPage() {
               How OpenInstaDM works
             </h2>
             <p className="mt-3 max-w-3xl text-sm leading-6 text-muted-foreground sm:text-base">
-              Someone comments a keyword like <InlineCode>LINK</InlineCode> on your
-              reel → Meta sends a webhook → your app matches the keyword → the
-              worker sends the DM via Meta&apos;s Private Reply API. No scraping,
-              no password, no browser.
+              Someone comments a keyword like <InlineCode>LINK</InlineCode> on
+              your reel → Meta sends a webhook → your app matches the keyword →
+              the worker sends the DM via Meta&apos;s Private Reply API. No
+              scraping, no password, no browser.
             </p>
 
             <div className="mt-6 grid gap-3 sm:grid-cols-5">
@@ -304,7 +320,7 @@ export default function DocsPage() {
             </div>
 
             <div className="mt-6 grid gap-3 sm:grid-cols-3">
-              <Card className="border-primary/15 bg-primary/[0.04]">
+              <Card className="border-primary/15 bg-primary/4">
                 <CardContent className="py-4">
                   <p className="text-sm font-semibold">Official API only</p>
                   <p className="mt-1 text-xs leading-5 text-muted-foreground">
@@ -317,7 +333,8 @@ export default function DocsPage() {
                 <CardContent className="py-4">
                   <p className="text-sm font-semibold">One reply per match</p>
                   <p className="mt-1 text-xs leading-5 text-muted-foreground">
-                    Deduped by comment ID. Rate-limited to Meta&apos;s 750/hr cap.
+                    Deduped by comment ID. Rate-limited to Meta&apos;s 750/hr
+                    cap.
                   </p>
                 </CardContent>
               </Card>
@@ -339,8 +356,8 @@ export default function DocsPage() {
               Prerequisites
             </h2>
             <p className="mt-3 text-sm leading-6 text-muted-foreground">
-              Create these free accounts first. The Meta app step is the longest —
-              everything else is 2 minutes.
+              Create these free accounts first. The Meta app step is the longest
+              — everything else is 2 minutes.
             </p>
 
             <div className="mt-6 grid gap-3 sm:grid-cols-2">
@@ -379,15 +396,23 @@ export default function DocsPage() {
                 <Card key={p.title} className="relative">
                   <CardContent className="gap-2">
                     <div className="flex items-center gap-2">
-                      <CheckCircle weight="fill" className="size-4 shrink-0 text-primary" />
+                      <CheckCircle
+                        weight="fill"
+                        className="size-4 shrink-0 text-primary"
+                      />
                       <p className="text-sm font-semibold">{p.title}</p>
                       {p.must && (
-                        <Badge variant="outline" className="ml-auto text-[10px]">
+                        <Badge
+                          variant="outline"
+                          className="ml-auto text-[10px]"
+                        >
                           Required
                         </Badge>
                       )}
                     </div>
-                    <p className="text-xs leading-5 text-muted-foreground">{p.desc}</p>
+                    <p className="text-xs leading-5 text-muted-foreground">
+                      {p.desc}
+                    </p>
                   </CardContent>
                 </Card>
               ))}
@@ -407,8 +432,8 @@ export default function DocsPage() {
             </h2>
             <p className="mt-3 text-sm leading-6 text-muted-foreground">
               Four random strings protect sessions, encrypt tokens, and verify
-              webhooks. Run these in your terminal — copy the outputs for the next
-              step.
+              webhooks. Run these in your terminal — copy the outputs for the
+              next step.
             </p>
 
             <CodeBlock
@@ -433,9 +458,9 @@ openssl rand -hex 16`}
                 <ShieldCheck weight="bold" className="size-4" />
                 <AlertTitle>Save these safely</AlertTitle>
                 <AlertDescription>
-                  You&apos;ll paste them into <InlineCode>.env</InlineCode> next.
-                  Keep the same <InlineCode>ENCRYPTION_KEY</InlineCode> in both
-                  the web app and the worker — otherwise decrypt fails.
+                  You&apos;ll paste them into <InlineCode>.env</InlineCode>{" "}
+                  next. Keep the same <InlineCode>ENCRYPTION_KEY</InlineCode> in
+                  both the web app and the worker — otherwise decrypt fails.
                 </AlertDescription>
               </Alert>
               <Alert>
@@ -485,7 +510,11 @@ npm install`}
                   </span>
                   Create your <InlineCode>.env</InlineCode>
                 </h3>
-                <CodeBlock lang="bash" code={`cp .env.example .env`} className="mt-3" />
+                <CodeBlock
+                  lang="bash"
+                  code={`cp .env.example .env`}
+                  className="mt-3"
+                />
                 <p className="mt-3 text-xs leading-5 text-muted-foreground">
                   Open <InlineCode>.env</InlineCode> and paste the four secrets
                   you generated in Step 1. You&apos;ll fill the Meta keys in
@@ -574,7 +603,9 @@ sudo -u postgres psql -c "ALTER USER postgres PASSWORD 'postgres';" `}
                     <div className="grid gap-3 sm:grid-cols-2">
                       <Card>
                         <CardContent className="py-3">
-                          <p className="text-sm font-semibold">Postgres — Neon / Supabase</p>
+                          <p className="text-sm font-semibold">
+                            Postgres — Neon / Supabase
+                          </p>
                           <p className="mt-1 text-xs text-muted-foreground">
                             Free 0.5 GB, pooled connection. Copy the{" "}
                             <InlineCode>postgresql://...</InlineCode> URL.
@@ -583,10 +614,13 @@ sudo -u postgres psql -c "ALTER USER postgres PASSWORD 'postgres';" `}
                       </Card>
                       <Card>
                         <CardContent className="py-3">
-                          <p className="text-sm font-semibold">Redis — Upstash / Aiven</p>
+                          <p className="text-sm font-semibold">
+                            Redis — Upstash / Aiven
+                          </p>
                           <p className="mt-1 text-xs text-muted-foreground">
                             Serverless Redis. Copy the{" "}
-                            <InlineCode>rediss://...</InlineCode> URL (needs TCP, not HTTP-only).
+                            <InlineCode>rediss://...</InlineCode> URL (needs
+                            TCP, not HTTP-only).
                           </p>
                         </CardContent>
                       </Card>
@@ -616,7 +650,9 @@ REDIS_URL=rediss://user:password@your-upstash-host:6379`}
 docker compose -f infra/docker/docker-compose.yml up -d   # Postgres :5432 + Redis :6379`}
                     />
                     <div className="rounded-lg border border-border bg-muted/40 p-3">
-                      <p className="text-xs font-semibold">Reset everything later</p>
+                      <p className="text-xs font-semibold">
+                        Reset everything later
+                      </p>
                       <CodeBlock
                         lang="bash"
                         code={`docker compose -f infra/docker/docker-compose.yml down -v
@@ -644,7 +680,9 @@ npm run db:migrate    # applies prisma/migrations to your DB`}
                 />
                 <p className="mt-2 text-xs text-muted-foreground">
                   No Docker? Reset with{" "}
-                  <InlineCode>dropdb openinstadm && createdb openinstadm</InlineCode>{" "}
+                  <InlineCode>
+                    dropdb openinstadm && createdb openinstadm
+                  </InlineCode>{" "}
                   then re-run the two commands.
                 </p>
               </div>
@@ -760,7 +798,10 @@ zrok enable <your-account-token>
 zrok share public http://localhost:3000
 # → https://abc123.share.zrok.io`}
                 />
-                <CodeBlock lang="env" code={`NEXTAUTH_URL=https://abc123.share.zrok.io`} />
+                <CodeBlock
+                  lang="env"
+                  code={`NEXTAUTH_URL=https://abc123.share.zrok.io`}
+                />
                 <p className="text-xs text-muted-foreground">
                   Tip: <InlineCode>zrok reserve</InlineCode> gives you a fixed
                   URL. See{" "}
@@ -815,8 +856,8 @@ ngrok http 3000
               Configure the Meta developer app
             </h2>
             <p className="mt-3 text-sm leading-6 text-muted-foreground">
-              Follow in order. The Instagram Graph API only works from a real Meta
-              app — this is where most beginners get stuck.
+              Follow in order. The Instagram Graph API only works from a real
+              Meta app — this is where most beginners get stuck.
             </p>
 
             <div className="mt-6 space-y-6">
@@ -849,7 +890,8 @@ ngrok http 3000
                     <li>
                       Name + contact email → Use Cases screen → filter “All” →
                       select{" "}
-                      <strong>Manage messaging and content on Instagram</strong>.
+                      <strong>Manage messaging and content on Instagram</strong>
+                      .
                     </li>
                   </ol>
                   <Alert variant="destructive" className="mt-3">
@@ -857,7 +899,8 @@ ngrok http 3000
                     <AlertTitle>Don&apos;t pick the wrong use case</AlertTitle>
                     <AlertDescription>
                       Do NOT select “Authenticate with Facebook Login” or
-                      “Marketing API”. You need the Instagram product specifically.
+                      “Marketing API”. You need the Instagram product
+                      specifically.
                     </AlertDescription>
                   </Alert>
                 </CardContent>
@@ -934,28 +977,30 @@ META_GRAPH_API_VERSION=v26.0`}
                   </p>
                   <ol className="list-decimal space-y-1 pl-5">
                     <li>
-                      In the Meta dashboard go to <strong>App Roles → Roles</strong>{" "}
-                      → <strong>Instagram Testers</strong> → Add Testers → type your
-                      Instagram username → Send invite.
+                      In the Meta dashboard go to{" "}
+                      <strong>App Roles → Roles</strong> →{" "}
+                      <strong>Instagram Testers</strong> → Add Testers → type
+                      your Instagram username → Send invite.
                     </li>
                     <li className="font-medium">
-                      On your phone (crucial): Instagram → Profile → Settings and
-                      activity → Apps and websites → Tester Invites → Accept.
+                      On your phone (crucial): Instagram → Profile → Settings
+                      and activity → Apps and websites → Tester Invites →
+                      Accept.
                     </li>
                   </ol>
                   <Alert>
                     <Terminal weight="bold" className="size-4" />
                     <AlertTitle>Common mistake</AlertTitle>
                     <AlertDescription>
-                      If you skip the phone acceptance, connecting Instagram later
-                      fails with “Insufficient Developer Role”. The invite must be
-                      accepted inside the Instagram app.
+                      If you skip the phone acceptance, connecting Instagram
+                      later fails with “Insufficient Developer Role”. The invite
+                      must be accepted inside the Instagram app.
                     </AlertDescription>
                   </Alert>
                 </CardContent>
               </Card>
 
-              <Card className="border-primary/20 bg-primary/[0.03]">
+              <Card className="border-primary/20 bg-primary/3">
                 <CardHeader className="pb-2">
                   <CardTitle className="flex items-center gap-2 text-sm">
                     <span className="flex size-6 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground">
@@ -970,7 +1015,10 @@ META_GRAPH_API_VERSION=v26.0`}
                       Business login → Redirect URI
                     </p>
                     <p className="mt-1 text-muted-foreground">
-                      In <strong>Instagram → API Setup → Business login settings</strong>{" "}
+                      In{" "}
+                      <strong>
+                        Instagram → API Setup → Business login settings
+                      </strong>{" "}
                       add:
                     </p>
                     <CodeBlock
@@ -995,7 +1043,8 @@ META_GRAPH_API_VERSION=v26.0`}
                       </li>
                       <li>
                         <strong>Verify Token</strong>: paste{" "}
-                        <InlineCode>WEBHOOK_VERIFY_TOKEN</InlineCode> from Step 1
+                        <InlineCode>WEBHOOK_VERIFY_TOKEN</InlineCode> from Step
+                        1
                       </li>
                       <li>Click Verify and Save → Subscribe to </li>
                     </ul>
@@ -1021,14 +1070,13 @@ META_GRAPH_API_VERSION=v26.0`}
                     <li>
                       <strong>App Settings → Basic</strong>: set Privacy, Terms,
                       and Data Deletion URLs to{" "}
-                      <InlineCode>
-                        &lt;YOUR-TUNNEL-URL&gt;/privacy
-                      </InlineCode>{" "}
+                      <InlineCode>&lt;YOUR-TUNNEL-URL&gt;/privacy</InlineCode>{" "}
                       etc.
                     </li>
                     <li>
-                      Flip App Mode from <Badge variant="warning">Development</Badge>{" "}
-                      to <Badge variant="success">Live</Badge> at the top of the
+                      Flip App Mode from{" "}
+                      <Badge variant="warning">Development</Badge> to{" "}
+                      <Badge variant="success">Live</Badge> at the top of the
                       dashboard.
                     </li>
                   </ol>
@@ -1049,15 +1097,17 @@ META_GRAPH_API_VERSION=v26.0`}
               Start OpenInstaDM
             </h2>
             <p className="mt-3 text-sm leading-6 text-muted-foreground">
-              You need <strong className="text-foreground">two terminals</strong>{" "}
-              open at the same time. One receives, the other sends.
+              You need{" "}
+              <strong className="text-foreground">two terminals</strong> open at
+              the same time. One receives, the other sends.
             </p>
 
             <div className="mt-6 grid gap-4 sm:grid-cols-2">
               <Card className="overflow-hidden">
                 <CardHeader className="bg-muted/40 py-3">
                   <CardTitle className="flex items-center gap-2 text-sm">
-                    <Terminal weight="bold" className="size-4" /> Terminal 1 — Web app
+                    <Terminal weight="bold" className="size-4" /> Terminal 1 —
+                    Web app
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-3 pt-4">
@@ -1075,9 +1125,12 @@ META_GRAPH_API_VERSION=v26.0`}
               </Card>
 
               <Card className="overflow-hidden border-primary/20">
-                <CardHeader className="bg-primary/[0.06] py-3">
+                <CardHeader className="bg-primary/6 py-3">
                   <CardTitle className="flex items-center gap-2 text-sm">
-                    <PlugsConnected weight="bold" className="size-4 text-primary" />{" "}
+                    <PlugsConnected
+                      weight="bold"
+                      className="size-4 text-primary"
+                    />{" "}
                     Terminal 2 — Worker
                   </CardTitle>
                 </CardHeader>
@@ -1087,7 +1140,7 @@ META_GRAPH_API_VERSION=v26.0`}
                     Long-running BullMQ worker. Sends DMs, button messages,
                     public replies, and runs the comment polling reconciler.
                   </p>
-                  <Alert className="border-primary/15 bg-primary/[0.04] py-2">
+                  <Alert className="border-primary/15 bg-primary/4 py-2">
                     <AlertDescription className="text-xs">
                       If this isn&apos;t running, webhooks are logged but{" "}
                       <strong>no DM ever sends</strong>.
@@ -1100,7 +1153,9 @@ META_GRAPH_API_VERSION=v26.0`}
             <Card className="mt-4">
               <CardContent className="flex flex-col gap-3 py-4 sm:flex-row sm:items-center sm:justify-between">
                 <div>
-                  <p className="text-sm font-semibold">Verify everything is healthy</p>
+                  <p className="text-sm font-semibold">
+                    Verify everything is healthy
+                  </p>
                   <p className="text-xs text-muted-foreground">
                     Open this in your browser after both processes start.
                   </p>
@@ -1118,9 +1173,9 @@ META_GRAPH_API_VERSION=v26.0`}
               <CheckCircle weight="fill" className="size-4 text-primary" />
               <AlertTitle>Try it end-to-end</AlertTitle>
               <AlertDescription>
-                Connect Instagram in the dashboard → create a campaign for a post
-                → comment your keyword from a tester account → watch the DM log.
-                If it says “queued” but never “sent”, check Terminal 2.
+                Connect Instagram in the dashboard → create a campaign for a
+                post → comment your keyword from a tester account → watch the DM
+                log. If it says “queued” but never “sent”, check Terminal 2.
               </AlertDescription>
             </Alert>
           </section>
@@ -1138,15 +1193,16 @@ META_GRAPH_API_VERSION=v26.0`}
             </h2>
             <p className="mt-3 text-sm leading-6 text-muted-foreground">
               When you&apos;re ready to go live for real, split your hosting:{" "}
-              <strong className="text-foreground">Vercel</strong> for the web app,
-              an always-on host for the worker.
+              <strong className="text-foreground">Vercel</strong> for the web
+              app, an always-on host for the worker.
             </p>
 
             <div className="mt-6 grid gap-4 lg:grid-cols-2">
               <Card>
                 <CardHeader className="pb-2">
                   <CardTitle className="flex items-center gap-2 text-sm">
-                    <Cloud weight="bold" className="size-4" /> Railway — DB, Redis, Worker
+                    <Cloud weight="bold" className="size-4" /> Railway — DB,
+                    Redis, Worker
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-3 text-sm leading-6">
@@ -1158,11 +1214,16 @@ META_GRAPH_API_VERSION=v26.0`}
                     </li>
                     <li>
                       Import repo → set{" "}
-                      <InlineCode>NIXPACKS_BUILD_CMD=npm run db:generate</InlineCode>{" "}
+                      <InlineCode>
+                        NIXPACKS_BUILD_CMD=npm run db:generate
+                      </InlineCode>{" "}
                       and{" "}
-                      <InlineCode>NIXPACKS_START_CMD=npm run worker</InlineCode>.
+                      <InlineCode>NIXPACKS_START_CMD=npm run worker</InlineCode>
+                      .
                     </li>
-                    <li>Add all env vars — use Railway&apos;s internal hostnames.</li>
+                    <li>
+                      Add all env vars — use Railway&apos;s internal hostnames.
+                    </li>
                   </ol>
                   <CodeBlock
                     lang="env"
@@ -1182,11 +1243,15 @@ REDIS_URL=redis://default:xxx@redis.railway.internal:6379`}
                 <CardContent className="space-y-3 text-sm leading-6">
                   <ol className="list-decimal space-y-1 pl-5 text-muted-foreground">
                     <li>
-                      <span className="text-foreground">Import GitHub repo into Vercel.</span>
+                      <span className="text-foreground">
+                        Import GitHub repo into Vercel.
+                      </span>
                     </li>
                     <li>
                       Add all env vars — use Railway&apos;s{" "}
-                      <strong className="text-foreground">public proxy URLs</strong>{" "}
+                      <strong className="text-foreground">
+                        public proxy URLs
+                      </strong>{" "}
                       (<InlineCode>*.proxy.rlwy.net</InlineCode>).
                     </li>
                     <li>Deploy.</li>
@@ -1199,8 +1264,8 @@ REDIS_URL=redis://default:xxx@redis.proxy.rlwy.net:1234`}
                   />
                   <Alert className="py-2">
                     <AlertDescription className="text-xs">
-                      Internal URLs don&apos;t work from Vercel — it&apos;s outside
-                      Railway&apos;s network. Use the proxy.
+                      Internal URLs don&apos;t work from Vercel — it&apos;s
+                      outside Railway&apos;s network. Use the proxy.
                     </AlertDescription>
                   </Alert>
                 </CardContent>
@@ -1209,7 +1274,9 @@ REDIS_URL=redis://default:xxx@redis.proxy.rlwy.net:1234`}
 
             <Card className="mt-4">
               <CardContent className="space-y-3 py-4">
-                <h3 className="text-sm font-semibold">Run migrations on production</h3>
+                <h3 className="text-sm font-semibold">
+                  Run migrations on production
+                </h3>
                 <CodeBlock
                   lang="bash"
                   code={`DATABASE_URL="postgresql://postgres:password@your-railway-proxy.rlwy.net:5432/railway" npm run db:migrate`}
@@ -1224,11 +1291,10 @@ REDIS_URL=redis://default:xxx@redis.proxy.rlwy.net:1234`}
                     >
                       Dokploy guide
                     </Link>{" "}
-                    in{" "}
-                    <InlineCode>docs/deploy-dokploy.md</InlineCode> — two
-                    applications (web + worker), same repo, different start commands,
-                    internal hostnames, and a <InlineCode>nixpacks.toml</InlineCode>{" "}
-                    pin for Node 22.13.1.
+                    in <InlineCode>docs/deploy-dokploy.md</InlineCode> — two
+                    applications (web + worker), same repo, different start
+                    commands, internal hostnames, and a{" "}
+                    <InlineCode>nixpacks.toml</InlineCode> pin for Node 22.13.1.
                   </span>
                 </div>
               </CardContent>
@@ -1245,7 +1311,8 @@ REDIS_URL=redis://default:xxx@redis.proxy.rlwy.net:1234`}
             <div className="mt-6 grid gap-3">
               {[
                 {
-                  title: "Insufficient Developer Role when connecting Instagram",
+                  title:
+                    "Insufficient Developer Role when connecting Instagram",
                   cause:
                     "Account not added as Tester, or invite not accepted on the phone.",
                   fix: "Re-send tester invite in App Roles → Roles → Instagram Testers. On phone: Instagram → Settings → Apps and websites → Tester Invites → Accept. Then reconnect.",
@@ -1258,7 +1325,8 @@ REDIS_URL=redis://default:xxx@redis.proxy.rlwy.net:1234`}
                 },
                 {
                   title: "Comments logged but no DMs sent",
-                  cause: "Worker not running or it crashed. Web app queues, worker sends.",
+                  cause:
+                    "Worker not running or it crashed. Web app queues, worker sends.",
                   fix: "Check https://<your-domain>/api/health → worker.healthy must be true. In dev: npm run worker must stay open. In prod: check Railway/worker logs and restart. Also check /logs in the dashboard for FAILED with reason.",
                 },
                 {
@@ -1282,12 +1350,18 @@ REDIS_URL=redis://default:xxx@redis.proxy.rlwy.net:1234`}
               ].map((item) => (
                 <Card key={item.title}>
                   <CardHeader className="pb-2">
-                    <CardTitle className="text-sm leading-6">{item.title}</CardTitle>
+                    <CardTitle className="text-sm leading-6">
+                      {item.title}
+                    </CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-2">
                     <p className="text-xs">
-                      <span className="font-semibold text-destructive">Cause: </span>
-                      <span className="text-muted-foreground">{item.cause}</span>
+                      <span className="font-semibold text-destructive">
+                        Cause:{" "}
+                      </span>
+                      <span className="text-muted-foreground">
+                        {item.cause}
+                      </span>
                     </p>
                     <p className="text-xs">
                       <span className="font-semibold text-primary">Fix: </span>
@@ -1315,35 +1389,98 @@ REDIS_URL=redis://default:xxx@redis.proxy.rlwy.net:1234`}
                 <table className="w-full text-sm">
                   <thead className="bg-muted/50 text-xs uppercase tracking-widest text-muted-foreground">
                     <tr>
-                      <th className="px-4 py-3 text-left font-semibold">Variable</th>
-                      <th className="px-4 py-3 text-left font-semibold">Required</th>
-                      <th className="px-4 py-3 text-left font-semibold">Example / Notes</th>
+                      <th className="px-4 py-3 text-left font-semibold">
+                        Variable
+                      </th>
+                      <th className="px-4 py-3 text-left font-semibold">
+                        Required
+                      </th>
+                      <th className="px-4 py-3 text-left font-semibold">
+                        Example / Notes
+                      </th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border">
                     {[
-                      ["NEXTAUTH_URL", "Yes", "https://xxx.trycloudflare.com — must be public HTTPS"],
-                      ["NEXTAUTH_SECRET", "Yes", "openssl rand -base64 32 — session signing"],
-                      ["CRON_SECRET", "Yes", "openssl rand -base64 32 — /api/cron/* bearer"],
-                      ["ENCRYPTION_KEY", "Yes", "64 hex chars — openssl rand -hex 32 — same in web+worker"],
-                      ["DATABASE_URL", "Yes", "postgresql://... Neon pooler recommended"],
-                      ["REDIS_URL", "Yes", "redis:// or rediss:// — must be TCP for BullMQ"],
+                      [
+                        "NEXTAUTH_URL",
+                        "Yes",
+                        "https://xxx.trycloudflare.com — must be public HTTPS",
+                      ],
+                      [
+                        "NEXTAUTH_SECRET",
+                        "Yes",
+                        "openssl rand -base64 32 — session signing",
+                      ],
+                      [
+                        "CRON_SECRET",
+                        "Yes",
+                        "openssl rand -base64 32 — /api/cron/* bearer",
+                      ],
+                      [
+                        "ENCRYPTION_KEY",
+                        "Yes",
+                        "64 hex chars — openssl rand -hex 32 — same in web+worker",
+                      ],
+                      [
+                        "DATABASE_URL",
+                        "Yes",
+                        "postgresql://... Neon pooler recommended",
+                      ],
+                      [
+                        "REDIS_URL",
+                        "Yes",
+                        "redis:// or rediss:// — must be TCP for BullMQ",
+                      ],
                       ["RESEND_API_KEY", "Yes", "re_... — magic-link emails"],
-                      ["EMAIL_FROM", "Yes", "OpenInstaDM <login@yourdomain.com>"],
-                      ["INSTAGRAM_APP_ID", "Yes", "Long numeric — Instagram → API Setup"],
-                      ["INSTAGRAM_APP_SECRET", "Yes", "Instagram App Secret (Show)"],
-                      ["FACEBOOK_APP_SECRET", "Yes", "App Settings → Basic → App Secret"],
-                      ["WEBHOOK_VERIFY_TOKEN", "Yes", "openssl rand -hex 16 — paste in Meta webhook config"],
-                      ["META_GRAPH_API_VERSION", "No", "v26.0 — default in .env.example"],
+                      [
+                        "EMAIL_FROM",
+                        "Yes",
+                        "OpenInstaDM <login@yourdomain.com>",
+                      ],
+                      [
+                        "INSTAGRAM_APP_ID",
+                        "Yes",
+                        "Long numeric — Instagram → API Setup",
+                      ],
+                      [
+                        "INSTAGRAM_APP_SECRET",
+                        "Yes",
+                        "Instagram App Secret (Show)",
+                      ],
+                      [
+                        "FACEBOOK_APP_SECRET",
+                        "Yes",
+                        "App Settings → Basic → App Secret",
+                      ],
+                      [
+                        "WEBHOOK_VERIFY_TOKEN",
+                        "Yes",
+                        "openssl rand -hex 16 — paste in Meta webhook config",
+                      ],
+                      [
+                        "META_GRAPH_API_VERSION",
+                        "No",
+                        "v26.0 — default in .env.example",
+                      ],
                     ].map(([name, req, note]) => (
                       <tr key={name} className="hover:bg-muted/20">
-                        <td className="px-4 py-2.5 font-mono text-xs font-semibold">{name}</td>
+                        <td className="px-4 py-2.5 font-mono text-xs font-semibold">
+                          {name}
+                        </td>
                         <td className="px-4 py-2.5">
-                          <Badge variant={req === "Yes" ? "destructive" : "secondary"} className="text-[10px]">
+                          <Badge
+                            variant={
+                              req === "Yes" ? "destructive" : "secondary"
+                            }
+                            className="text-[10px]"
+                          >
                             {req === "Yes" ? "Required" : "Optional"}
                           </Badge>
                         </td>
-                        <td className="px-4 py-2.5 text-xs text-muted-foreground">{note}</td>
+                        <td className="px-4 py-2.5 text-xs text-muted-foreground">
+                          {note}
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -1375,34 +1512,39 @@ REDIS_URL=redis://default:xxx@redis.proxy.rlwy.net:1234`}
               <Card>
                 <CardContent className="space-y-3 py-5">
                   <p className="font-mono text-xs leading-6 text-muted-foreground">
-                    <span className="font-semibold text-foreground">[Comment]</span>
+                    <span className="font-semibold text-foreground">
+                      [Comment]
+                    </span>
                     <br />
                     &nbsp;&nbsp;↓ webhook POST /api/webhook (HMAC verified)
                     <br />
-                    &nbsp;&nbsp;↓ enqueue BullMQ → <span className="text-primary">dm-processing</span>
+                    &nbsp;&nbsp;↓ enqueue BullMQ →{" "}
+                    <span className="text-primary">dm-processing</span>
                     <br />
                     &nbsp;&nbsp;↓ worker/dm-worker.ts → lib/queue/dm-worker.ts
                     <br />
-                    &nbsp;&nbsp;↙ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;↓&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;↘
+                    &nbsp;&nbsp;↙
+                    &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;↓&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;↘
                     <br />
                     processComment &nbsp; processPostback &nbsp; processMessage
                     <br />
-                    &nbsp;&nbsp;↓ Meta Graph API (private/public reply, buttons, follow gate)
+                    &nbsp;&nbsp;↓ Meta Graph API (private/public reply, buttons,
+                    follow gate)
                   </p>
                   <Separator />
                   <div className="grid grid-cols-2 gap-3 text-xs">
                     <div>
                       <p className="font-semibold">Stack</p>
                       <p className="mt-1 leading-5 text-muted-foreground">
-                        Next.js 16 / React 19 · Prisma 7 + Postgres · BullMQ 5 + Redis · Auth.js
-                        (Resend) · Tailwind 4
+                        Next.js 16 / React 19 · Prisma 7 + Postgres · BullMQ 5 +
+                        Redis · Auth.js (Resend) · Tailwind 4
                       </p>
                     </div>
                     <div>
                       <p className="font-semibold">Free production</p>
                       <p className="mt-1 leading-5 text-muted-foreground">
-                        Vercel (web) · Neon (Postgres) · Redis Cloud · Oracle VM / Railway (worker)
-                        · Resend · Meta
+                        Vercel (web) · Neon (Postgres) · Redis Cloud · Oracle VM
+                        / Railway (worker) · Resend · Meta
                       </p>
                     </div>
                   </div>
@@ -1415,34 +1557,54 @@ REDIS_URL=redis://default:xxx@redis.proxy.rlwy.net:1234`}
                     <p className="text-sm font-semibold">Key files</p>
                     <ul className="mt-2 space-y-1.5 font-mono text-xs">
                       <li>
-                        <span className="text-muted-foreground">app/api/webhook/route.ts</span> — verify & enqueue
+                        <span className="text-muted-foreground">
+                          app/api/webhook/route.ts
+                        </span>{" "}
+                        — verify & enqueue
                       </li>
                       <li>
-                        <span className="text-muted-foreground">worker/dm-worker.ts</span> — lifecycle + polling
+                        <span className="text-muted-foreground">
+                          worker/dm-worker.ts
+                        </span>{" "}
+                        — lifecycle + polling
                       </li>
                       <li>
-                        <span className="text-muted-foreground">lib/queue/dm-worker.ts</span> — match → send
+                        <span className="text-muted-foreground">
+                          lib/queue/dm-worker.ts
+                        </span>{" "}
+                        — match → send
                       </li>
                       <li>
-                        <span className="text-muted-foreground">lib/meta/client.ts</span> — Graph API
+                        <span className="text-muted-foreground">
+                          lib/meta/client.ts
+                        </span>{" "}
+                        — Graph API
                       </li>
                       <li>
-                        <span className="text-muted-foreground">prisma/schema.prisma</span> — DB schema
+                        <span className="text-muted-foreground">
+                          prisma/schema.prisma
+                        </span>{" "}
+                        — DB schema
                       </li>
                       <li>
-                        <span className="text-muted-foreground">docs/stack.md</span> — full stack
+                        <span className="text-muted-foreground">
+                          docs/stack.md
+                        </span>{" "}
+                        — full stack
                       </li>
                     </ul>
                   </CardContent>
                 </Card>
-                <Card className="border-primary/15 bg-primary/[0.04]">
+                <Card className="border-primary/15 bg-primary/4">
                   <CardContent className="py-4">
-                    <p className="text-sm font-semibold">Dokploy self-hosting?</p>
+                    <p className="text-sm font-semibold">
+                      Dokploy self-hosting?
+                    </p>
                     <p className="mt-1 text-xs leading-5 text-muted-foreground">
-                      Same repo, two Dokploy Applications (web + worker), internal hostnames,
-                      and start-command migrations. See{" "}
-                      <InlineCode>docs/deploy-dokploy.md</InlineCode> for the three gotchas
-                      (Node pin, build/start split, tunnel).
+                      Same repo, two Dokploy Applications (web + worker),
+                      internal hostnames, and start-command migrations. See{" "}
+                      <InlineCode>docs/deploy-dokploy.md</InlineCode> for the
+                      three gotchas (Node pin, build/start split, tunnel).
                     </p>
                   </CardContent>
                 </Card>
@@ -1453,7 +1615,10 @@ REDIS_URL=redis://default:xxx@redis.proxy.rlwy.net:1234`}
           {/* Final CTA */}
           <Card className="overflow-hidden">
             <CardContent className="relative grid gap-6 p-6 sm:p-8 lg:grid-cols-[1fr_auto] lg:items-center">
-              <div className="absolute inset-0 bg-gradient-to-br from-primary/[0.08] via-transparent to-transparent" aria-hidden />
+              <div
+                className="absolute inset-0 bg-linear-to-br from-primary/8 via-transparent to-transparent"
+                aria-hidden
+              />
               <div className="relative">
                 <p className="text-xs font-bold uppercase tracking-widest text-primary">
                   You&apos;re ready
@@ -1464,56 +1629,41 @@ REDIS_URL=redis://default:xxx@redis.proxy.rlwy.net:1234`}
                 <p className="mt-2 max-w-xl text-sm leading-6 text-muted-foreground">
                   Connect your Instagram, pick a reel, set a keyword like{" "}
                   <InlineCode>LINK</InlineCode>, and comment it to watch the DM
-                  arrive. Every send is logged in <InlineCode>/logs</InlineCode>.
+                  arrive. Every send is logged in <InlineCode>/logs</InlineCode>
+                  .
                 </p>
               </div>
               <div className="relative flex flex-col gap-3 sm:flex-row lg:flex-col">
                 <Link
                   href="/login"
-                  className={cn(buttonVariants({ size: "lg" }), "justify-center gap-2")}
+                  className={cn(
+                    buttonVariants({ size: "lg" }),
+                    "justify-center gap-2",
+                  )}
                 >
                   Open dashboard <ArrowRight weight="bold" className="size-4" />
                 </Link>
                 <Link
-                  href="/templates"
-                  className={cn(buttonVariants({ variant: "outline", size: "lg" }), "justify-center")}
+                  href="/instagram-comment-to-dm-examples"
+                  className={cn(
+                    buttonVariants({ variant: "outline", size: "lg" }),
+                    "justify-center",
+                  )}
                 >
-                  Browse templates
+                  Read the setup guide
                 </Link>
               </div>
             </CardContent>
           </Card>
 
           <p className="pb-6 text-center text-xs text-muted-foreground">
-            This guide mirrors{" "}
-            <InlineCode>SETUP.md</InlineCode> and{" "}
-            <InlineCode>docs/stack.md</InlineCode>. If Meta&apos;s dashboard changes,
-            a PR documenting the new flow helps everyone.
+            This guide mirrors <InlineCode>SETUP.md</InlineCode> and{" "}
+            <InlineCode>docs/stack.md</InlineCode>. If Meta&apos;s dashboard
+            changes, a PR documenting the new flow helps everyone.
           </p>
         </div>
       </div>
-
-      <footer className="border-t border-border">
-        <div className="mx-auto flex w-full max-w-8xl items-center justify-between px-5 py-6 text-sm text-muted-foreground sm:px-6 lg:px-8">
-          <span className="font-semibold tracking-tight text-foreground">OpenInstaDM</span>
-          <div className="flex items-center gap-4">
-            <Link href="/" className="transition hover:text-foreground">
-              Home
-            </Link>
-            <Link href="/templates" className="transition hover:text-foreground">
-              Templates
-            </Link>
-            <a
-              href="https://github.com/xeven777/OpenInstaDM"
-              target="_blank"
-              rel="noreferrer"
-              className="transition hover:text-foreground"
-            >
-              GitHub
-            </a>
-          </div>
-        </div>
-      </footer>
+      <Footer />
     </main>
   );
 }

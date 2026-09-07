@@ -3,11 +3,11 @@ import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 interface PublicSiteHeaderProps {
-  active?: "home" | "templates";
+  active?: "home" | "examples";
 }
 
 const navLinks = [
-  { label: "Templates", href: "/templates", key: "templates" },
+  { label: "Examples", href: "/instagram-comment-to-dm-examples", key: "examples" },
   { label: "Agencies", href: "/instagram-dm-automation-agencies", key: "agencies" },
   { label: "Pricing", href: "/#pricing", key: "pricing" },
   { label: "Security", href: "/#security", key: "security" },

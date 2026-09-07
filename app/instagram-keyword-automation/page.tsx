@@ -10,7 +10,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: "Instagram Keyword Automation for Comment-to-DM",
     description:
-      "Turn high-intent Instagram keywords into tracked DMs with campaign analytics and agency templates.",
+      "Turn high-intent Instagram keywords into tracked DMs with campaign analytics and agency playbooks.",
     url: "/instagram-keyword-automation",
   },
 };
