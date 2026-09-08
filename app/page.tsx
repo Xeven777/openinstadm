@@ -9,8 +9,6 @@ import Footer from "@/components/sections/footer";
 import Cta from "@/components/sections/Cta";
 import Faq from "@/components/sections/faq";
 import Pricing from "@/components/sections/pricing";
-import { headers } from "next/headers";
-import { getPricingForCountry } from "@/lib/geo-pricing";
 
 function AppWindow({
   label,
@@ -135,25 +133,7 @@ function DashboardPreview() {
   );
 }
 
-export default async function Home() {
-  // SSR geo detection for initial pricing (prevents flash on Vercel/Cloudflare).
-  // Falls back to $20 if no country header is present (e.g. local dev).
-  let initialPricing;
-  try {
-    const hdrs = await headers();
-    const country =
-      hdrs.get("x-vercel-ip-country") ??
-      hdrs.get("cf-ipcountry") ??
-      hdrs.get("x-country-code") ??
-      null;
-    // Normalize Cloudflare "XX" (unknown)
-    const normalized =
-      country && country !== "XX" && country.length === 2 ? country : null;
-    initialPricing = getPricingForCountry(normalized);
-  } catch {
-    initialPricing = getPricingForCountry(null);
-  }
-
+export default function Home() {
   return (
     <main>
       <Navbar />
@@ -199,7 +179,7 @@ export default async function Home() {
         </div>
       </section>
 
-      <Pricing initialPricing={initialPricing} />
+      <Pricing />
 
       <Cta />
 
