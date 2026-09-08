@@ -164,7 +164,12 @@ async function DiagnosticsOverview() {
   const workspaceId = await getCurrentWorkspaceId();
   if (!workspaceId) redirect("/login");
 
-  const { queueCounts, workerHealth, workerAlerts } =
+  const {
+    queueCounts,
+    workerHealth,
+    workerAlerts,
+    redisAvailable,
+  } =
     await getDiagnosticsOverview();
 
   const healthy = workerHealth.healthy;
@@ -198,10 +203,16 @@ async function DiagnosticsOverview() {
                 healthy ? "text-success" : "text-warning",
               )}
             >
-              {healthy ? "Healthy" : "Needs attention"}
+              {!redisAvailable
+                ? "Redis unavailable"
+                : healthy
+                  ? "Healthy"
+                  : "Needs attention"}
             </p>
             <p className="text-xs text-muted-foreground">
-              {workerAgeSeconds == null
+              {!redisAvailable
+                ? "Queue and heartbeat checks are unavailable"
+                : workerAgeSeconds == null
                 ? "No heartbeat found"
                 : `Last heartbeat ${workerAgeSeconds}s ago`}
             </p>
@@ -219,7 +230,7 @@ async function DiagnosticsOverview() {
                 </span>
               </div>
               <p className="text-2xl font-semibold tracking-tight tabular-nums text-foreground">
-                {queueCounts[key] ?? 0}
+                {queueCounts?.[key] ?? "—"}
               </p>
             </CardContent>
           </Card>

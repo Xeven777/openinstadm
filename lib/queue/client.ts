@@ -9,6 +9,12 @@ import Redis from "ioredis";
 
 let connection: Redis | null = null;
 
+// Dashboard requests must fail promptly when Redis is unavailable. This is
+// deliberately separate from the shared BullMQ connection below: workers need
+// `maxRetriesPerRequest: null` for their long-running blocking operations,
+// whereas a streamed Server Component must never wait forever for Redis.
+const DIAGNOSTIC_REDIS_TIMEOUT_MS = 3_000;
+
 export function getRedisConnection(): Redis {
   if (!connection) {
     connection = new Redis(process.env.REDIS_URL!, {
@@ -16,6 +22,38 @@ export function getRedisConnection(): Redis {
     });
   }
   return connection;
+}
+
+/**
+ * Run a short-lived, bounded Redis operation for request-time diagnostics.
+ *
+ * Do not use this for queue producers or workers. A failed request should
+ * render a degraded state after a few seconds, while BullMQ keeps its own
+ * persistent connection and retry policy.
+ */
+export async function withDiagnosticsRedisConnection<T>(
+  operation: (redis: Redis) => Promise<T>,
+): Promise<T> {
+  const redis = new Redis(process.env.REDIS_URL!, {
+    lazyConnect: true,
+    connectTimeout: DIAGNOSTIC_REDIS_TIMEOUT_MS,
+    commandTimeout: DIAGNOSTIC_REDIS_TIMEOUT_MS,
+    maxRetriesPerRequest: 1,
+    enableOfflineQueue: false,
+    retryStrategy: () => null,
+  });
+
+  // Errors are also returned by connect()/commands below. Registering a
+  // listener prevents ioredis from producing an unhandled EventEmitter error
+  // while this short-lived probe is being torn down.
+  redis.on("error", () => undefined);
+
+  try {
+    await redis.connect();
+    return await operation(redis);
+  } finally {
+    redis.disconnect(false);
+  }
 }
 
 // ─── DM Queue ───────────────────────────────────────────────────────────────────
@@ -101,4 +139,11 @@ export function getDMQueue(): Queue<DmQueueJob> {
     });
   }
   return dmQueue;
+}
+
+/** Create a temporary Queue facade over a request-scoped Redis connection. */
+export function getDMQueueForDiagnostics(
+  redis: Redis,
+): Queue<DmQueueJob> {
+  return new Queue<DmQueueJob>("dm-processing", { connection: redis });
 }

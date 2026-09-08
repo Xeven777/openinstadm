@@ -1,5 +1,8 @@
 import { prisma } from "@/lib/db/client";
-import { getDMQueue } from "@/lib/queue/client";
+import {
+  getDMQueueForDiagnostics,
+  withDiagnosticsRedisConnection,
+} from "@/lib/queue/client";
 import { getWorkerAlerts, getWorkerHealth } from "@/lib/ops/worker-health";
 
 /**
@@ -18,13 +21,40 @@ import { getWorkerAlerts, getWorkerHealth } from "@/lib/ops/worker-health";
  */
 
 export async function getDiagnosticsOverview() {
-  const [queueCounts, workerHealth, workerAlerts] = await Promise.all([
-    getDMQueue().getJobCounts("waiting", "active", "delayed", "failed"),
-    getWorkerHealth(),
-    getWorkerAlerts(10),
-  ]);
+  try {
+    return await withDiagnosticsRedisConnection(async (redis) => {
+      const queue = getDMQueueForDiagnostics(redis);
 
-  return { queueCounts, workerHealth, workerAlerts };
+      try {
+        const [queueCounts, workerHealth, workerAlerts] = await Promise.all([
+          queue.getJobCounts("waiting", "active", "delayed", "failed"),
+          getWorkerHealth(redis),
+          getWorkerAlerts(10, redis),
+        ]);
+
+        return {
+          queueCounts,
+          workerHealth,
+          workerAlerts,
+          redisAvailable: true,
+          redisError: null,
+        };
+      } finally {
+        await queue.close();
+      }
+    });
+  } catch (error) {
+    // The Diagnostics page is an operational aid. Redis outages should be
+    // visible in the page rather than leaving its Suspense fallback on screen.
+    console.error("[Diagnostics] Redis check failed", error);
+    return {
+      queueCounts: null,
+      workerHealth: { healthy: false, heartbeat: null, ageMs: null },
+      workerAlerts: [],
+      redisAvailable: false,
+      redisError: "Redis is unavailable.",
+    };
+  }
 }
 
 export async function getDiagnosticsSections(workspaceId: string) {
