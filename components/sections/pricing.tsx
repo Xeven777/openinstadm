@@ -1,4 +1,7 @@
+"use client";
+
 import Link from "next/link";
+import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
 import {
   CheckIcon,
@@ -7,6 +10,12 @@ import {
   WrenchIcon,
 } from "@phosphor-icons/react/dist/ssr";
 import { DM_Serif_Display } from "next/font/google";
+import {
+  detectCountryClientSide,
+  getPricingForCountry,
+  PRICING_BY_GROUP,
+  type PricingInfo,
+} from "@/lib/geo-pricing";
 
 const SETUP_EMAIL = "hello@auradevs.co";
 const dmSerif = DM_Serif_Display({
@@ -63,7 +72,61 @@ const setupFeatures = [
   "7-day priority support included",
 ];
 
-export default function Pricing() {
+export default function Pricing({
+  initialPricing,
+}: {
+  initialPricing?: PricingInfo;
+}) {
+  const defaultPricing = PRICING_BY_GROUP.US_OTHER;
+  const [pricing, setPricing] = useState<PricingInfo>(
+    initialPricing ?? defaultPricing
+  );
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function resolveGeoPricing() {
+      // 1. Try edge-detected country via /api/geo (Vercel/Cloudflare headers)
+      try {
+        const res = await fetch("/api/geo", { cache: "no-store" });
+        if (res.ok) {
+          const data = (await res.json()) as {
+            country: string | null;
+            pricing: PricingInfo;
+          };
+          if (!cancelled && data.pricing) {
+            // Validate pricing shape before using
+            if (data.pricing.symbol && data.pricing.amount) {
+              setPricing(data.pricing);
+              return;
+            }
+            if (data.country) {
+              setPricing(getPricingForCountry(data.country));
+              return;
+            }
+          }
+        }
+      } catch {
+        // ignore and fall back to client detection
+      }
+
+      // 2. Client fallback: navigator.language / timezone
+      if (!cancelled) {
+        const clientCountry = detectCountryClientSide();
+        if (clientCountry) {
+          setPricing(getPricingForCountry(clientCountry));
+        }
+      }
+    }
+
+    resolveGeoPricing();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const mailSubject = `Done-for-you setup (${pricing.display} one-time)`;
+
   return (
     <section
       id="pricing"
@@ -146,7 +209,7 @@ export default function Pricing() {
             <div className="absolute -top-20 w-full h-20 bg-lime-500/40 pointer-events-none left-0 blur-3xl "></div>
             <div className="absolute -bottom-20 w-full h-20 bg-lime-500/40 pointer-events-none left-0 blur-3xl "></div>
             <div className="flex items-center justify-between gap-3">
-              <span className="w-fit rounded-full bg-primary px-3 py-1.5 text-sm font-medium">
+              <span className="w-fit rounded-full bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground">
                 Done-For-You
               </span>
               <span className="inline-flex items-center gap-2 text-sm font-medium">
@@ -160,7 +223,8 @@ export default function Pricing() {
 
             <p className="mt-6 flex items-baseline gap-1.5">
               <span className="text-6xl font-semibold tracking-tighter">
-                $20
+                {pricing.symbol}
+                {pricing.amount}
               </span>
               <span className="text-lg text-muted-foreground">/one-time</span>
             </p>
@@ -195,7 +259,7 @@ export default function Pricing() {
             </div>
 
             <a
-              href={`mailto:${SETUP_EMAIL}?subject=${encodeURIComponent("Done-for-you setup ($20 one-time)")}`}
+              href={`mailto:${SETUP_EMAIL}?subject=${encodeURIComponent(mailSubject)}`}
               className="mt-6 inline-flex h-12 items-center justify-center gap-2 rounded-full bg-primary px-6 text-[15px] font-semibold text-primary-foreground shadow-lg transition-all hover:-translate-y-px hover:brightness-[0.98]"
             >
               <WrenchIcon weight="duotone" className="size-4" />
