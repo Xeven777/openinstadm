@@ -401,12 +401,15 @@ This starts the background queue worker that processes the comments and DMs.
 
 ---
 
-## ☁️ Step 6: Production Deployment (Vercel & Railway)
+## ☁️ Step 6: Production Deployment
 
-For hosting in production, we recommend:
+For every production layout, the web app and worker must use the same Postgres database, the same Redis instance, and the exact same `ENCRYPTION_KEY`. The worker may use an internal Docker hostname for Redis while Vercel uses a public TLS hostname; those URLs can differ, but they must reach the same Redis instance.
+
+Choose one of these layouts:
 
 - **Vercel** (Free): For hosting the front-end web app.
-- **Railway** (Free/Hobby): For hosting PostgreSQL, Redis, and the background worker.
+- **Railway** (Free/Hobby): For PostgreSQL, Redis, and the background worker.
+- **Vercel + Neon + VM Compose**: Vercel hosts the web app, Neon hosts Postgres, and a VM runs the published worker image plus Redis. This is documented below.
 
 ### 1. Railway Setup (Databases & Worker)
 
@@ -431,6 +434,257 @@ Run this command from your local machine to configure the production database:
 
 ```bash
 DATABASE_URL="postgresql://postgres:password@your-railway-proxy.rlwy.net:5432/railway" npm run db:migrate
+```
+
+### Option B — Vercel + Neon + VM Compose (Worker + Redis)
+
+This option is useful when the web app is deployed on Vercel, Postgres is hosted on Neon, and you want a long-running worker plus Redis on your own VM. It uses the public Docker Hub image:
+
+```text
+sounogh/openinstadm-worker:latest
+```
+
+The image is public, so `docker login` is not required. Prefer an immutable release tag when one is available instead of continuously following `latest`.
+
+#### 1. Prepare the VM
+
+Use a Linux VM with a reserved public IP and Docker Engine with the Compose plugin installed. On Ubuntu, Docker's [official installation guide](https://docs.docker.com/engine/install/ubuntu/) is the recommended starting point.
+
+Create a directory that contains only deployment configuration and secrets; a source-code checkout is not required on this VM:
+
+```bash
+sudo install -d -m 700 -o "$USER" -g "$USER" /opt/openinstadm/redis
+cd /opt/openinstadm
+```
+
+Create `.env` for Compose interpolation. Generate a URL-safe Redis password with `openssl rand -hex 32` and use the result below:
+
+```dotenv
+WORKER_IMAGE=sounogh/openinstadm-worker:latest
+REDIS_PASSWORD=replace-with-a-long-random-hex-password
+```
+
+Create `.env.worker`. Use Neon's pooled connection URL and the **same** encryption key already configured in Vercel. Do not put a `REDIS_URL` in this file: Compose provides the worker's internal URL.
+
+```dotenv
+DATABASE_URL='postgresql://USER:PASSWORD@YOUR-NEON-POOLER.neon.tech/neondb?sslmode=require'
+ENCRYPTION_KEY=the-same-64-character-hex-key-used-by-vercel
+META_GRAPH_API_VERSION=v26.0
+DATABASE_POOL_MAX=3
+
+# Set this to false after the initial infrastructure check if comment polling is desired.
+COMMENT_POLL_DISABLED=true
+```
+
+Protect both files:
+
+```bash
+chmod 600 .env .env.worker
+```
+
+#### 2. Configure Redis authentication
+
+Create `redis/users.acl`. The password after `>` must exactly match `REDIS_PASSWORD` in `.env`:
+
+```text
+user default off
+user openinstadm on >replace-with-a-long-random-hex-password ~* &* +@all -@dangerous +info
+```
+
+`+info` is intentional: ioredis uses Redis's `INFO` command for its readiness check. Without it, the worker repeatedly logs a `NOPERM ... info` error.
+
+The official Redis image drops privileges to its `redis` user. Give that user read access to the mounted ACL file without making the file broadly readable:
+
+```bash
+REDIS_IDS="$(docker run --rm --entrypoint sh redis:7-alpine -c 'awk -F: '\''$1 == "redis" { print $3 ":" $4 }'\'' /etc/passwd')"
+sudo chown "$REDIS_IDS" redis/users.acl
+sudo chmod 600 redis/users.acl
+```
+
+#### 3. Create the Compose file
+
+Create `compose.yaml` in `/opt/openinstadm`:
+
+```yaml
+name: openinstadm
+
+services:
+  redis:
+    image: redis:7-alpine
+    command:
+      - redis-server
+      - --appendonly
+      - "yes"
+      - --protected-mode
+      - "yes"
+      - --aclfile
+      - /usr/local/etc/redis/users.acl
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?Set REDIS_PASSWORD in .env}
+    expose:
+      - "6379"
+    volumes:
+      - redis-data:/data
+      - ./redis/users.acl:/usr/local/etc/redis/users.acl:ro
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli --user openinstadm --pass \"$$REDIS_PASSWORD\" ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  worker:
+    image: ${WORKER_IMAGE:-sounogh/openinstadm-worker:latest}
+    env_file:
+      - .env.worker
+    environment:
+      WORKER: "true"
+      REDIS_URL: redis://openinstadm:${REDIS_PASSWORD:?Set REDIS_PASSWORD in .env}@redis:6379
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # Start only after the certificate and haproxy.cfg below have been created.
+  redis-tls:
+    image: haproxy:3.1-alpine
+    profiles: ["public-redis"]
+    ports:
+      - "6380:6380"
+    volumes:
+      - ./haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro
+      - ./certs/redis.pem:/usr/local/etc/haproxy/certs/redis.pem:ro
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  redis-data:
+```
+
+There is deliberately no `ports: ["6379:6379"]` declaration. `redis` is reachable only by Compose services until the optional TLS proxy is enabled.
+
+Validate, pull the public image, and start the private worker stack:
+
+```bash
+docker compose config --quiet
+docker compose pull
+docker compose up -d
+docker compose ps
+docker compose logs --tail=100 worker
+```
+
+`redis` must report `healthy`, and the worker log must not contain `getaddrinfo ENOTFOUND redis`. The `restart: unless-stopped` policy brings both containers back after Docker or VM restarts.
+
+#### 4. Make this Redis instance available to Vercel over TLS
+
+Skip this subsection if Vercel uses managed Redis instead. If Vercel is to enqueue jobs into the VM Redis instance, it must connect through a public TLS endpoint; it can never use Docker's internal hostname `redis`.
+
+1. Reserve a static external IP for the VM and create a DNS `A` record such as `redis.example.com` pointing to it. If DNS is hosted at Cloudflare, set this record to **DNS only** (grey cloud); Cloudflare's standard HTTP proxy does not proxy Redis TCP traffic.
+2. Obtain a public TLS certificate for that hostname. One simple route is Certbot's standalone HTTP challenge. Temporarily allow inbound TCP `80` in the cloud and host firewall, then run:
+
+   ```bash
+   sudo apt update
+   sudo apt install -y certbot
+   sudo certbot certonly --standalone \
+     --email YOU@example.com \
+     --agree-tos --no-eff-email \
+     -d redis.example.com
+   ```
+
+   Keep port `80` reachable when using this renewal method, or use your DNS provider's Certbot plugin instead. Do not use a Cloudflare Origin Certificate: Vercel connects directly and requires a publicly trusted certificate.
+
+3. Create the HAProxy configuration at `/opt/openinstadm/haproxy.cfg`:
+
+   ```cfg
+   global
+     log stdout format raw local0
+     ssl-default-bind-options ssl-min-ver TLSv1.2
+
+   defaults
+     mode tcp
+     log global
+     option tcplog
+     timeout connect 5s
+     timeout client 1m
+     timeout server 1m
+
+   frontend redis_tls
+     bind :6380 ssl crt /usr/local/etc/haproxy/certs/redis.pem
+     default_backend redis_internal
+
+   backend redis_internal
+     server redis redis:6379 check
+   ```
+
+4. Build the certificate bundle HAProxy expects. `fullchain.pem` must precede `privkey.pem`:
+
+   ```bash
+   sudo install -d -m 700 /opt/openinstadm/certs
+   sudo sh -c 'cat \
+     /etc/letsencrypt/live/redis.example.com/fullchain.pem \
+     /etc/letsencrypt/live/redis.example.com/privkey.pem \
+     > /opt/openinstadm/certs/redis.pem'
+   sudo chmod 600 /opt/openinstadm/certs/redis.pem
+   ```
+
+5. Start and check the TLS proxy:
+
+   ```bash
+   docker compose --profile public-redis up -d
+   docker compose logs --tail=100 redis-tls
+   ```
+
+6. In the cloud firewall, allow inbound TCP `6380` to the VM. If your Vercel plan provides static egress IPs, restrict the source range to those IPs. Otherwise, the endpoint is reachable from the internet, so do not omit TLS, the ACL user, or the long random password. Never expose port `6379`.
+
+7. In Vercel, set a server-only Production environment variable and redeploy:
+
+   ```dotenv
+   REDIS_URL=rediss://openinstadm:YOUR_REDIS_PASSWORD@redis.example.com:6380
+   ```
+
+   Do **not** name this variable `NEXT_PUBLIC_REDIS_URL`. Browser code must never receive Redis credentials. Vercel uses this external `rediss://` URL; the VM worker continues to use the internal `redis://...@redis:6379` URL from Compose.
+
+#### 5. Run migrations and verify the shared deployment
+
+Run migrations against Neon from a trusted machine or CI job before sending production traffic:
+
+```bash
+DATABASE_URL='YOUR_NEON_DATABASE_URL' npm run db:migrate
+```
+
+In Vercel, set `DATABASE_URL` to the same Neon database and set `ENCRYPTION_KEY` to the exact value in `.env.worker`. After deployment, submit a test event through the web app and check:
+
+```bash
+cd /opt/openinstadm
+docker compose logs -f worker
+```
+
+The VM worker should consume the BullMQ job created by Vercel. Before changing Vercel from another Redis provider to the VM endpoint, drain or intentionally abandon jobs still waiting in the old Redis instance; queues are not copied automatically.
+
+#### 6. Renew the certificate
+
+Create `/etc/letsencrypt/renewal-hooks/deploy/reload-redis-tls` so HAProxy reloads its certificate after renewal:
+
+```bash
+#!/bin/sh
+set -eu
+
+cat \
+  /etc/letsencrypt/live/redis.example.com/fullchain.pem \
+  /etc/letsencrypt/live/redis.example.com/privkey.pem \
+  > /opt/openinstadm/certs/redis.pem
+
+chmod 600 /opt/openinstadm/certs/redis.pem
+docker compose -f /opt/openinstadm/compose.yaml restart redis-tls
+```
+
+Enable it and verify the renewal path:
+
+```bash
+sudo chmod 700 /etc/letsencrypt/renewal-hooks/deploy/reload-redis-tls
+sudo certbot renew --dry-run
 ```
 
 ---

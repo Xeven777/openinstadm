@@ -152,6 +152,11 @@ npm run db:migrate
 npm run dev               # web app on http://localhost:3000
 npm run worker            # in a second terminal, this sends the DMs
 ```
+### Run the published worker image in a vm
+
+The public worker image is available as 'sounogh/openinstadm-worker'. It can be run alongside a Redis and Postgres container in Docker Compose on a VM while the web app is hosted on a seperate client. 
+
+Note: As the worker and client must connect to the same Redis and Postgres container,the VM hosting the Docker Compose will require a public External IP address,a DNS,TLS and secure connection to the client.
 
 > [!WARNING]
 > **Two processes, always.** `npm run dev` serves the app and receives webhooks. `npm run worker` is what actually sends the messages. If comments come in and no DM ever arrives, the worker is the first thing to check.
@@ -189,9 +194,9 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) to get started.
 
 ## Credits
 
-Built and maintained by **Anish Biswas**.
+Built and maintained by **Anish Biswas** & **Sounodip Ghosh**.
 
-- GitHub: [@xeven777](https://github.com/xeven777)
+- GitHub: [@xeven777](https://github.com/xeven777) | [@souno222](https://github.com/souno222)
 - Website: [anish7.me](https://anish7.me)
 - X: [@xevenbiswas](https://x.com/xevenbiswas)
 - Instagram: [@anish_biswas_7_](https://instagram.com/anish_biswas_7_)
