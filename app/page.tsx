@@ -8,6 +8,7 @@ import HowWorks from "@/components/sections/how-works";
 import Footer from "@/components/sections/footer";
 import Cta from "@/components/sections/Cta";
 import Faq from "@/components/sections/faq";
+import Pricing from "@/components/sections/pricing";
 
 function AppWindow({
   label,
@@ -132,7 +133,7 @@ function DashboardPreview() {
   );
 }
 
-export default async function Home() {
+export default function Home() {
   return (
     <main>
       <Navbar />
@@ -177,6 +178,8 @@ export default async function Home() {
           </div>
         </div>
       </section>
+
+      <Pricing />
 
       <Cta />
 
