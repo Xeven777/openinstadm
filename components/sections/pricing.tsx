@@ -197,7 +197,7 @@ export default function Pricing({
             </div>
 
             <Link
-              href="/login"
+              href="/docs"
               className="mt-6 inline-flex h-12 items-center justify-center gap-2 rounded-full border border-border bg-card px-6 text-[15px] font-semibold text-foreground shadow-sm transition-all hover:-translate-y-px hover:bg-muted"
             >
               <GithubLogoIcon weight="fill" className="size-4" />
