@@ -16,9 +16,10 @@ export const metadata: Metadata = {
     "instagram automation",
     "comment to DM",
     "instagram private replies",
-    "social commerce",
+    "social media marketing",
     "manychat alternative",
   ],
+  metadataBase: new URL("https://openinstadm.vercel.app"),
 };
 
 export default function RootLayout({
