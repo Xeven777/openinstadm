@@ -1,4 +1,5 @@
 import { getRedisConnection } from "@/lib/queue/client";
+import type Redis from "ioredis";
 
 const WORKER_HEALTH_KEY = "health:worker:dm";
 const WORKER_ALERTS_KEY = "alerts:worker:dm";
@@ -55,9 +56,11 @@ export async function recordWorkerHeartbeat(
   );
 }
 
-export async function getWorkerHealth(): Promise<WorkerHealth> {
+export async function getWorkerHealth(
+  redis: Redis = getRedisConnection(),
+): Promise<WorkerHealth> {
   const heartbeat = parseJson<WorkerHeartbeat>(
-    await getRedisConnection().get(WORKER_HEALTH_KEY)
+    await redis.get(WORKER_HEALTH_KEY)
   );
 
   if (!heartbeat) {
@@ -83,8 +86,11 @@ export async function recordWorkerAlert(alert: Omit<WorkerAlert, "createdAt">) {
   await redis.ltrim(WORKER_ALERTS_KEY, 0, 24);
 }
 
-export async function getWorkerAlerts(limit = 10): Promise<WorkerAlert[]> {
-  const values = await getRedisConnection().lrange(
+export async function getWorkerAlerts(
+  limit = 10,
+  redis: Redis = getRedisConnection(),
+): Promise<WorkerAlert[]> {
+  const values = await redis.lrange(
     WORKER_ALERTS_KEY,
     0,
     Math.max(0, limit - 1)
