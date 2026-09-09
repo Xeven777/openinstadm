@@ -1,5 +1,4 @@
 import Image from "next/image";
-import React from "react";
 import { SectionHeading } from "@/components/ui/section-heading";
 import dashboardImage from "@/assets/dashboard.webp";
 
@@ -7,13 +6,13 @@ const Dashboard = () => {
   return (
     <section className="border-y border-border">
       <div className="mx-auto grid w-full max-w-8xl gap-12 px-5 py-24 sm:px-6 lg:grid-cols-[1.1fr_0.9fr] lg:px-8 lg:items-center">
-        <div>
+        <div className="relative overflow-hidden rounded-2xl border">
           <Image
             src={dashboardImage}
             alt="dashboard"
             width={800}
             height={600}
-            className="rounded-lg border border-border object-cover"
+            className="hover:scale-120 scale-110 brightness-150 dark:brightness-105 hover:brightness-120 transition-all duration-500 ease-in-out"
           />
         </div>
 
