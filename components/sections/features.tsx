@@ -1,4 +1,5 @@
 import { cn } from "@/lib/utils";
+import { SectionHeading } from "@/components/ui/section-heading";
 import {
   ArrowsClockwiseIcon,
   ClipboardTextIcon,
@@ -66,20 +67,12 @@ export default function FeaturesSection() {
   return (
     <section id="features">
       <div className="mx-auto w-full max-w-8xl px-5 py-24 sm:px-6 lg:px-8">
-        <div className="max-w-2xl">
-          <p className="text-xs font-bold uppercase tracking-widest text-primary">
-            What&rsquo;s included
-          </p>
-          <h2 className="mt-4 text-4xl font-bold leading-tight tracking-tighter text-foreground sm:text-5xl">
-            Everything,
-            <br />
-            no tiers
-          </h2>
-          <p className="mt-6 text-base leading-relaxed text-muted-foreground">
-            Self-hosted and open source. Nothing to unlock. You run it, you own
-            it.
-          </p>
-        </div>
+        <SectionHeading
+          eyebrow="What's included"
+          title="Everything,"
+          accent="no tiers"
+          description="Self-hosted and open source. Nothing to unlock. You run it, you own it."
+        />
 
         <div className="mt-14 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 relative z-10 max-w-8xl mx-auto overflow-hidden rounded-2xl border border-border bg-background shadow-sm">
           {features.map((feature, index) => (

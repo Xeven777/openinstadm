@@ -9,26 +9,21 @@ import {
   GithubLogoIcon,
   WrenchIcon,
 } from "@phosphor-icons/react/dist/ssr";
-import { DM_Serif_Display } from "next/font/google";
 import {
   detectCountryClientSide,
   getPricingForCountry,
   PRICING_BY_GROUP,
   type PricingInfo,
 } from "@/lib/geo-pricing";
+import { SectionHeading } from "@/components/ui/section-heading";
 
 const SETUP_EMAIL = "hello@auradevs.co";
-const dmSerif = DM_Serif_Display({
-  subsets: ["latin"],
-  style: "italic",
-  weight: "400",
-});
 
 function Check() {
   return (
     <span
       aria-hidden="true"
-      className="flex size-5.5 shrink-0 items-center justify-center rounded-[7px] bg-primary text-primary-foreground"
+      className="flex size-5.5 shrink-0 items-center justify-center rounded-lg bg-linear-30 from-lime-200 via-lime-400 to-lime-500 text-primary-foreground"
     >
       <CheckIcon weight="bold" className="size-3.5" />
     </span>
@@ -65,6 +60,7 @@ const selfHostedFeatures = [
 ];
 
 const setupFeatures = [
+  "Everything in self-hosted plan, plus:",
   "Our devs set everything up for you",
   "Pay once — works for a lifetime",
   "VPS, database & worker configured",
@@ -134,23 +130,11 @@ export default function Pricing({
       className="border-y border-border bg-muted/30"
     >
       <div className="mx-auto w-full max-w-8xl px-5 py-20 sm:px-6 sm:py-24 lg:px-8">
-        {/* Heading — eyebrow + headline like screenshot, now in theme tokens */}
-        <div className="mx-auto max-w-3xl text-center">
-          <p className="text-xs font-bold uppercase tracking-[0.3em] text-muted-foreground">
-            Pricing
-          </p>
-          <h2 className="mt-4 text-balance text-4xl font-semibold leading-[1.05] tracking-[-6%] text-foreground sm:text-5xl lg:text-6xl">
-            Transparent pricing,{" "}
-            <span
-              className={cn(
-                "italic tracking-normal bg-clip-text text-transparent bg-linear-to-r from-primary to-foreground",
-                dmSerif.className,
-              )}
-            >
-              no hidden fees.
-            </span>
-          </h2>
-        </div>
+        <SectionHeading
+          eyebrow="Pricing"
+          title="Transparent pricing,"
+          accent="no hidden fees."
+        />
 
         {/* Cards — same layout as screenshot, now themed */}
         <div className="mx-auto mt-12 grid max-w-4xl grid-cols-1 gap-6 md:grid-cols-2">
@@ -260,7 +244,7 @@ export default function Pricing({
 
             <a
               href={`mailto:${SETUP_EMAIL}?subject=${encodeURIComponent(mailSubject)}`}
-              className="mt-6 inline-flex h-12 items-center justify-center gap-2 rounded-full bg-primary px-6 text-[15px] font-semibold text-primary-foreground shadow-lg transition-all hover:-translate-y-px hover:brightness-[0.98]"
+              className="mt-6 inline-flex h-12 items-center justify-center gap-2 rounded-full bg-linear-to-b from-lime-200 via-lime-400 to-lime-500 px-6 text-[15px] font-semibold text-primary-foreground shadow-lg transition-all hover:-translate-y-px hover:brightness-98"
             >
               <WrenchIcon weight="duotone" className="size-4" />
               Get it set up

@@ -1,4 +1,5 @@
 import Image from "next/image";
+import { SectionHeading } from "@/components/ui/section-heading";
 import img1 from "@/assets/ChatGPT Image Aug 26, 2026, 10_07_44 PM.webp";
 import img2 from "@/assets/ChatGPT Image Aug 26, 2026, 10_09_18 PM.webp";
 import img3 from "@/assets/ChatGPT Image Aug 26, 2026, 10_18_50 PM.webp";
@@ -31,28 +32,12 @@ const HowWorks = () => {
   return (
     <section id="how">
       <div className="mx-auto w-full max-w-8xl px-5 py-20 sm:px-6 sm:py-24 lg:px-8">
-        <div className="flex items-center justify-center gap-3">
-          <span className="hidden h-px w-10 bg-border sm:block sm:w-20" />
-          <span className="hidden size-1.5 rounded-full border border-border bg-white dark:bg-card sm:block" />
-          <span className="inline-flex items-center rounded-full border border-border bg-white px-3.5 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground shadow-sm dark:bg-card">
-            How it works
-          </span>
-          <span className="hidden size-1.5 rounded-full border border-border bg-white dark:bg-card sm:block" />
-          <span className="hidden h-px w-10 bg-border sm:block sm:w-20" />
-        </div>
-
-        {/* Heading — keep original text, center like screenshot */}
-        <div className="mx-auto mt-6 max-w-2xl text-center">
-          <h2 className="text-balance text-4xl font-semibold leading-[0.98] tracking-[-5%] text-transparent bg-clip-text bg-linear-to-br from-foreground/80 to-primary via-foreground sm:text-5xl lg:text-6xl">
-            A comment in,
-            <br />a DM out
-          </h2>
-          <p className="mx-auto mt-4 max-w-150 text-pretty text-sm lg:text-base leading-relaxed text-muted-foreground">
-            Three steps. Connect an account, build a campaign, and let it run.
-            The webhook handles it live and the poll sweeps up whatever
-            Instagram never pushes.
-          </p>
-        </div>
+        <SectionHeading
+          eyebrow="How it works"
+          title="A comment in,"
+          accent="a DM out"
+          description="Three steps. Connect an account, build a campaign, and let it run. The webhook handles it live and the poll sweeps up whatever Instagram never pushes."
+        />
 
         {/* Cards — 3-up grid like screenshot */}
         <div className="mt-14 grid grid-cols-1 gap-5 md:grid-cols-3 md:gap-6">
