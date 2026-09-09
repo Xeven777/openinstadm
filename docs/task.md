@@ -1,14 +1,18 @@
 # OpenInstaDM Master Task Checklist
 
+> Status reviewed: 2026-09-09. Completed items below reflect the current
+> implementation; unchecked items still require code changes or production
+> validation.
+
 This checklist tracks all ongoing bugs, optimizations, setup items, and new feature roadmap items for **OpenInstaDM**.
 
 ## 🐛 2. Bugs & Edge Case Fixes
 
-- [ ] **Sanitize Destination URLs in Link Tracker**: Fix unhandled URL scheme crash in [`app/r/[slug]/route.ts`](/app/r/%5Bslug%5D/route.ts#L42) when URLs lack `http://` / `https://`.
-- [ ] **Prevent Overlapping Polling Sweeps**: Replace fixed `setInterval` with guarded recursive `setTimeout` loop in [`worker/dm-worker.ts`](/worker/dm-worker.ts#L44).
+- [x] **Sanitize Destination URLs in Link Tracker**: [`app/r/[slug]/route.ts`](/app/r/%5Bslug%5D/route.ts) now catches malformed destinations and rejects non-`http:`/`https:` schemes before redirecting.
+- [x] **Prevent Overlapping Polling Sweeps**: [`worker/dm-worker.ts`](/worker/dm-worker.ts) uses a guarded recursive `setTimeout` loop, so a slow reconciliation sweep cannot overlap the next one.
 - [ ] **Graceful Meta Token Expiry Handling**: Handle `TokenExpiredError` (Meta error 190) in [`lib/queue/dm-worker.ts`](/lib/queue/dm-worker.ts), update `InstagramAccount` connection status, and log user alerts.
-- [ ] **Atomic DM Deduplication**: Fix non-atomic DB lookup race conditions during simultaneous webhook delivery in [`lib/queue/dm-worker.ts`](/lib/queue/dm-worker.ts#L407).
-- [ ] **Eliminate N+1 Webhook DB Queries**: Remove synchronous sequential DB queries in `parseReadEvents` in [`app/api/webhook/route.ts`](/app/api/webhook/route.ts#L186).
+- [x] **Atomic DM Deduplication**: [`lib/queue/dm-worker.ts`](/lib/queue/dm-worker.ts) claims comment processing inside a transaction protected by a PostgreSQL advisory lock and the `(automationId, commentId)` unique key.
+- [x] **Eliminate N+1 Webhook DB Queries**: [`app/api/webhook/route.ts`](/app/api/webhook/route.ts) groups read events by Instagram account and performs one lookup per account instead of one query per event.
 - [ ] **Standardize Follow-Gate Status Behavior**: Align follow-gate `null` status fallback handling across comment triggers and postback button taps.
 
 ### 🐛 Campaign Builder (new/edit page) audit — 2026-08-17
