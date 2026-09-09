@@ -1,12 +1,12 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import "goey-toast/styles.css";
-import { Funnel_Sans } from "next/font/google";
 import GooeyToasterMount from "@/components/goey-toaster";
 import QueryProvider from "@/lib/query/provider";
 import { ThemeProvider } from "@/components/theme-provider";
 import Script from "next/script";
 import Clarity from "@/components/Clarity";
+import { funnelSans } from "@/lib/fonts";
 
 export const metadata: Metadata = {
   title: "OpenInstaDM - Open source Instagram comment-to-DM automation",
@@ -20,8 +20,6 @@ export const metadata: Metadata = {
     "manychat alternative",
   ],
 };
-
-const funnelSans = Funnel_Sans({ subsets: ["latin"], variable: "--font-sans" });
 
 export default function RootLayout({
   children,

@@ -1,5 +1,6 @@
 import Image from "next/image";
 import React from "react";
+import { SectionHeading } from "@/components/ui/section-heading";
 import dashboardImage from "@/assets/dashboard.webp";
 
 const Dashboard = () => {
@@ -17,18 +18,13 @@ const Dashboard = () => {
         </div>
 
         <div>
-          <p className="text-xs font-bold uppercase tracking-widest text-primary">
-            The dashboard
-          </p>
-          <h2 className="mt-4 text-4xl font-bold leading-tight tracking-tighter text-foreground sm:text-5xl">
-            See exactly what
-            <br />
-            happened
-          </h2>
-          <p className="mt-6 text-base leading-relaxed text-muted-foreground">
-            Every comment event is traceable: queued, matched, sent, skipped,
-            failed, or rate-limited. No black box.
-          </p>
+          <SectionHeading
+            align="left"
+            eyebrow="The dashboard"
+            title="See exactly what"
+            accent="happened"
+            description="Every comment event is traceable: queued, matched, sent, skipped, failed, or rate-limited. No black box."
+          />
           <div className="mt-8 flex flex-col gap-3">
             {[
               "Real-time activity feed",

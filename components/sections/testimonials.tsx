@@ -1,3 +1,5 @@
+import { SectionHeading } from "@/components/ui/section-heading";
+
 type Card =
   | { type: "image"; src: string; alt: string }
   | {
@@ -161,22 +163,14 @@ export default function Testimonials() {
       aria-label="Testimonials — Built for anyone who turns comments into growth"
       className="overflow-hidden border-y border-border bg-background"
     >
-      {/* header - centered like screenshot */}
+      {/* header - now using shared SectionHeading for consistency */}
       <div className="mx-auto w-full max-w-8xl px-5 py-14 sm:px-6 sm:py-16 lg:px-8">
-        <div className="flex flex-col items-center text-center">
-          <span className="inline-flex items-center rounded-full border border-border bg-muted/60 px-4 py-1.5 text-xs font-medium tracking-wide text-muted-foreground shadow-sm dark:bg-card">
-            Loved by creators
-          </span>
-          <h2 className="mt-6 text-balance text-4xl font-bold leading-[0.95] tracking-tighter text-foreground sm:text-5xl lg:text-[56px]">
-            Built for anyone who
-            <br />
-            turns comments into growth
-          </h2>
-          <p className="mt-4 max-w-xl text-pretty text-sm leading-relaxed text-muted-foreground sm:text-base">
-            From solo creators to agencies managing a dozen clients — see how
-            OpenInstaDM replaces manual DMs and expensive tools.
-          </p>
-        </div>
+        <SectionHeading
+          eyebrow="Loved by creators"
+          title="Built for anyone who"
+          accent="turns comments into growth"
+          description="From solo creators to agencies managing a dozen clients — see how OpenInstaDM replaces manual DMs and expensive tools."
+        />
       </div>
 
       {/* carousel — bleeds to viewport edges, peek on sides like screenshot */}

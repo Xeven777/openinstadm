@@ -1,9 +1,7 @@
 <div align="center">
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="public/cta-dark.png">
-  <source media="(prefers-color-scheme: light)" srcset="public/cta-light.png">
-  <img alt="OpenInstaDM — open-source Instagram comment-to-DM automation" src="public/cta-light.png" width="100%">
+  <img alt="OpenInstaDM — open-source Instagram comment-to-DM automation" src="app/opengraph-image.jpg" width="100%">
 </picture>
 
 # OpenInstaDM

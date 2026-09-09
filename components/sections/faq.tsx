@@ -16,6 +16,7 @@ import {
   UsersThreeIcon,
 } from "@phosphor-icons/react/dist/ssr";
 import { buttonVariants } from "@/components/ui/button";
+import { SectionHeading } from "@/components/ui/section-heading";
 
 const faqs = [
   {
@@ -75,21 +76,15 @@ export default function Faq() {
     <section id="faq">
       <div className="mx-auto w-full max-w-8xl px-5 py-24 sm:px-6 lg:px-8">
         <div className="grid gap-14 lg:grid-cols-[0.85fr_1.15fr] lg:gap-16">
-          {/* Left — sticky intro */}
+          {/* Left — sticky intro — now using shared SectionHeading */}
           <div className="lg:sticky lg:top-32 lg:self-start">
-            <p className="text-xs font-bold uppercase tracking-widest text-primary">
-              FAQ
-            </p>
-            <h2 className="mt-4 text-4xl font-semibold leading-[0.98] tracking-[-5%] text-transparent bg-clip-text bg-linear-to-br from-foreground/80 to-primary via-foreground sm:text-5xl">
-              Questions,
-              <br />
-              answered
-            </h2>
-            <p className="mt-6 max-w-md text-pretty text-base leading-relaxed text-muted-foreground">
-              The things people actually ask before self-hosting their first
-              comment-to-DM campaign. Something missing? The setup guide and
-              the repo have the rest.
-            </p>
+            <SectionHeading
+              align="left"
+              eyebrow="FAQ"
+              title="Questions,"
+              accent="answered"
+              description="The things people actually ask before self-hosting their first comment-to-DM campaign. Something missing? The setup guide and the repo have the rest."
+            />
 
             <div className="mt-8 flex flex-col gap-3 sm:flex-row lg:flex-col xl:flex-row">
               <Link
