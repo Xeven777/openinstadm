@@ -106,6 +106,7 @@ export default function AppSidebar({
       if (!response.ok) {
         throw new Error(result.error ?? "Failed to switch workspace");
       }
+      // eslint-disable-next-line @next/next/no-location-assign-relative-destination
       window.location.assign("/dashboard");
     } catch (error) {
       console.error("Failed to switch workspace:", error);
@@ -123,7 +124,7 @@ export default function AppSidebar({
               tooltip="OpenInstaDM"
               render={<Link href="/dashboard" />}
             >
-              <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+              <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground overflow-hidden">
                 <Image
                   src="/logo2.svg"
                   alt="OpenInstaDM"
@@ -131,10 +132,8 @@ export default function AppSidebar({
                   height={20}
                 />
               </span>
-              <span className="grid flex-1 text-left text-sm leading-tight">
-                <span className="truncate md:text-lg tracking-tight">
-                  OpenInstaDM
-                </span>
+              <span className="grid flex-1 text-left text-sm leading-tight truncate md:text-lg tracking-tight font-medium">
+                OpenInstaDM
               </span>
             </SidebarMenuButton>
           </SidebarMenuItem>
@@ -172,7 +171,7 @@ export default function AppSidebar({
       </SidebarContent>
 
       <SidebarSeparator />
-      
+
       <SidebarFooter>
         <SidebarMenu>
           <SidebarMenuItem>
@@ -223,10 +222,10 @@ export default function AppSidebar({
                     >
                       <Avatar className="size-8 rounded-full">
                         <AvatarImage
-                          src={`https://api.dicebear.com/10.x/glass/svg?seed=${encodeURIComponent(workspaceName)}`}
+                          src={`https://api.dicebear.com/10.x/glass/svg?seed=${encodeURIComponent(workspace.name)}`}
                         />
                         <AvatarFallback className="rounded-full bg-primary/15 text-primary text-xs font-bold">
-                          {workspaceInitials(workspaceName)}
+                          {workspaceInitials(workspace.name)}
                         </AvatarFallback>
                       </Avatar>
                       <span className="grid flex-1 text-left text-sm leading-tight">

@@ -4,7 +4,7 @@ import "goey-toast/styles.css";
 import GooeyToasterMount from "@/components/goey-toaster";
 import QueryProvider from "@/lib/query/provider";
 import { ThemeProvider } from "@/components/theme-provider";
-import Script from "next/script";
+// import Script from "next/script";
 import Clarity from "@/components/Clarity";
 import { funnelSans } from "@/lib/fonts";
 
@@ -35,13 +35,13 @@ export default function RootLayout({
           content="1ywEvz4B5lYEEfkF2hEWRlDFzCAVq-5_Qb37AgpM7Wg"
         />
         <meta name="apple-mobile-web-app-title" content="OpenInstaDM" />
-        {process.env.NODE_ENV === "development" && (
+        {/* {process.env.NODE_ENV === "development" && (
           <Script
             src="//unpkg.com/react-scan/dist/auto.global.js"
             crossOrigin="anonymous"
             strategy="beforeInteractive"
           />
-        )}
+        )} */}
       </head>
       {process.env.NODE_ENV === "production" && <Clarity />}
       <body className={"min-h-full antialiased " + funnelSans.className}>
