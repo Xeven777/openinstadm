@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/set-state-in-effect */
 "use client";
 
 /**
@@ -8,13 +9,21 @@
  * snapshot-backed posts down as plain serializable props, so switching views
  * is pure client state — no refetch, no server round-trip.
  *
- * Grid thumbnails are lazy-loaded (`loading="lazy"`) so a large "all time"
- * range doesn't stall first paint on dozens of Instagram CDN images.
+ * Pagination is client-side (slice over the already-fetched `posts` array):
+ * - Zero extra network requests — the snapshot already contains all posts.
+ * - Only PAGE_SIZE DOM nodes (+ images) are mounted at once, so 200–500
+ *   posts no longer lag the browser or flood the Instagram CDN.
+ * - Page resets automatically when the post set changes (account/range switch)
+ *   or when toggling table ↔ grid.
+ *
+ * Grid thumbnails are lazy-loaded (`loading="lazy"`) within the current page.
  */
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   BookmarkSimple,
+  CaretLeft,
+  CaretRight,
   ChatCircle,
   Eye,
   GridFour,
@@ -25,6 +34,7 @@ import {
   Users,
 } from "@phosphor-icons/react";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   Card,
   CardAction,
@@ -34,6 +44,8 @@ import {
 } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { OverviewPost } from "@/lib/server/overview";
+
+const PAGE_SIZE = 24;
 
 function formatNumber(n: number | null): string {
   if (n === null) return "—";
@@ -63,6 +75,37 @@ type ViewMode = "table" | "grid";
 
 export default function OverviewPostsView({ posts }: { posts: OverviewPost[] }) {
   const [view, setView] = useState<ViewMode>("grid");
+  const [page, setPage] = useState(1);
+
+  const totalPages = Math.max(1, Math.ceil(posts.length / PAGE_SIZE));
+
+  // Clamp / reset page when the underlying post set changes (account or
+  // range switch) or when totalPages shrinks.
+  useEffect(() => {
+    setPage(1);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [posts.length, posts[0]?.id]);
+
+  useEffect(() => {
+    if (page > totalPages) setPage(totalPages);
+  }, [page, totalPages]);
+
+  // Also reset to first page on view toggle so the user doesn't land on an
+  // empty-looking tail page when grid↔table have different perceived density.
+  const handleViewChange = (v: string) => {
+    if (v) {
+      setView(v as ViewMode);
+      setPage(1);
+    }
+  };
+
+  const paginatedPosts = useMemo(() => {
+    const start = (page - 1) * PAGE_SIZE;
+    return posts.slice(start, start + PAGE_SIZE);
+  }, [posts, page]);
+
+  const rangeStart = posts.length === 0 ? 0 : (page - 1) * PAGE_SIZE + 1;
+  const rangeEnd = Math.min(page * PAGE_SIZE, posts.length);
 
   return (
     <Card>
@@ -73,9 +116,13 @@ export default function OverviewPostsView({ posts }: { posts: OverviewPost[] }) 
         </CardTitle>
         <CardAction className="flex items-center gap-3">
           <span className="text-xs tabular-nums text-muted-foreground">
-            {posts.length} post{posts.length === 1 ? "" : "s"}
+            {posts.length === 0
+              ? "0 posts"
+              : totalPages <= 1
+                ? `${posts.length} post${posts.length === 1 ? "" : "s"}`
+                : `${rangeStart}–${rangeEnd} of ${posts.length}`}
           </span>
-          <Tabs value={view} onValueChange={(v) => v && setView(v as ViewMode)}>
+          <Tabs value={view} onValueChange={handleViewChange}>
             <TabsList aria-label="Posts view">
               <TabsTrigger value="table" title="Table view">
                 <ListDashes weight="bold" className="size-4" />
@@ -92,13 +139,104 @@ export default function OverviewPostsView({ posts }: { posts: OverviewPost[] }) 
           <p className="py-10 text-center text-sm text-muted-foreground">
             No posts found
           </p>
-        ) : view === "table" ? (
-          <PostsTable posts={posts} />
         ) : (
-          <PostsGrid posts={posts} />
+          <>
+            {view === "table" ? (
+              <PostsTable posts={paginatedPosts} />
+            ) : (
+              <PostsGrid posts={paginatedPosts} />
+            )}
+            {totalPages > 1 && (
+              <Pagination
+                page={page}
+                totalPages={totalPages}
+                onPageChange={setPage}
+              />
+            )}
+          </>
         )}
       </CardContent>
     </Card>
+  );
+}
+
+function getPageNumbers(page: number, totalPages: number): (number | "…")[] {
+  if (totalPages <= 7) return Array.from({ length: totalPages }, (_, i) => i + 1);
+  const pages: (number | "…")[] = [1];
+  const left = Math.max(2, page - 1);
+  const right = Math.min(totalPages - 1, page + 1);
+  if (left > 2) pages.push("…");
+  for (let p = left; p <= right; p++) pages.push(p);
+  if (right < totalPages - 1) pages.push("…");
+  pages.push(totalPages);
+  return pages;
+}
+
+function Pagination({
+  page,
+  totalPages,
+  onPageChange,
+}: {
+  page: number;
+  totalPages: number;
+  onPageChange: (p: number) => void;
+}) {
+  const numbers = getPageNumbers(page, totalPages);
+
+  return (
+    <nav
+      aria-label="Posts pagination"
+      className="mt-6 flex flex-col items-center justify-between gap-3 border-t border-border pt-4 sm:flex-row"
+    >
+      <p className="text-xs tabular-nums text-muted-foreground">
+        Page {page} of {totalPages}
+      </p>
+      <div className="flex items-center gap-1">
+        <Button
+          variant="outline"
+          size="icon-sm"
+          aria-label="Previous page"
+          disabled={page <= 1}
+          onClick={() => onPageChange(Math.max(1, page - 1))}
+        >
+          <CaretLeft weight="bold" className="size-3.5" />
+        </Button>
+
+        {numbers.map((n, i) =>
+          n === "…" ? (
+            <span
+              key={`ellipsis-${i}`}
+              className="px-1 text-sm text-muted-foreground"
+              aria-hidden="true"
+            >
+              …
+            </span>
+          ) : (
+            <Button
+              key={n}
+              variant={n === page ? "default" : "outline"}
+              size="icon-sm"
+              aria-label={`Page ${n}`}
+              aria-current={n === page ? "page" : undefined}
+              onClick={() => onPageChange(n)}
+              className="min-w-8 tabular-nums"
+            >
+              {n}
+            </Button>
+          )
+        )}
+
+        <Button
+          variant="outline"
+          size="icon-sm"
+          aria-label="Next page"
+          disabled={page >= totalPages}
+          onClick={() => onPageChange(Math.min(totalPages, page + 1))}
+        >
+          <CaretRight weight="bold" className="size-3.5" />
+        </Button>
+      </div>
+    </nav>
   );
 }
 
