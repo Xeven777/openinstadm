@@ -27,6 +27,7 @@
     "bullmq": "^5.81.3",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "cn": "^0.2.6",
     "cross-env": "^10.1.0",
     "goey-toast": "^0.5.0",
     "ioredis": "^5.11.1",

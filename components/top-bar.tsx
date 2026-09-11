@@ -1,9 +1,18 @@
 "use client";
 
+import { useState } from "react";
 import { usePathname } from "next/navigation";
 import { signOut } from "next-auth/react";
 import { SignOut } from "@phosphor-icons/react";
 import { Button, buttonVariants } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
@@ -35,9 +44,16 @@ export default function TopBar({
   const pathname = usePathname();
   const title = pageTitles[pathname] ?? "Dashboard";
   const canManageAccounts = canManageInstagramAccounts(useWorkspaceContext());
+  const [signOutOpen, setSignOutOpen] = useState(false);
+  const [isSigningOut, setIsSigningOut] = useState(false);
+
+  async function confirmSignOut() {
+    setIsSigningOut(true);
+    await signOut({ callbackUrl: "/login" });
+  }
 
   return (
-    <header className="flex h-14 shrink-0 items-center gap-2 border-b bg-background px-4 transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-12 lg:px-4 sticky top-0 w-full">
+    <header className="flex h-14 shrink-0 items-center gap-2 border-b bg-background px-4 transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-12 lg:px-4 sticky top-0 w-full z-80">
       <div className="flex items-center gap-2 justify-center">
         <SidebarTrigger className="-ml-1" />
         <Separator
@@ -75,13 +91,47 @@ export default function TopBar({
         <Button
           variant="ghost"
           size="icon-sm"
-          onClick={() => void signOut({ callbackUrl: "/login" })}
+          onClick={() => setSignOutOpen(true)}
           aria-label="Sign out"
           title="Sign out"
         >
           <SignOut className="text-muted-foreground" />
         </Button>
       </div>
+
+      <Dialog
+        open={signOutOpen}
+        onOpenChange={(open) => {
+          if (!isSigningOut) setSignOutOpen(open);
+        }}
+      >
+        <DialogContent showCloseButton={!isSigningOut}>
+          <DialogHeader>
+            <DialogTitle>Sign out?</DialogTitle>
+            <DialogDescription>
+              You will return to the sign-in page. Your campaigns and account
+              data will stay unchanged.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setSignOutOpen(false)}
+              disabled={isSigningOut}
+            >
+              Stay signed in
+            </Button>
+            <Button
+              type="button"
+              onClick={() => void confirmSignOut()}
+              disabled={isSigningOut}
+            >
+              {isSigningOut ? "Signing out..." : "Sign out"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </header>
   );
 }

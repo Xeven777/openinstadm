@@ -15,6 +15,14 @@ import { gooeyToast } from "goey-toast";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
@@ -30,17 +38,11 @@ export default function SettingsAccounts({
   const router = useRouter();
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [accountToDisconnect, setAccountToDisconnect] =
+    useState<InstagramAccountStat | null>(null);
   const canManage = canManageInstagramAccounts(useWorkspaceContext());
 
   async function disconnectInstagram(instagramAccountId: string) {
-    if (
-      !confirm(
-        "Disconnect Instagram? Campaigns for this account will stop sending DMs."
-      )
-    ) {
-      return;
-    }
-
     setBusy(`disconnect:${instagramAccountId}`);
     setError(null);
     try {
@@ -58,15 +60,16 @@ export default function SettingsAccounts({
       }
 
       gooeyToast.success("Instagram account disconnected");
-
-      // Re-render the server component: the account list, the sidebar shell,
-      // and the dashboard stats cache (invalidated by the disconnect route)
-      // all pick up the change.
+      setAccountToDisconnect(null);
       router.refresh();
     } finally {
       setBusy(null);
     }
   }
+
+  const isDisconnecting =
+    accountToDisconnect !== null &&
+    busy === `disconnect:${accountToDisconnect.id}`;
 
   return (
     <Card>
@@ -141,7 +144,7 @@ export default function SettingsAccounts({
                   <Button
                     variant="destructive"
                     size="sm"
-                    onClick={() => void disconnectInstagram(account.id)}
+                    onClick={() => setAccountToDisconnect(account)}
                     disabled={busy === `disconnect:${account.id}`}
                   >
                     {busy === `disconnect:${account.id}`
@@ -176,6 +179,57 @@ export default function SettingsAccounts({
           </a>
         )}
       </CardContent>
+
+      <Dialog
+        open={accountToDisconnect !== null}
+        onOpenChange={(open) => {
+          if (!open && !isDisconnecting) setAccountToDisconnect(null);
+        }}
+      >
+        <DialogContent showCloseButton={!isDisconnecting}>
+          <DialogHeader>
+            <DialogTitle>
+              Disconnect @{accountToDisconnect?.username}?
+            </DialogTitle>
+            <DialogDescription>
+              This permanently deletes the data connected to this Instagram
+              account. Reconnecting it later starts with an empty account.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-foreground">
+            <p className="font-medium text-destructive">This cannot be undone.</p>
+            <ul className="mt-2 list-disc space-y-1 pl-5 text-muted-foreground">
+              <li>Campaigns for @{accountToDisconnect?.username}</li>
+              <li>DM logs and dashboard metrics</li>
+              <li>Tracked links, click analytics, and follower history</li>
+            </ul>
+          </div>
+
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setAccountToDisconnect(null)}
+              disabled={isDisconnecting}
+            >
+              Keep account
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={() => {
+                if (accountToDisconnect) {
+                  void disconnectInstagram(accountToDisconnect.id);
+                }
+              }}
+              disabled={isDisconnecting}
+            >
+              {isDisconnecting ? "Disconnecting..." : "Delete account data"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 }
