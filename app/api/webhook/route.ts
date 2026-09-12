@@ -20,12 +20,18 @@ export async function GET(request: NextRequest) {
   const challenge = searchParams.get("hub.challenge");
 
   if (mode === "subscribe" && token === process.env.WEBHOOK_VERIFY_TOKEN) {
-    return new NextResponse(challenge, { status: 200 });
+    return new NextResponse(challenge, {
+      status: 200,
+      headers: { "Cache-Control": "no-store, must-revalidate" },
+    });
   }
 
   return NextResponse.json(
     { success: false, error: "Verification failed" },
-    { status: 403 }
+    {
+      status: 403,
+      headers: { "Cache-Control": "no-store, must-revalidate" },
+    }
   );
 }
 

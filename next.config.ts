@@ -24,6 +24,7 @@ const nextConfig: NextConfig = {
     },
     turbopackRustReactCompiler: true,
     cachedNavigations: true,
+    turbopackFileSystemCacheForBuild: true,
   },
   images: {
     remotePatterns: [

@@ -42,6 +42,7 @@ const Navbar = async () => {
             alt="OpenInstaDM logo"
             width={32}
             height={32}
+            unoptimized
             className="size-8 transition-all duration-300 dark:invert-0 invert shimmer"
           />
           <span className="text-lg font-bold tracking-tight text-foreground hidden md:block">

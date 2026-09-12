@@ -12,7 +12,10 @@ export async function GET(request: NextRequest) {
   if (authHeader !== `Bearer ${cronSecret}`) {
     return NextResponse.json(
       { success: false, error: "Unauthorized" },
-      { status: 401 }
+      {
+        status: 401,
+        headers: { "Cache-Control": "no-store, must-revalidate" },
+      }
     );
   }
 
@@ -21,29 +24,30 @@ export async function GET(request: NextRequest) {
   const now = new Date();
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
 
-  const usageReset = await prisma.workspace.updateMany({
-    where: { usagePeriodStart: { lt: monthStart } },
-    data: {
-      usagePeriodStart: monthStart,
-      dmsSentThisPeriod: 0,
-    },
-  });
-
-  const accountsToRefresh = await prisma.instagramAccount.findMany({
-    where: {
-      accessToken: { not: "" },
-      tokenExpiresAt: {
-        not: null,
-        lte: cutoffDate,
+  const [usageReset, accountsToRefresh] = await Promise.all([
+    prisma.workspace.updateMany({
+      where: { usagePeriodStart: { lt: monthStart } },
+      data: {
+        usagePeriodStart: monthStart,
+        dmsSentThisPeriod: 0,
       },
-    },
-    select: {
-      id: true,
-      workspaceId: true,
-      username: true,
-      accessToken: true,
-    },
-  });
+    }),
+    prisma.instagramAccount.findMany({
+      where: {
+        accessToken: { not: "" },
+        tokenExpiresAt: {
+          not: null,
+          lte: cutoffDate,
+        },
+      },
+      select: {
+        id: true,
+        workspaceId: true,
+        username: true,
+        accessToken: true,
+      },
+    }),
+  ]);
 
   const results: Array<{
     instagramAccountId: string;
@@ -97,12 +101,15 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  return NextResponse.json({
-    success: true,
-    data: {
-      totalProcessed: accountsToRefresh.length,
-      workspacesReset: usageReset.count,
-      results,
+  return NextResponse.json(
+    {
+      success: true,
+      data: {
+        totalProcessed: accountsToRefresh.length,
+        workspacesReset: usageReset.count,
+        results,
+      },
     },
-  });
+    { headers: { "Cache-Control": "no-store, must-revalidate" } }
+  );
 }

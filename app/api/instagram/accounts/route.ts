@@ -29,13 +29,16 @@ export async function GET() {
     select: { id: true, username: true, instagramId: true, name: true },
   });
 
-  return NextResponse.json({
-    success: true,
-    data: {
-      instagramAccounts,
-      selectedInstagramAccountId: instagramAccounts[0]?.id ?? null,
+  return NextResponse.json(
+    {
+      success: true,
+      data: {
+        instagramAccounts,
+        selectedInstagramAccountId: instagramAccounts[0]?.id ?? null,
+      },
     },
-  });
+    { headers: { "Cache-Control": "private, no-store, must-revalidate" } }
+  );
 }
 
 const patchSchema = z

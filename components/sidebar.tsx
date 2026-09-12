@@ -130,6 +130,7 @@ export default function AppSidebar({
                   alt="OpenInstaDM"
                   width={20}
                   height={20}
+                  unoptimized
                 />
               </span>
               <span className="grid flex-1 text-left text-sm leading-tight truncate md:text-lg tracking-tight font-medium">

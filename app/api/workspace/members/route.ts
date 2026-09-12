@@ -59,14 +59,17 @@ export async function GET() {
     );
   }
 
-  return NextResponse.json({
-    success: true,
-    data: await getWorkspaceMembers(
-      context.workspaceId,
-      context.role,
-      context.permissions
-    ),
-  });
+  return NextResponse.json(
+    {
+      success: true,
+      data: await getWorkspaceMembers(
+        context.workspaceId,
+        context.role,
+        context.permissions
+      ),
+    },
+    { headers: { "Cache-Control": "private, no-store, must-revalidate" } }
+  );
 }
 
 export async function POST(request: NextRequest) {

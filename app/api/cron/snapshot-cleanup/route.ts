@@ -18,7 +18,10 @@ export async function GET(request: NextRequest) {
   if (authHeader !== `Bearer ${cronSecret}`) {
     return NextResponse.json(
       { success: false, error: "Unauthorized" },
-      { status: 401 }
+      {
+        status: 401,
+        headers: { "Cache-Control": "no-store, must-revalidate" },
+      }
     );
   }
 
@@ -29,11 +32,14 @@ export async function GET(request: NextRequest) {
     where: { expiresAt: { lt: cutoff } },
   });
 
-  return NextResponse.json({
-    success: true,
-    data: {
-      deleted: count,
-      cutoff: cutoff.toISOString(),
+  return NextResponse.json(
+    {
+      success: true,
+      data: {
+        deleted: count,
+        cutoff: cutoff.toISOString(),
+      },
     },
-  });
+    { headers: { "Cache-Control": "no-store, must-revalidate" } }
+  );
 }

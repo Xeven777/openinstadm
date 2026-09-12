@@ -13,8 +13,11 @@ export async function GET() {
 
   const data = await getDiagnosticsData(workspaceId);
 
-  return NextResponse.json({
-    success: true,
-    data,
-  });
+  return NextResponse.json(
+    {
+      success: true,
+      data,
+    },
+    { headers: { "Cache-Control": "private, no-store, must-revalidate" } }
+  );
 }

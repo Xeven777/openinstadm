@@ -45,14 +45,20 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const invitation = await prisma.workspaceInvitation.findFirst({
-    where: {
-      id: parsed.data.invitationId,
-      workspaceId: context.workspaceId,
-      status: { in: ["PENDING", "EXPIRED"] },
-    },
-    include: { workspace: { select: { name: true } } },
-  });
+  const [invitation, inviter] = await Promise.all([
+    prisma.workspaceInvitation.findFirst({
+      where: {
+        id: parsed.data.invitationId,
+        workspaceId: context.workspaceId,
+        status: { in: ["PENDING", "EXPIRED"] },
+      },
+      include: { workspace: { select: { name: true } } },
+    }),
+    prisma.user.findUnique({
+      where: { id: context.userId },
+      select: { name: true, email: true },
+    }),
+  ]);
   if (!invitation) {
     return NextResponse.json(
       { success: false, error: "Invitation is no longer available" },
@@ -67,11 +73,6 @@ export async function POST(request: NextRequest) {
       status: "PENDING",
       expiresAt: getInvitationExpiry(),
     },
-  });
-
-  const inviter = await prisma.user.findUnique({
-    where: { id: context.userId },
-    select: { name: true, email: true },
   });
 
   const inviteUrl = buildInvitationUrl(updated.token);

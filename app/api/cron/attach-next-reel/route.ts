@@ -25,7 +25,10 @@ export async function GET(request: NextRequest) {
   if (authHeader !== `Bearer ${cronSecret}`) {
     return NextResponse.json(
       { success: false, error: "Unauthorized" },
-      { status: 401 }
+      {
+        status: 401,
+        headers: { "Cache-Control": "no-store, must-revalidate" },
+      }
     );
   }
 
@@ -97,8 +100,11 @@ export async function GET(request: NextRequest) {
     invalidateCampaignsCache(workspaceId);
   }
 
-  return NextResponse.json({
-    success: true,
-    data: { checked, bound, failedAccounts: failures.length },
-  });
+  return NextResponse.json(
+    {
+      success: true,
+      data: { checked, bound, failedAccounts: failures.length },
+    },
+    { headers: { "Cache-Control": "no-store, must-revalidate" } }
+  );
 }

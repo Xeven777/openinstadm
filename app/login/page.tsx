@@ -132,6 +132,7 @@ async function LoginContent({ searchParams }: { searchParams: LoginSearchParams 
               width={36}
               height={40}
               alt="OpenInstaDM"
+              unoptimized
               className="h-9 w-auto"
             />
           </div>

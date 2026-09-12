@@ -57,7 +57,10 @@ export async function GET(request: NextRequest, { params }: RouteProps) {
       .reverse();
 
     const data: ThreadResponse = { messages };
-    return NextResponse.json({ success: true, data });
+    return NextResponse.json(
+      { success: true, data },
+      { headers: { "Cache-Control": "private, no-store, must-revalidate" } }
+    );
   } catch (err) {
     console.error("[Conversation Messages] Error:", err);
     const message =

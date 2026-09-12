@@ -86,7 +86,10 @@ export async function GET(request: NextRequest) {
         instagramId: account.instagramId,
       },
     };
-    return NextResponse.json({ success: true, data });
+    return NextResponse.json(
+      { success: true, data },
+      { headers: { "Cache-Control": "private, no-store, must-revalidate" } }
+    );
   } catch (err) {
     console.error("[Conversations] Error:", err);
     const message =

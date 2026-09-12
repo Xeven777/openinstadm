@@ -68,6 +68,7 @@ export default function Footer() {
                 alt="OpenInstaDM logo"
                 width={28}
                 height={28}
+                unoptimized
                 className="size-7 transition-all duration-300 dark:invert-0 invert"
               />
               <span className="text-base font-bold tracking-tight text-foreground">

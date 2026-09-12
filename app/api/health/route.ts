@@ -59,6 +59,9 @@ export async function GET() {
         worker,
       },
     },
-    { status: healthy ? 200 : 503 }
+    {
+      status: healthy ? 200 : 503,
+      headers: { "Cache-Control": "no-store, must-revalidate" },
+    }
   );
 }

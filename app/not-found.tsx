@@ -20,6 +20,7 @@ export default function NotFoundPage() {
               width={36}
               height={40}
               alt="OpenInstaDM"
+              unoptimized
               className="h-9 w-auto mx-auto"
             />
           </div>
