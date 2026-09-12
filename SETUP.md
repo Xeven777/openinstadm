@@ -467,13 +467,17 @@ REDIS_PASSWORD=replace-with-a-long-random-hex-password
 Create `.env.worker`. Use Neon's pooled connection URL and the **same** encryption key already configured in Vercel. Do not put a `REDIS_URL` in this file: Compose provides the worker's internal URL.
 
 ```dotenv
+NEXTAUTH_URL=https://yourfrontend.url.app
 DATABASE_URL='postgresql://USER:PASSWORD@YOUR-NEON-POOLER.neon.tech/neondb?sslmode=require'
 ENCRYPTION_KEY=the-same-64-character-hex-key-used-by-vercel
 META_GRAPH_API_VERSION=v26.0
-DATABASE_POOL_MAX=3
-
+COMMENT_POLL_INTERVAL_MS=1800000   #comment poll every 30 minutees
+COMMENT_POLL_LOOKBACK_HOURS=72
+COMMENT_POLL_MAX_PER_SWEEP=30
 # Set this to false after the initial infrastructure check if comment polling is desired.
 COMMENT_POLL_DISABLED=true
+
+
 ```
 
 Protect both files:
