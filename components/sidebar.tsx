@@ -12,6 +12,7 @@ import {
   ListDashes,
   Megaphone,
   Pulse,
+  Robot,
   SquaresFour,
   type Icon,
 } from "@phosphor-icons/react";
@@ -59,6 +60,7 @@ const navSections: Array<{ label: string; items: NavItem[] }> = [
     label: "Automation",
     items: [
       { label: "Campaigns", href: "/campaigns", icon: Megaphone },
+      { label: "Inbox Automations", href: "/inbox-automations", icon: Robot },
       { label: "DM Logs", href: "/logs", icon: ListDashes },
     ],
   },

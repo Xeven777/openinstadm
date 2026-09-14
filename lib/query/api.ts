@@ -203,3 +203,34 @@ export interface CampaignDetail {
 
 export const fetchCampaignDetail = (id: string) =>
   getData<CampaignDetail>(`/api/automations?id=${encodeURIComponent(id)}`);
+
+export type InboxTrigger = "KEYWORD" | "AI_INTENT" | "ALWAYS";
+
+export interface InboxAutomationItem {
+  id: string;
+  workspaceId: string;
+  instagramAccountId: string;
+  name: string;
+  isActive: boolean;
+  priority: number;
+  triggerType: InboxTrigger;
+  keywords: string[];
+  wholeWordMatch: boolean;
+  matchAnyWord: boolean;
+  aiEnabled: boolean;
+  aiIntent: string | null;
+  knowledge: string | null;
+  aiModel: string | null;
+  message: string;
+  createdAt: string;
+  updatedAt: string;
+  instagramAccount?: { id: string; username: string } | null;
+  _count?: { dmLogs: number };
+}
+
+export const fetchInboxAutomations = (accountId: string | null | undefined) => {
+  const qs = accountId
+    ? `?instagramAccountId=${encodeURIComponent(accountId)}`
+    : "";
+  return getData<InboxAutomationItem[]>(`/api/inbox-automations${qs}`);
+};

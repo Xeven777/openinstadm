@@ -67,6 +67,7 @@ model Workspace {
   invitations       WorkspaceInvitation[]
   instagramAccounts InstagramAccount[]
   automations       Automation[]
+  inboxAutomations  InboxAutomation[]
   dmLogs            DmLog[]
   trackedLinks      TrackedLink[]
   linkClicks        LinkClick[]
@@ -131,6 +132,7 @@ model InstagramAccount {
 
   workspace         Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   automations       Automation[]
+  inboxAutomations  InboxAutomation[]
   dmLogs            DmLog[]
   linkClicks        LinkClick[]
   followerSnapshots FollowerSnapshot[]
@@ -238,6 +240,7 @@ model DmLog {
   id                 String  @id @default(cuid())
   workspaceId        String
   automationId       String?
+  inboxAutomationId  String?
   instagramAccountId String
 
   commenterId    String
@@ -250,6 +253,13 @@ model DmLog {
   dmSentAt       DateTime?
   errorMessage   String?
 
+  // AI reply audit (DM-only auto-send tier). Null when the keyword or
+  // catch-all tier handled the message without an LLM call.
+  aiUsed      Boolean?
+  aiModel     String?
+  aiIntent    String?
+  aiLatencyMs Int?
+
   // The public comment reply is delivered independently of the DM, so its
   // outcome is tracked separately. publicReplySentAt makes it idempotent across
   // retries; a DM failure never blocks or re-posts the public reply.
@@ -261,6 +271,7 @@ model DmLog {
 
   workspace        Workspace         @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   automation       Automation?       @relation(fields: [automationId], references: [id], onDelete: Cascade)
+  inboxAutomation  InboxAutomation?  @relation(fields: [inboxAutomationId], references: [id], onDelete: SetNull)
   instagramAccount InstagramAccount  @relation(fields: [instagramAccountId], references: [id], onDelete: Cascade)
 
   @@unique([automationId, commentId])
@@ -270,9 +281,52 @@ model DmLog {
   // creation time, so it needs its own composite.
   @@index([workspaceId, status, updatedAt])
   @@index([automationId])
+  @@index([inboxAutomationId])
   @@index([instagramAccountId])
   @@index([instagramAccountId, commentId])
   @@index([status])
+}
+
+/// Inbox (DM-only) automations. Replaces the legacy per-account
+/// `fallbackReplyEnabled/message` catch-all with ordered, feature-rich rules:
+/// keyword → AI intent (grounded by a knowledge textbox, no RAG) → always.
+/// DM-only, auto-send. AI never injects links — plain text only.
+model InboxAutomation {
+  id                 String @id @default(cuid())
+  workspaceId        String
+  instagramAccountId String
+
+  name     String
+  isActive Boolean @default(true)
+  /// Lower = evaluated first.
+  priority Int @default(0)
+
+  triggerType    InboxTrigger @default(KEYWORD)
+  keywords       String[]     @default([])
+  wholeWordMatch Boolean      @default(true)
+  matchAnyWord   Boolean      @default(false)
+
+  // AI tier: when true and the trigger matches, the reply is generated from
+  // `knowledge` (+ recent thread context) instead of the static `message`.
+  aiEnabled  Boolean @default(false)
+  aiIntent   String?
+  knowledge  String?
+  aiModel    String?
+
+  // Static response (keyword + catch-all tiers). Supports {username}.
+  // AI tier ignores this and generates plain text instead.
+  message String @default("")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  workspace        Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  instagramAccount InstagramAccount @relation(fields: [instagramAccountId], references: [id], onDelete: Cascade)
+  dmLogs           DmLog[]
+
+  @@index([workspaceId])
+  @@index([instagramAccountId, priority])
+  @@index([instagramAccountId, isActive, priority])
 }
 
 model TrackedLink {
@@ -393,6 +447,13 @@ enum OperationalEventSource {
   TOKEN_REFRESH
   HEALTH
   SYSTEM
+  AI
+}
+
+enum InboxTrigger {
+  KEYWORD
+  AI_INTENT
+  ALWAYS
 }
 
 enum OperationalEventLevel {

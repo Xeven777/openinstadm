@@ -21,6 +21,14 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import type { WorkspaceMembersPayload } from "@/lib/server/members";
 import {
   WORKSPACE_PERMISSION_LABELS,
@@ -47,7 +55,7 @@ export default function SettingsTeam({
   const router = useRouter();
   const [busy, setBusy] = useState<string | null>(null);
   const [confirmRemoveId, setConfirmRemoveId] = useState<string | null>(null);
-  const [confirmLeave, setConfirmLeave] = useState(false);
+  const [leaveDialogOpen, setLeaveDialogOpen] = useState(false);
   const [inviteEmail, setInviteEmail] = useState("");
   const [invitePermissions, setInvitePermissions] = useState<MemberPermission[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -183,7 +191,7 @@ export default function SettingsTeam({
 
   async function leaveWorkspace(memberId: string) {
     setBusy("leave");
-    setConfirmLeave(false);
+    setLeaveDialogOpen(false);
     try {
       const res = await fetch("/api/workspace/members", {
         method: "DELETE",
@@ -428,39 +436,54 @@ export default function SettingsTeam({
                 )}
 
                 {isSelf &&
-                  !isOwner &&
-                  (confirmLeave ? (
-                    <div className="flex items-center gap-2">
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="destructive"
-                        onClick={() => void leaveWorkspace(member.id)}
-                        disabled={busy === "leave"}
-                      >
-                        Confirm leave
-                      </Button>
+                  !isOwner && (
+                    <>
                       <Button
                         type="button"
                         size="sm"
                         variant="outline"
-                        onClick={() => setConfirmLeave(false)}
+                        onClick={() => setLeaveDialogOpen(true)}
+                        className="text-muted-foreground hover:text-destructive"
                       >
-                        Cancel
+                        <SignOut className="size-4" />
                       </Button>
-                    </div>
-                  ) : (
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="outline"
-                      onClick={() => setConfirmLeave(true)}
-                      className="text-muted-foreground hover:text-destructive"
-                    >
-                      <SignOut className="size-3.5" />
-                      Leave workspace
-                    </Button>
-                  ))}
+                      <Dialog
+                        open={leaveDialogOpen}
+                        onOpenChange={(open) => {
+                          if (!open && busy !== "leave")
+                            setLeaveDialogOpen(open);
+                        }}
+                      >
+                        <DialogContent showCloseButton={busy !== "leave"}>
+                          <DialogHeader>
+                            <DialogTitle>Leave workspace?</DialogTitle>
+                            <DialogDescription>
+                              You&apos;ll be removed from this workspace. You can
+                              rejoin if you&apos;re invited again.
+                            </DialogDescription>
+                          </DialogHeader>
+                          <DialogFooter>
+                            <Button
+                              variant="outline"
+                              onClick={() => setLeaveDialogOpen(false)}
+                              disabled={busy === "leave"}
+                            >
+                              Stay
+                            </Button>
+                            <Button
+                              variant="destructive"
+                              onClick={() => void leaveWorkspace(member.id)}
+                              disabled={busy === "leave"}
+                            >
+                              {busy === "leave"
+                                ? "Leaving..."
+                                : "Leave"}
+                            </Button>
+                          </DialogFooter>
+                        </DialogContent>
+                      </Dialog>
+                    </>
+                  )}
               </div>
             );
           })}

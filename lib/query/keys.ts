@@ -30,4 +30,6 @@ export const queryKeys = {
   campaignDetail: (id: string) => ["campaign", "detail", id] as const,
   usedPosts: (accountId: string | null | undefined) =>
     ["campaign", "used-posts", accountId ?? "all"] as const,
+  inboxAutomations: (accountId: string | null | undefined) =>
+    ["inbox-automations", accountId ?? "all"] as const,
 };

@@ -50,6 +50,28 @@ export function getMetaGraphApiVersion(): string {
   return process.env.META_GRAPH_API_VERSION ?? "v26.0";
 }
 
+// --- AI DM replies (global key, DM-only auto-send) ---------------------------
+// Single global provider key keeps self-host simple. Workspace-level BYO is
+// intentionally out of scope for v1.
+export function getAIApiKey(): string | null {
+  const v = process.env.AI_API_KEY?.trim();
+  return v ? v : null;
+}
+
+export function getAIModel(): string {
+  return process.env.AI_MODEL?.trim() || "gpt-4o-mini";
+}
+
+export function getAIBudgetPerHour(): number {
+  const raw = Number(process.env.AI_BUDGET_PER_HOUR ?? "100");
+  if (!Number.isFinite(raw) || raw <= 0) return 100;
+  return Math.floor(raw);
+}
+
+export function isAIEnabled(): boolean {
+  return getAIApiKey() !== null;
+}
+
 export const serverEnvSchema = z.object({
   NEXTAUTH_URL: z.string().url(),
   NEXTAUTH_SECRET: z.string().min(16),

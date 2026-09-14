@@ -38,6 +38,9 @@ import {
   renderMessageWithTracking,
   renderMessageWithoutLink,
 } from "@/lib/tracking/message";
+import { classifyIntent, generateReply } from "@/lib/ai/client";
+import { checkAiBudget, consumeAiBudget } from "@/lib/ai/budget";
+import { getAIModel, isAIEnabled } from "@/lib/env";
 
 const BACKOFF_DELAYS = [5 * 60 * 1000, 15 * 60 * 1000, 45 * 60 * 1000];
 
@@ -1342,164 +1345,381 @@ async function processMessage(job: Job<ProcessMessageJob>): Promise<void> {
     }
   }
 
-  // Fallback auto-responder: plain-text DM when no campaign matched.
-  // Fires once per inbound message id, after all keyword checks fail.
+  // Inbox automations (feature-rich replacement for the legacy per-account
+  // fallback reply): ordered DM-only rules — keyword → AI intent → catch-all.
+  // Fires once per inbound message id, after all campaign keyword checks fail.
+  // First matching rule wins; AI failures fall through to the catch-all
+  // instead of failing the job.
   if (!matchedAny) {
-    const account = await prisma.instagramAccount.findUnique({
-      where: { instagramId: instagramAccountId },
-      select: {
-        id: true,
-        workspaceId: true,
-        instagramId: true,
-        accessToken: true,
-        fallbackReplyEnabled: true,
-        fallbackReplyMessage: true,
-      },
+    await processInboxAutomations({
+      instagramAccountId,
+      messageId,
+      messageText,
+      senderId,
+      attemptsMade: job.attemptsMade,
     });
+  }
+}
 
-    const fallbackMessage = account?.fallbackReplyMessage?.trim() ?? "";
-    if (account?.fallbackReplyEnabled && fallbackMessage) {
-      const fallbackDedupeId = `dm:fallback:${messageId}`;
+/**
+ * Inbox automation tiers for an inbound DM that matched no campaign.
+ *
+ * DM-only, auto-send. Rule evaluation order is `priority` asc:
+ *   1. KEYWORD rules (matchAnyWord or matchKeywords)
+ *   2. AI_INTENT rules (single classify call across all intents, then the
+ *      matching rule replies — generated when aiEnabled, else its static text)
+ *   3. ALWAYS catch-all (simplest-one: first one wins)
+ *
+ * At-most-once per inbound message via dedupe id `dm:inbox:<messageId>`.
+ * Returns true when a rule handled the message (sent or deliberately
+ * skipped), false when no rule matched.
+ */
+type InboxRule = {
+  id: string;
+  workspaceId: string;
+  instagramAccountId: string;
+  name: string;
+  triggerType: "KEYWORD" | "AI_INTENT" | "ALWAYS";
+  keywords: string[];
+  wholeWordMatch: boolean;
+  matchAnyWord: boolean;
+  aiEnabled: boolean;
+  aiIntent: string | null;
+  knowledge: string | null;
+  aiModel: string | null;
+  message: string;
+};
 
-      // Reuse a name captured earlier so {username} renders even for fallback.
-      const priorLog = await prisma.dmLog.findFirst({
-        where: { commenterId: senderId },
-        select: { commenterName: true },
-      });
-      const commenterName = priorLog?.commenterName ?? null;
+async function processInboxAutomations(opts: {
+  instagramAccountId: string;
+  messageId: string;
+  messageText: string;
+  senderId: string;
+  attemptsMade: number;
+}): Promise<boolean> {
+  const { instagramAccountId, messageId, messageText, senderId, attemptsMade } = opts;
 
-      if (!account.accessToken) {
-        await prisma.dmLog.create({
-          data: {
-            workspaceId: account.workspaceId,
-            automationId: null,
-            instagramAccountId: account.id,
-            commenterId: senderId,
+  const account = await prisma.instagramAccount.findUnique({
+    where: { instagramId: instagramAccountId },
+    select: { id: true, workspaceId: true, instagramId: true, accessToken: true },
+  });
+  if (!account) return false;
+
+  const rules = (await prisma.inboxAutomation.findMany({
+    where: { instagramAccountId: account.id, isActive: true },
+    orderBy: [{ priority: "asc" }, { createdAt: "asc" }],
+  })) as InboxRule[];
+  if (rules.length === 0) return false;
+
+  // Reuse a name captured on an earlier interaction so {username} renders.
+  const priorLog = await prisma.dmLog.findFirst({
+    where: { commenterId: senderId },
+    select: { commenterName: true },
+  });
+  const commenterName = priorLog?.commenterName ?? null;
+
+  // Tier 1: keyword rules.
+  for (const rule of rules) {
+    if (rule.triggerType !== "KEYWORD") continue;
+    const hit = rule.matchAnyWord
+      ? true
+      : matchKeywords(messageText, rule.keywords, rule.wholeWordMatch).matched;
+    if (!hit) continue;
+    const handled = await deliverInboxRule({
+      account,
+      rule,
+      messageId,
+      messageText,
+      senderId,
+      commenterName,
+      attemptsMade,
+    });
+    if (handled) return true;
+  }
+
+  // Tier 2: AI intent rules — one classify call across all intents.
+  const intentRules = rules.filter((r) => r.triggerType === "AI_INTENT" && r.aiIntent);
+  if (intentRules.length > 0 && isAIEnabled()) {
+    const budget = await checkAiBudget(account.workspaceId);
+    if (budget.allowed) {
+      let classified: string | null = null;
+      try {
+        const c = await classifyIntent(
+          messageText,
+          intentRules.map((r) => r.aiIntent as string)
+        );
+        classified = c.intent === "none" ? null : c.intent;
+      } catch (error) {
+        await prisma.operationalEvent
+          .create({
+            data: {
+              workspaceId: account.workspaceId,
+              source: "AI",
+              level: "WARNING",
+              message: `AI classify failed, falling through to catch-all: ${formatError(error)}`,
+              payload: { instagramAccountId: account.instagramId },
+            },
+          })
+          .catch(() => {});
+        classified = null;
+      }
+      if (classified) {
+        const rule = intentRules.find(
+          (r) => (r.aiIntent as string).toLowerCase() === classified.toLowerCase()
+        );
+        if (rule) {
+          const handled = await deliverInboxRule({
+            account,
+            rule,
+            messageId,
+            messageText,
+            senderId,
             commenterName,
-            commentText: messageText,
-            commentId: fallbackDedupeId,
-            status: "FAILED",
-            errorMessage: "No Instagram access token available",
-          },
-        });
-      } else {
-        let accessToken: string;
-        try {
-          accessToken = decryptToken(account.accessToken);
-        } catch {
-          await prisma.dmLog.create({
-            data: {
-              workspaceId: account.workspaceId,
-              automationId: null,
-              instagramAccountId: account.id,
-              commenterId: senderId,
-              commenterName,
-              commentText: messageText,
-              commentId: fallbackDedupeId,
-              status: "FAILED",
-              errorMessage: "Failed to decrypt Instagram access token",
-            },
+            attemptsMade,
           });
-          return;
-        }
-
-        // Advisory lock + pending claim so concurrent workers don't double-send.
-        let canProceed = true;
-        try {
-          await prisma.$transaction(async (tx) => {
-            await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${fallbackDedupeId}))`;
-            const existing = await tx.dmLog.findFirst({
-              where: {
-                commentId: fallbackDedupeId,
-                instagramAccountId: account.id,
-              },
-              select: { status: true },
-            });
-            if (
-              existing?.status === "SENT" ||
-              existing?.status === "SKIPPED_PLAN_LIMIT" ||
-              existing?.status === "PENDING"
-            ) {
-              canProceed = false;
-              return;
-            }
-            await tx.dmLog.create({
-              data: {
-                workspaceId: account.workspaceId,
-                automationId: null,
-                instagramAccountId: account.id,
-                commenterId: senderId,
-                commenterName,
-                commentText: messageText,
-                commentId: fallbackDedupeId,
-                status: "PENDING",
-                attempts: job.attemptsMade + 1,
-              },
-            });
-          });
-        } catch (error) {
-          const isUniqueViolation =
-            typeof error === "object" &&
-            error !== null &&
-            "code" in error &&
-            (error as { code?: string }).code === "P2002";
-          if (isUniqueViolation) return;
-          throw error;
-        }
-        if (!canProceed) return;
-
-        const usage = await reserveWorkspaceDMSend(account.workspaceId);
-        if (!usage.allowed) {
-          await prisma.dmLog.updateMany({
-            where: {
-              commentId: fallbackDedupeId,
-              instagramAccountId: account.id,
-              workspaceId: account.workspaceId,
-            },
-            data: {
-              status: "SKIPPED_PLAN_LIMIT",
-              errorMessage: `Monthly DM limit reached (${usage.limit})`,
-            },
-          });
-          return;
-        }
-
-        try {
-          const rendered = renderMessageWithoutLink({
-            message: fallbackMessage,
-            commenterName,
-          });
-          await sendDirectMessage(accessToken, account.instagramId, senderId, rendered);
-          await prisma.dmLog.updateMany({
-            where: {
-              commentId: fallbackDedupeId,
-              instagramAccountId: account.id,
-              workspaceId: account.workspaceId,
-            },
-            data: {
-              status: "SENT",
-              dmSentAt: new Date(),
-              errorMessage: null,
-            },
-          });
-        } catch (error) {
-          await releaseWorkspaceDMReservation(account.workspaceId, usage.periodStart);
-          await prisma.dmLog.updateMany({
-            where: {
-              commentId: fallbackDedupeId,
-              instagramAccountId: account.id,
-              workspaceId: account.workspaceId,
-            },
-            data: {
-              status: "FAILED",
-              attempts: job.attemptsMade + 1,
-              errorMessage: formatError(error),
-            },
-          });
-          throw error;
+          if (handled) return true;
         }
       }
     }
+  }
+
+  // Tier 3: catch-all — simplest-one, first ALWAYS rule wins.
+  const catchAll = rules.find((r) => r.triggerType === "ALWAYS");
+  if (catchAll) {
+    return deliverInboxRule({
+      account,
+      rule: catchAll,
+      messageId,
+      messageText,
+      senderId,
+      commenterName,
+      attemptsMade,
+    });
+  }
+
+  return false;
+}
+
+/**
+ * Deliver one inbox rule's reply as a plain-text DM (auto-send).
+ * AI-enabled rules generate from the rule's knowledge textbox + recent thread
+ * context; all other rules render the static template. AI never injects links.
+ */
+async function deliverInboxRule(opts: {
+  account: { id: string; workspaceId: string; instagramId: string; accessToken: string };
+  rule: InboxRule;
+  messageId: string;
+  messageText: string;
+  senderId: string;
+  commenterName: string | null;
+  attemptsMade: number;
+}): Promise<boolean> {
+  const { account, rule, messageId, messageText, senderId, commenterName, attemptsMade } = opts;
+  const dedupeId = `dm:inbox:${messageId}`;
+
+  // Resolve the reply text before claiming the send slot.
+  let replyText: string | null = null;
+  let aiModel: string | null = null;
+  let aiLatencyMs: number | null = null;
+  const aiUsed = rule.aiEnabled && isAIEnabled();
+
+  if (aiUsed) {
+    const budget = await checkAiBudget(account.workspaceId);
+    if (!budget.allowed) {
+      console.log(
+        `[DM Worker] AI budget exhausted for workspace ${account.workspaceId}, using static text`
+      );
+    } else {
+      const started = Date.now();
+      try {
+        await consumeAiBudget(account.workspaceId);
+        // Best-effort thread context: last few messages for tone continuity.
+        let history: string[] = [];
+        try {
+          const recent = await prisma.dmLog.findMany({
+            where: { commenterId: senderId, instagramAccountId: account.id },
+            orderBy: { createdAt: "desc" },
+            take: 5,
+            select: { commentText: true },
+          });
+          history = recent.map((r) => r.commentText).reverse();
+        } catch {
+          history = [];
+        }
+        const gen = await generateReply({
+          message: messageText,
+          knowledge: rule.knowledge ?? "",
+          username: commenterName,
+          history,
+        });
+        replyText = gen.text;
+        aiModel = rule.aiModel?.trim() || gen.model || getAIModel();
+        aiLatencyMs = Date.now() - started;
+      } catch (error) {
+        aiLatencyMs = Date.now() - started;
+        await prisma.operationalEvent
+          .create({
+            data: {
+              workspaceId: account.workspaceId,
+              source: "AI",
+              level: "WARNING",
+              message: `AI reply failed for rule "${rule.name}", using static text: ${formatError(error)}`,
+              payload: { ruleId: rule.id, instagramAccountId: account.instagramId },
+            },
+          })
+          .catch(() => {});
+        replyText = null;
+      }
+    }
+  }
+
+  if (!replyText) {
+    if (aiUsed && !rule.message.trim()) {
+      // AI-only rule whose generation failed and has no static fallback —
+      // let the catch-all tier try instead of sending an empty DM.
+      return false;
+    }
+    replyText = renderMessageWithoutLink({ message: rule.message, commenterName });
+  }
+  if (!replyText?.trim()) return false;
+
+  if (!account.accessToken) {
+    await prisma.dmLog.create({
+      data: {
+        workspaceId: account.workspaceId,
+        automationId: null,
+        inboxAutomationId: rule.id,
+        instagramAccountId: account.id,
+        commenterId: senderId,
+        commenterName,
+        commentText: messageText,
+        commentId: dedupeId,
+        status: "FAILED",
+        errorMessage: "No Instagram access token available",
+        aiUsed: aiUsed || undefined,
+        aiModel,
+        aiIntent: rule.aiIntent,
+        aiLatencyMs,
+      },
+    });
+    return true;
+  }
+
+  let accessToken: string;
+  try {
+    accessToken = decryptToken(account.accessToken);
+  } catch {
+    await prisma.dmLog.create({
+      data: {
+        workspaceId: account.workspaceId,
+        automationId: null,
+        inboxAutomationId: rule.id,
+        instagramAccountId: account.id,
+        commenterId: senderId,
+        commenterName,
+        commentText: messageText,
+        commentId: dedupeId,
+        status: "FAILED",
+        errorMessage: "Failed to decrypt Instagram access token",
+        aiUsed: aiUsed || undefined,
+        aiModel,
+        aiIntent: rule.aiIntent,
+        aiLatencyMs,
+      },
+    });
+    return true;
+  }
+
+  // Advisory lock + pending claim so concurrent workers don't double-send.
+  let canProceed = true;
+  try {
+    await prisma.$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${dedupeId}))`;
+      const existing = await tx.dmLog.findFirst({
+        where: { commentId: dedupeId, instagramAccountId: account.id },
+        select: { status: true },
+      });
+      if (
+        existing?.status === "SENT" ||
+        existing?.status === "SKIPPED_PLAN_LIMIT" ||
+        existing?.status === "PENDING"
+      ) {
+        canProceed = false;
+        return;
+      }
+      await tx.dmLog.create({
+        data: {
+          workspaceId: account.workspaceId,
+          automationId: null,
+          inboxAutomationId: rule.id,
+          instagramAccountId: account.id,
+          commenterId: senderId,
+          commenterName,
+          commentText: messageText,
+          commentId: dedupeId,
+          matchedKeyword: rule.aiIntent,
+          status: "PENDING",
+          attempts: attemptsMade + 1,
+          aiUsed: aiUsed || undefined,
+          aiModel,
+          aiIntent: rule.aiIntent,
+          aiLatencyMs,
+        },
+      });
+    });
+  } catch (error) {
+    const isUniqueViolation =
+      typeof error === "object" &&
+      error !== null &&
+      "code" in error &&
+      (error as { code?: string }).code === "P2002";
+    if (isUniqueViolation) return true;
+    throw error;
+  }
+  if (!canProceed) return true;
+
+  const usage = await reserveWorkspaceDMSend(account.workspaceId);
+  if (!usage.allowed) {
+    await prisma.dmLog.updateMany({
+      where: {
+        commentId: dedupeId,
+        instagramAccountId: account.id,
+        workspaceId: account.workspaceId,
+      },
+      data: {
+        status: "SKIPPED_PLAN_LIMIT",
+        errorMessage: `Monthly DM limit reached (${usage.limit})`,
+      },
+    });
+    return true;
+  }
+
+  try {
+    await sendDirectMessage(accessToken, account.instagramId, senderId, replyText);
+    await prisma.dmLog.updateMany({
+      where: {
+        commentId: dedupeId,
+        instagramAccountId: account.id,
+        workspaceId: account.workspaceId,
+      },
+      data: { status: "SENT", dmSentAt: new Date(), errorMessage: null },
+    });
+    return true;
+  } catch (error) {
+    await releaseWorkspaceDMReservation(account.workspaceId, usage.periodStart);
+    await prisma.dmLog.updateMany({
+      where: {
+        commentId: dedupeId,
+        instagramAccountId: account.id,
+        workspaceId: account.workspaceId,
+      },
+      data: {
+        status: "FAILED",
+        attempts: attemptsMade + 1,
+        errorMessage: formatError(error),
+      },
+    });
+    throw error;
   }
 }
 

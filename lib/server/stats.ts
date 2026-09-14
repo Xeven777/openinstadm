@@ -37,8 +37,6 @@ export interface InstagramAccountStat {
   name: string | null;
   tokenExpiresAt: string | null;
   webhookSubscribed: boolean;
-  fallbackReplyEnabled: boolean;
-  fallbackReplyMessage: string | null;
 }
 
 export interface DashboardRecentLog {
@@ -199,8 +197,6 @@ async function computeDashboardSummary(
         name: true,
         tokenExpiresAt: true,
         webhookSubscribed: true,
-        fallbackReplyEnabled: true,
-        fallbackReplyMessage: true,
       },
     }),
     prisma.automation.count({ where: { workspaceId, ...accountFilter } }),

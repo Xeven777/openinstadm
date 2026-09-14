@@ -53,6 +53,9 @@ const {
       findUnique: vi.fn(),
       findFirst: vi.fn(),
     },
+    inboxAutomation: {
+      findMany: vi.fn(),
+    },
     operationalEvent: {
       create: vi.fn(),
     },
@@ -260,6 +263,11 @@ beforeEach(() => {
   mockPrisma.instagramAccount.findUnique.mockResolvedValue({
     workspaceId: "workspace_123",
   });
+  // Inbox automations (DM-only tiers): no rules by default, so a DM that
+  // matches no campaign keyword sends nothing — same as the legacy behavior
+  // when the fallback reply was disabled.
+  mockPrisma.inboxAutomation.findMany.mockResolvedValue([]);
+  mockPrisma.dmLog.findMany.mockResolvedValue([]);
   mockPrisma.operationalEvent.create.mockResolvedValue({});
   mockDecryptToken.mockReturnValue("decrypted_token");
   mockMatchKeywords.mockReturnValue({ matched: true, matchedKeyword: "LINK" });
@@ -1122,5 +1130,131 @@ describe("DM Worker — DM keyword trigger", () => {
         create: expect.objectContaining({ status: "FAILED" }),
       })
     );
+  });
+});
+
+describe("DM Worker — Inbox automations (keyword → AI → catch-all)", () => {
+  function createMockMessageJob(data: Record<string, unknown> = {}) {
+    return {
+      name: "process-message",
+      data: {
+        instagramAccountId: "ig_456",
+        messageId: "mid_inbox_1",
+        messageText: "hello there",
+        senderId: "commenter_999",
+        ...data,
+      },
+      id: "message_job_inbox",
+      attemptsMade: 0,
+    };
+  }
+
+  beforeEach(() => {
+    // No campaign matches — force the inbox tiers.
+    mockPrisma.automation.findMany.mockResolvedValue([]);
+    mockMatchKeywords.mockImplementation((text: string, keywords: string[]) => ({
+      matched: (keywords as string[]).some((k) =>
+        (text as string).toLowerCase().includes(k.toLowerCase())
+      ),
+      matchedKeyword: null,
+    }));
+    mockPrisma.instagramAccount.findUnique.mockResolvedValue({
+      id: "ig_account_row_1",
+      workspaceId: "workspace_123",
+      instagramId: "ig_456",
+      accessToken: "encrypted_token_abc",
+    } as unknown as never);
+  });
+
+  it("should send the catch-all reply when no keyword rule matches", async () => {
+    mockPrisma.inboxAutomation.findMany.mockResolvedValue([
+      {
+        id: "inbox_catchall",
+        workspaceId: "workspace_123",
+        instagramAccountId: "ig_account_row_1",
+        name: "Catch-all reply",
+        triggerType: "ALWAYS",
+        keywords: [],
+        wholeWordMatch: true,
+        matchAnyWord: false,
+        aiEnabled: false,
+        aiIntent: null,
+        knowledge: null,
+        aiModel: null,
+        message: "Hey {username}! Thanks for reaching out.",
+      },
+    ]);
+
+    const processor = getProcessor();
+    await processor(createMockMessageJob());
+
+    expect(mockSendDirectMessage).toHaveBeenCalledWith(
+      "decrypted_token",
+      "ig_456",
+      "commenter_999",
+      "Hey commenter_user! Thanks for reaching out."
+    );
+    expect(mockPrisma.dmLog.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          commentId: "dm:inbox:mid_inbox_1",
+          inboxAutomationId: "inbox_catchall",
+          status: "PENDING",
+        }),
+      })
+    );
+  });
+
+  it("should prefer a matching keyword rule over the catch-all", async () => {
+    mockPrisma.inboxAutomation.findMany.mockResolvedValue([
+      {
+        id: "inbox_kw",
+        workspaceId: "workspace_123",
+        instagramAccountId: "ig_account_row_1",
+        name: "Pricing",
+        triggerType: "KEYWORD",
+        keywords: ["price"],
+        wholeWordMatch: true,
+        matchAnyWord: false,
+        aiEnabled: false,
+        aiIntent: null,
+        knowledge: null,
+        aiModel: null,
+        message: "Pricing starts at $9.",
+      },
+      {
+        id: "inbox_catchall",
+        workspaceId: "workspace_123",
+        instagramAccountId: "ig_account_row_1",
+        name: "Catch-all reply",
+        triggerType: "ALWAYS",
+        keywords: [],
+        wholeWordMatch: true,
+        matchAnyWord: false,
+        aiEnabled: false,
+        aiIntent: null,
+        knowledge: null,
+        aiModel: null,
+        message: "Catch-all text.",
+      },
+    ]);
+
+    const processor = getProcessor();
+    await processor(createMockMessageJob({ messageText: "what is the price?" }));
+
+    expect(mockSendDirectMessage).toHaveBeenCalledWith(
+      "decrypted_token",
+      "ig_456",
+      "commenter_999",
+      "Pricing starts at $9."
+    );
+  });
+
+  it("should send nothing when no inbox rule matches and there is no catch-all", async () => {
+    mockPrisma.inboxAutomation.findMany.mockResolvedValue([]);
+    const processor = getProcessor();
+    await processor(createMockMessageJob());
+
+    expect(mockSendDirectMessage).not.toHaveBeenCalled();
   });
 });
