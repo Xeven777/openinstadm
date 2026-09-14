@@ -91,46 +91,68 @@ const createAutomationSchema = z
     { message: "Opening DM needs a message and a button label", path: ["openingDmMessage"] }
   );
 
-const updateAutomationSchema = z.object({
-  name: z.string().min(1).max(100).optional(),
-  goal: z.string().min(1).max(120).optional().nullable(),
-  postId: z.string().min(1).optional().nullable(),
-  postUrl: z.string().url().optional().nullable(),
-  pendingNextReel: z.boolean().optional(),
-  matchAnyPost: z.boolean().optional(),
-  keywords: z.array(z.string().min(1).max(50)).max(10).optional(),
-  matchAnyWord: z.boolean().optional(),
-  dmTriggerEnabled: z.boolean().optional(),
-  dmMessage: z.string().min(1).max(1000).optional(),
-  openingDmEnabled: z.boolean().optional(),
-  openingDmMessage: z.string().max(1000).optional().nullable(),
-  openingDmButtonLabel: z.string().max(64).optional().nullable(),
-  linkButtonLabel: z.string().max(20).optional().nullable(),
-  requireFollow: z.boolean().optional(),
-  followPromptMessage: z.string().max(1000).optional().nullable(),
-  followPromptButtonLabel: z.string().max(20).optional().nullable(),
-  followUpEnabled: z.boolean().optional(),
-  followUpMessage: z.string().max(1000).optional().nullable(),
-  followUpDelayMinutes: z.number().int().min(0).max(1440).optional(),
-  publicReplyEnabled: z.boolean().optional(),
-  publicReplyMessage: z.string().max(1000).optional().nullable(),
-  publicReplyMessages: z.array(z.string().max(1000)).max(10).optional(),
-  isActive: z.boolean().optional(),
-  wholeWordMatch: z.boolean().optional(),
-  reportShareEnabled: z.boolean().optional(),
-  // Empty string clears the tracked link; a URL updates/creates it; undefined
-  // leaves it unchanged.
-  trackedDestinationUrl: z
-    .union([z.string().url(), z.literal("")])
-    .optional()
-    .nullable(),
-  // Same semantics for the optional second tracked link / DM button.
-  secondaryDestinationUrl: z
-    .union([z.string().url(), z.literal("")])
-    .optional()
-    .nullable(),
-  secondaryButtonLabel: z.string().max(20).optional().nullable(),
-});
+const updateAutomationSchema = z
+  .object({
+    name: z.string().min(1).max(100).optional(),
+    goal: z.string().min(1).max(120).optional().nullable(),
+    postId: z.string().min(1).optional().nullable(),
+    postUrl: z.string().url().optional().nullable(),
+    pendingNextReel: z.boolean().optional(),
+    matchAnyPost: z.boolean().optional(),
+    keywords: z.array(z.string().min(1).max(50)).max(10).optional(),
+    matchAnyWord: z.boolean().optional(),
+    dmTriggerEnabled: z.boolean().optional(),
+    dmMessage: z.string().min(1).max(1000).optional(),
+    openingDmEnabled: z.boolean().optional(),
+    openingDmMessage: z.string().max(1000).optional().nullable(),
+    openingDmButtonLabel: z.string().max(64).optional().nullable(),
+    linkButtonLabel: z.string().max(20).optional().nullable(),
+    requireFollow: z.boolean().optional(),
+    followPromptMessage: z.string().max(1000).optional().nullable(),
+    followPromptButtonLabel: z.string().max(20).optional().nullable(),
+    followUpEnabled: z.boolean().optional(),
+    followUpMessage: z.string().max(1000).optional().nullable(),
+    followUpDelayMinutes: z.number().int().min(0).max(1440).optional(),
+    publicReplyEnabled: z.boolean().optional(),
+    publicReplyMessage: z.string().max(1000).optional().nullable(),
+    publicReplyMessages: z.array(z.string().max(1000)).max(10).optional(),
+    isActive: z.boolean().optional(),
+    wholeWordMatch: z.boolean().optional(),
+    reportShareEnabled: z.boolean().optional(),
+    // Empty string clears the tracked link; a URL updates/creates it; undefined
+    // leaves it unchanged.
+    trackedDestinationUrl: z
+      .union([z.string().url(), z.literal("")])
+      .optional()
+      .nullable(),
+    // Same semantics for the optional second tracked link / DM button.
+    secondaryDestinationUrl: z
+      .union([z.string().url(), z.literal("")])
+      .optional()
+      .nullable(),
+    secondaryButtonLabel: z.string().max(20).optional().nullable(),
+  })
+  .refine(
+    (d) =>
+      d.openingDmEnabled !== true ||
+      (Boolean(d.openingDmMessage?.trim()) &&
+        Boolean(d.openingDmButtonLabel?.trim()) ||
+        (d.openingDmMessage === undefined && d.openingDmButtonLabel === undefined)),
+    {
+      message: "Opening DM needs a message and a button label",
+      path: ["openingDmMessage"],
+    }
+  )
+  .refine(
+    (d) =>
+      d.followUpEnabled !== true ||
+      Boolean(d.followUpMessage?.trim()) ||
+      d.followUpMessage === undefined,
+    {
+      message: "Follow-up needs a message when enabled",
+      path: ["followUpMessage"],
+    }
+  );
 
 export async function GET(request: NextRequest) {
   const workspaceId = await getCurrentWorkspaceId();

@@ -585,8 +585,8 @@ async function processComment(job: Job<ProcessCommentJob>): Promise<void> {
     // one, we send the reveal text directly as today.
     const useOpeningDm =
       automation.openingDmEnabled &&
-      Boolean(automation.openingDmMessage) &&
-      Boolean(automation.openingDmButtonLabel);
+      Boolean(automation.openingDmMessage?.trim()) &&
+      Boolean(automation.openingDmButtonLabel?.trim());
 
     // Follow-gating: the link is revealed only after a follow. When an opening
     // DM is enabled it comes FIRST, and its button routes into the follow check
@@ -601,21 +601,41 @@ async function processComment(job: Job<ProcessCommentJob>): Promise<void> {
 
     try {
       if (useOpeningDm) {
-        const openingText = renderMessageWithTracking({
-          message: automation.openingDmMessage as string,
-          commenterName,
-          trackedLinks: [],
-        });
-        await sendPrivateReplyWithButton(
-          accessToken,
-          automation.instagramAccount.instagramId,
-          commentId,
-          openingText,
-          automation.openingDmButtonLabel as string,
-          automation.requireFollow
-            ? `followcheck:${automation.id}`
-            : `reveal:${automation.id}`
-        );
+        const openingText =
+          renderMessageWithoutLink({
+            message: automation.openingDmMessage as string,
+            commenterName,
+          }) || "Tap the button below to get your link:";
+        const openingPayload = automation.requireFollow
+          ? `followcheck:${automation.id}`
+          : `reveal:${automation.id}`;
+        const openingButtonLabel = automation.openingDmButtonLabel as string;
+        try {
+          await sendPrivateReplyWithButton(
+            accessToken,
+            automation.instagramAccount.instagramId,
+            commentId,
+            openingText,
+            openingButtonLabel,
+            openingPayload
+          );
+        } catch (buttonError) {
+          if (!isTemplateRejection(buttonError)) throw buttonError;
+          console.log(
+            "[DM Worker] Opening button template rejected, falling back to plain text:",
+            formatError(buttonError)
+          );
+          try {
+            await sendPrivateReply(
+              accessToken,
+              automation.instagramAccount.instagramId,
+              commentId,
+              openingText
+            );
+          } catch {
+            throw buttonError;
+          }
+        }
       } else if (sendFollowPrompt) {
         const promptText = renderMessageWithoutLink({
           message:
@@ -692,6 +712,33 @@ async function processComment(job: Job<ProcessCommentJob>): Promise<void> {
           automation.instagramAccount.instagramId,
           commentId,
           dmMessage
+        );
+      }
+
+      // Direct link was delivered (no opening DM, no follow prompt) — schedule
+      // the appreciation follow-up now if enabled. The opening DM path's
+      // follow-up is scheduled in processPostback after the button tap, so we
+      // must not schedule here for that path or we'd send it before the link.
+      const directLinkDelivered = !useOpeningDm && !sendFollowPrompt;
+      if (
+        directLinkDelivered &&
+        automation.followUpEnabled &&
+        automation.followUpMessage?.trim()
+      ) {
+        const delayMs =
+          Math.max(0, automation.followUpDelayMinutes ?? 0) * 60_000;
+        await getDMQueue().add(
+          FOLLOWUP_JOB_NAME,
+          {
+            instagramAccountId: automation.instagramAccount.instagramId,
+            userId: commenterId,
+            automationId: automation.id,
+            commenterName,
+          },
+          {
+            delay: delayMs,
+            jobId: `followup_${automation.id}_${commenterId}`,
+          }
         );
       }
 
