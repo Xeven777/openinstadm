@@ -184,6 +184,162 @@ Tracked in detail in [`docs/ui-task.md`](docs/ui-task.md).
 
 ---
 
+### 🔍 DM Inbox Automation Troubleshooting Guide
+
+**Created:** 2026-09-15 — Diagnosis of why opening messages, follow-up messages, and inbox automations fail while link messages work.
+
+#### Root Cause Summary
+
+There are **three separate DM systems** in the codebase. Confusion between them is the most common cause of "DM not working" reports:
+
+| System | Trigger | File | Key Fields |
+|--------|---------|------|------------|
+| **Comment-triggered campaign DMs** | Comment on post | `processComment()` in `lib/queue/dm-worker.ts` | `openingDmEnabled`, `openingDmMessage`, `openingDmButtonLabel`, `followUpEnabled`, `followUpMessage`, `requireFollow` |
+| **Inbox Automations (DM-only)** | Inbound DM to account | `processInboxAutomations()` in `lib/queue/dm-worker.ts` | `InboxAutomation` table: `triggerType`, `keywords`, `message`, `aiEnabled`, `knowledge` |
+| **Campaign DM Trigger** | Inbound DM matching keywords | `processMessage()` in `lib/queue/dm-worker.ts` | `dmTriggerEnabled` on `Automation` |
+
+#### Issue 1: Opening DM Not Sending
+
+**Symptom:** Comment comes in, but no opening DM is sent. Only the link message appears.
+
+**Cause:** The opening DM path requires **ALL THREE** fields to be truthy:
+
+```typescript
+// lib/queue/dm-worker.ts (processComment)
+const useOpeningDm =
+  automation.openingDmEnabled &&
+  Boolean(automation.openingDmMessage?.trim()) &&
+  Boolean(automation.openingDmButtonLabel?.trim());
+```
+
+If `openingDmButtonLabel` is empty (even if the other two are set), `useOpeningDm` is `false` and the code falls through to the follow prompt or direct link path.
+
+**Fix:** Ensure campaign has all three fields populated in the database.
+
+#### Issue 2: Follow-Up Message Not Sending
+
+**Symptom:** Follow-up is enabled but never sends.
+
+**Cause:** The follow-up job is ONLY scheduled when the link is delivered directly — NOT when there's an opening DM or follow prompt:
+
+```typescript
+// lib/queue/dm-worker.ts (processComment)
+const directLinkDelivered = !useOpeningDm && !sendFollowPrompt;
+if (
+  directLinkDelivered &&
+  automation.followUpEnabled &&
+  automation.followUpMessage?.trim()
+) {
+  // schedule follow-up job
+}
+```
+
+**Two scenarios where follow-up fails:
+1. Opening DM enabled** → User must tap the button → `processPostback` schedules follow-up after reveal
+2. Follow prompt enabled (requireFollow + not following)** → User must tap "I'm following" → `processPostback` schedules follow-up after reveal
+3. Direct link (no opening DM, no follow gate, or user already follows)** → Follow-up scheduled immediately in `processComment`
+
+**Fix:** Check the DmLog table for `status` and trace which path was taken. If using opening DM or follow gate, the follow-up depends on button tap.
+
+#### Issue 3: Inbox Automations Not Firing
+
+**Symptom:** Inbox automation rules (KEYWORD / AI_INTENT / ALWAYS) never reply to DMs.
+
+**Cause:** Inbox automations only fire in `processMessage` (inbound DM webhook) when NO campaign matches:
+
+```typescript
+// lib/queue/dm-worker.ts (processMessage)
+if (!matchedAny) {
+  await processInboxAutomations({ ... });
+}
+```
+
+**Prerequisites for inbox automations to work:
+1. Someone must send an inbound DM to the Instagram account (not a comment)
+2. The `messages` webhook must be subscribed and delivering to `/api/webhook`
+3. `InboxAutomation` rules must exist, be `isActive: true`, and match the message
+4. No campaign with `dmTriggerEnabled: true` should match first (campaigns take priority)
+5. Worker process must be running (`npm run worker`)
+
+**Inbox automations do NOT fire on:**
+- Comment events (those go to `processComment`)
+- Postback events (those go to `processPostback`)
+- Read receipt events (those schedule fallback jobs)
+
+#### Issue 4: DM Trigger vs Inbox Automation Priority
+
+When a user sends an inbound DM:
+1. `processMessage` first checks campaigns with `dmTriggerEnabled: true` and matching keywords
+2. Only if `matchedAny === false` does it fall through to `processInboxAutomations`
+
+**This means:** A campaign with `dmTriggerEnabled` and matching keywords will reply BEFORE any inbox automation rule.
+
+#### Debugging Checklist
+
+```bash
+# 1. Check if worker is running
+ps aux | grep dm-worker
+
+# 2. Check Redis queue depth
+npx bullmq-cli list dm-processing
+
+# 3. Query DmLog for recent entries
+psql -c "SELECT status, commentText, errorMessage, createdAt FROM dm_logs ORDER BY createdAt DESC LIMIT 20;"
+
+# 4. Check worker logs for errors
+tail -f worker.log | grep "DM Worker"
+
+# 5. Verify webhook is receiving events
+psql -c "SELECT status, createdAt FROM webhook_events ORDER BY createdAt DESC LIMIT 10;"
+
+# 6. Check Instagram account token status
+psql -c "SELECT username, webhookSubscribed, tokenExpiresAt FROM instagram_accounts;"
+```
+
+#### Common Error Patterns in DmLog
+
+| Status | Meaning |
+|--------|---------|
+| `PENDING` | Job claimed but not yet sent |
+| `SENT` | DM successfully sent |
+| `FAILED` | Meta API error — check `errorMessage` column |
+| `SKIPPED_DEDUP` | Another campaign already replied to this comment |
+| `SKIPPED_RATE_LIMIT` | Hourly Instagram DM limit hit |
+| `SKIPPED_PLAN_LIMIT` | Monthly workspace DM limit reached |
+| `SKIPPED_NO_MATCH` | (inbox) No matching rule found |
+
+#### Test Scenarios
+
+**Test 1: Comment → Opening DM → Button Tap → Reveal → Follow-up**
+1. Create campaign with: `openingDmEnabled=true`, `openingDmMessage="Hi!"`, `openingDmButtonLabel="Get Link"`, `requireFollow=false`, `followUpEnabled=true`, `followUpMessage="Thanks!"`, `followUpDelayMinutes=1`
+2. Comment on post
+3. Verify opening DM received
+4. Tap button
+5. Verify reveal DM received
+6. Wait 1+ minute
+7. Verify follow-up DM received
+
+**Test 2: Comment → Direct Link → Follow-up**
+1. Create campaign with: `openingDmEnabled=false`, `requireFollow=false`, `followUpEnabled=true`, `followUpMessage="Thanks!"`
+2. Comment on post (must be a follower if `requireFollow=true`)
+3. Verify link DM received immediately
+4. Wait 1+ minute
+5. Verify follow-up DM received
+
+**Test 3: Inbound DM → Inbox Automation**
+1. Create inbox automation rule: `triggerType=KEYWORD`, `keywords=["help"]`, `message="I can help!"`, `isActive=true`
+2. Send DM to Instagram account saying "help"
+3. Verify inbound DM webhook fires (check `webhook_events` table)
+4. Verify DM worker processes message
+5. Verify reply DM sent
+
+**Test 4: Inbound DM → Campaign DM Trigger**
+1. Create campaign with: `dmTriggerEnabled=true`, `keywords=["buy"]`, `dmMessage="Buy link: ..."`
+2. Send DM to Instagram account saying "I want to buy"
+3. Verify campaign matches and replies (before inbox automations)
+
+---
+
 ### 🔮 Feature Plans — Detailed Implementation Specs
 
 The following three features share a layered architecture: keywords are the fast/free path, AI is the smart fallback, and the default auto-responder is the safety net. Story replies add a new trigger source that feeds into the same pipeline.

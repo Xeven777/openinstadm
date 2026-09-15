@@ -11,7 +11,6 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
 import { gooeyToast } from "goey-toast";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -152,7 +151,6 @@ export default function SettingsAccounts({
                   </Button>
                 )}
               </div>
-              <FallbackNotice />
             </div>
           ))}
         </div>
@@ -192,7 +190,9 @@ export default function SettingsAccounts({
           </DialogHeader>
 
           <div className="rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-foreground">
-            <p className="font-medium text-destructive">This cannot be undone.</p>
+            <p className="font-medium text-destructive">
+              This cannot be undone.
+            </p>
             <ul className="mt-2 list-disc space-y-1 pl-5 text-muted-foreground">
               <li>Campaigns for @{accountToDisconnect?.username}</li>
               <li>DM logs and dashboard metrics</li>
@@ -225,27 +225,5 @@ export default function SettingsAccounts({
         </DialogContent>
       </Dialog>
     </Card>
-  );
-}
-
-/**
- * DM auto-replies moved out of Settings into the dedicated
- * Inbox Automations studio (keyword → AI intent → catch-all).
- */
-function FallbackNotice() {
-  return (
-    <div className="rounded-lg border border-border bg-card p-3">
-      <p className="text-sm font-medium text-foreground">DM auto-replies</p>
-      <p className="mt-0.5 text-xs text-muted-foreground">
-        Default replies now live in Inbox Automations — keyword rules, AI
-        replies grounded by your knowledge textbox, and a catch-all.
-      </p>
-      <Link
-        href="/inbox-automations"
-        className="mt-2 inline-flex text-xs font-medium text-primary hover:underline"
-      >
-        Open Inbox Automations →
-      </Link>
-    </div>
   );
 }

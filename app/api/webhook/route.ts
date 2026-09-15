@@ -36,13 +36,29 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  console.log(`[Webhook] === NEW WEBHOOK REQUEST RECEIVED ===`);
+  console.log(`[Webhook] URL: ${request.url}`);
+  console.log(`[Webhook] Method: ${request.method}`);
+  console.log(`[Webhook] Content-Type: ${request.headers.get("content-type")}`);
+  console.log(`[Webhook] x-hub-signature-256: ${request.headers.get("x-hub-signature-256") ? "PRESENT" : "MISSING"}`);
+  console.log(`[Webhook] x-meta-signature: ${request.headers.get("x-meta-signature") ? "PRESENT" : "MISSING"}`);
+  console.log(`[Webhook] user-agent: ${request.headers.get("user-agent") || "unknown"}`);
+  
   const rawBody = await request.text();
+  console.log(`[Webhook] Body length: ${rawBody.length} chars`);
+  console.log(`[Webhook] Body preview: ${rawBody.slice(0, 500)}`);
+  
   const signature = request.headers.get("x-hub-signature-256");
 
   if (!verifyWebhookSignature(rawBody, signature)) {
     // Record the attempt so a signature mismatch is visible rather than a
     // silent 401. This is the common symptom of FACEBOOK_APP_SECRET being
     // set to the wrong app's secret for the webhook's signing key.
+    console.log(`[Webhook] *** SIGNATURE VERIFICATION FAILED ***`);
+    console.log(`[Webhook] Has signature header: ${Boolean(signature)}`);
+    console.log(`[Webhook] FACEBOOK_APP_SECRET set: ${Boolean(process.env.FACEBOOK_APP_SECRET)}`);
+    console.log(`[Webhook] INSTAGRAM_APP_SECRET set: ${Boolean(process.env.INSTAGRAM_APP_SECRET)}`);
+    
     await prisma.operationalEvent
       .create({
         data: {
@@ -57,11 +73,14 @@ export async function POST(request: NextRequest) {
         },
       })
       .catch(() => {});
+    
     return NextResponse.json(
       { success: false, error: "Invalid signature" },
       { status: 401 }
     );
   }
+  
+  console.log(`[Webhook] Signature verification PASSED`);
 
   let payload: unknown;
   try {
@@ -157,6 +176,12 @@ export async function POST(request: NextRequest) {
       payload as Parameters<typeof parseMessageEvents>[0]
     );
 
+    console.log(`[Webhook] Parsed ${messageEvents.length} inbound DM message events`);
+    
+    for (const event of messageEvents) {
+      console.log(`[Webhook] Inbound DM event: instagramAccountId=${event.instagramAccountId}, messageId=${event.messageId}, senderId=${event.senderId}, text="${event.messageText.slice(0, 100)}"`);
+    }
+
     const messageAccountIds = [
       ...new Set(messageEvents.map((e) => e.instagramAccountId)),
     ];
@@ -171,7 +196,10 @@ export async function POST(request: NextRequest) {
       messageAccounts.map((a) => [a.instagramId, a.workspaceId])
     );
 
+    console.log(`[Webhook] Found ${messageAccounts.length} Instagram accounts for message events`);
+
     for (const event of messageEvents) {
+      console.log(`[Webhook] Queuing MESSAGE_JOB for: instagramAccountId=${event.instagramAccountId}, messageId=${event.messageId}`);
       await queue.add(
         MESSAGE_JOB_NAME,
         {
@@ -190,6 +218,7 @@ export async function POST(request: NextRequest) {
           ).toString("base64url")}`,
         }
       );
+      console.log(`[Webhook] Queued MESSAGE_JOB: ${`message_${event.instagramAccountId}_${Buffer.from(event.messageId).toString("base64url")}`}`);
 
       const wsId = messageAccountMap.get(event.instagramAccountId);
       if (wsId && !webhookWorkspaceId) {
@@ -285,6 +314,10 @@ export async function POST(request: NextRequest) {
         ...(webhookWorkspaceId && { workspaceId: webhookWorkspaceId }),
       },
     });
+
+    console.log(`[Webhook] === WEBHOOK PROCESSED SUCCESSFULLY ===`);
+    console.log(`[Webhook] WebhookEvent id: ${webhookEvent.id}`);
+    console.log(`[Webhook] Workspace ID: ${webhookWorkspaceId || 'none'}`);
 
     return NextResponse.json({ success: true }, { status: 200 });
   } catch (error) {

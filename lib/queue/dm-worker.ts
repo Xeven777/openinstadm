@@ -192,6 +192,9 @@ async function sendRevealDirectMessage(
 }
 
 async function processComment(job: Job<ProcessCommentJob>): Promise<void> {
+  console.log(`[DM Worker] === processComment JOB START ===`);
+  console.log(`[DM Worker] Job ID: ${job.id}`);
+  console.log(`[DM Worker] Attempt: ${job.attemptsMade}`);
   const {
     instagramAccountId,
     commentId,
@@ -201,6 +204,8 @@ async function processComment(job: Job<ProcessCommentJob>): Promise<void> {
     mediaId,
     originalMediaId,
   } = job.data;
+  
+  console.log(`[DM Worker] Comment event: account=${instagramAccountId}, commentId=${commentId}, commenterId=${commenterId}, text="${commentText.slice(0, 100)}"`);
   const requeueAttempt = job.data.requeueAttempt ?? 0;
 
   const automations = await prisma.automation.findMany({
@@ -1047,6 +1052,8 @@ async function processFollowUp(job: Job<ProcessFollowUpJob>): Promise<void> {
 async function processMessage(job: Job<ProcessMessageJob>): Promise<void> {
   const { instagramAccountId, messageId, messageText, senderId } = job.data;
 
+  console.log(`[DM Worker] processMessage START: account=${instagramAccountId}, messageId=${messageId}, senderId=${senderId}, text="${messageText.slice(0, 100)}"`);
+
   const automations = await prisma.automation.findMany({
     where: {
       dmTriggerEnabled: true,
@@ -1064,6 +1071,8 @@ async function processMessage(job: Job<ProcessMessageJob>): Promise<void> {
     orderBy: { createdAt: "asc" },
   });
 
+  console.log(`[DM Worker] processMessage: found ${automations.length} active DM-triggered campaigns for account ${instagramAccountId}`);
+
   const dedupeId = `dm:${messageId}`;
   let matchedAny = false;
 
@@ -1076,7 +1085,12 @@ async function processMessage(job: Job<ProcessMessageJob>): Promise<void> {
           automation.wholeWordMatch
         );
 
-    if (!matchResult.matched) continue;
+    if (!matchResult.matched) {
+      console.log(`[DM Worker] processMessage: campaign "${automation.name}" (${automation.id}) keywords did NOT match "${messageText.slice(0, 50)}"`);
+      continue;
+    }
+    
+    console.log(`[DM Worker] processMessage: campaign "${automation.name}" (${automation.id}) MATCHES with keyword "${matchResult.matchedKeyword ?? 'any'}"`);
     matchedAny = true;
 
     const existingLog = await prisma.dmLog.findUnique({
@@ -1094,8 +1108,11 @@ async function processMessage(job: Job<ProcessMessageJob>): Promise<void> {
       existingLog?.status === "SENT" ||
       existingLog?.status === "SKIPPED_PLAN_LIMIT"
     ) {
+      console.log(`[DM Worker] processMessage: campaign "${automation.name}" already replied to this message (status=${existingLog.status}), skipping`);
       continue;
     }
+    
+    console.log(`[DM Worker] processMessage: proceeding with campaign "${automation.name}" - existingLog=${existingLog ? JSON.stringify({status: existingLog.status}) : 'null'}`);
 
     const logBase = {
       workspaceId: automation.workspaceId,
@@ -1108,6 +1125,7 @@ async function processMessage(job: Job<ProcessMessageJob>): Promise<void> {
     };
 
     if (!automation.instagramAccount.accessToken) {
+      console.log(`[DM Worker] processMessage: campaign "${automation.name}" has NO access token, marking FAILED`);
       await prisma.dmLog.upsert({
         where: {
           automationId_commentId: {
@@ -1131,7 +1149,10 @@ async function processMessage(job: Job<ProcessMessageJob>): Promise<void> {
     let accessToken: string;
     try {
       accessToken = decryptToken(automation.instagramAccount.accessToken);
-    } catch {
+      console.log(`[DM Worker] processMessage: successfully decrypted access token for campaign "${automation.name}"`);
+    } catch (decryptError) {
+      const decryptErrorMsg = decryptError instanceof Error ? decryptError.message : String(decryptError);
+      console.log(`[DM Worker] processMessage: FAILED to decrypt access token for campaign "${automation.name}": ${decryptErrorMsg}`);
       await prisma.dmLog.upsert({
         where: {
           automationId_commentId: {
@@ -1142,11 +1163,11 @@ async function processMessage(job: Job<ProcessMessageJob>): Promise<void> {
         create: {
           ...logBase,
           status: "FAILED",
-          errorMessage: "Failed to decrypt Instagram access token",
+          errorMessage: `Failed to decrypt Instagram access token: ${decryptErrorMsg}`,
         },
         update: {
           status: "FAILED",
-          errorMessage: "Failed to decrypt Instagram access token",
+          errorMessage: `Failed to decrypt Instagram access token: ${decryptErrorMsg}`,
         },
       });
       continue;
@@ -1169,8 +1190,12 @@ async function processMessage(job: Job<ProcessMessageJob>): Promise<void> {
     // anyone whose status the API happens not to resolve.
     let sendFollowPrompt = false;
     if (automation.requireFollow) {
+      console.log(`[DM Worker] processMessage: checking follow status for user ${senderId} (requireFollow=true)`);
       const follows = await getUserFollowStatus(accessToken, senderId);
       sendFollowPrompt = follows !== true;
+      console.log(`[DM Worker] processMessage: follow status for ${senderId}: follows=${follows}, sendFollowPrompt=${sendFollowPrompt}`);
+    } else {
+      console.log(`[DM Worker] processMessage: requireFollow=false, skipping follow gate check`);
     }
 
     // Atomic DM deduplication: two workers can both pass the early
@@ -1253,6 +1278,8 @@ async function processMessage(job: Job<ProcessMessageJob>): Promise<void> {
     }
 
     try {
+      console.log(`[DM Worker] processMessage: sending reply - sendFollowPrompt=${sendFollowPrompt}, hasLinks=${automation.trackedLinks.length > 0}, followUpEnabled=${automation.followUpEnabled}`);
+      
       if (sendFollowPrompt) {
         const promptText = renderMessageWithoutLink({
           message:
@@ -1260,6 +1287,7 @@ async function processMessage(job: Job<ProcessMessageJob>): Promise<void> {
             "Almost there! Follow me and tap the button below to grab your link 💛",
           commenterName,
         });
+        console.log(`[DM Worker] processMessage: sending follow prompt to ${senderId}`);
         await sendDirectMessageWithButton(
           accessToken,
           automation.instagramAccount.instagramId,
@@ -1268,7 +1296,9 @@ async function processMessage(job: Job<ProcessMessageJob>): Promise<void> {
           automation.followPromptButtonLabel || "I'm following ✅",
           `followcheck:${automation.id}`
         );
+        console.log(`[DM Worker] processMessage: follow prompt sent successfully`);
       } else {
+        console.log(`[DM Worker] processMessage: sending reveal direct message to ${senderId}`);
         await sendRevealDirectMessage(
           accessToken,
           automation,
@@ -1276,11 +1306,13 @@ async function processMessage(job: Job<ProcessMessageJob>): Promise<void> {
           commenterName,
           "message trigger"
         );
+        console.log(`[DM Worker] processMessage: reveal direct message sent successfully`);
 
         // The link has been delivered, so the appreciation follow-up applies
         // here exactly as it does after a button tap. Not scheduled behind the
         // follow prompt — no link went out yet in that branch.
         if (automation.followUpEnabled && automation.followUpMessage?.trim()) {
+          console.log(`[DM Worker] processMessage: scheduling follow-up for ${senderId}, delay=${automation.followUpDelayMinutes ?? 0}min`);
           await getDMQueue().add(
             FOLLOWUP_JOB_NAME,
             {
@@ -1294,6 +1326,9 @@ async function processMessage(job: Job<ProcessMessageJob>): Promise<void> {
               jobId: `followup_${automation.id}_${senderId}`,
             }
           );
+          console.log(`[DM Worker] processMessage: follow-up job scheduled successfully`);
+        } else {
+          console.log(`[DM Worker] processMessage: no follow-up configured (followUpEnabled=${automation.followUpEnabled}, followUpMessage=${automation.followUpMessage ? 'has message' : 'empty/null'})`);
         }
       }
 
@@ -1351,14 +1386,20 @@ async function processMessage(job: Job<ProcessMessageJob>): Promise<void> {
   // First matching rule wins; AI failures fall through to the catch-all
   // instead of failing the job.
   if (!matchedAny) {
-    await processInboxAutomations({
+    console.log(`[DM Worker] processMessage: no campaign matched, checking inbox automations...`);
+    const inboxResult = await processInboxAutomations({
       instagramAccountId,
       messageId,
       messageText,
       senderId,
       attemptsMade: job.attemptsMade,
     });
+    console.log(`[DM Worker] processMessage: inbox automations result=${inboxResult}, matchedAny=${matchedAny}`);
+  } else {
+    console.log(`[DM Worker] processMessage: skipped inbox automations because campaign matched (matchedAny=${matchedAny})`);
   }
+  
+  console.log(`[DM Worker] processMessage COMPLETE: account=${instagramAccountId}, messageId=${messageId}`);
 }
 
 /**
@@ -1399,17 +1440,36 @@ async function processInboxAutomations(opts: {
 }): Promise<boolean> {
   const { instagramAccountId, messageId, messageText, senderId, attemptsMade } = opts;
 
+  console.log(`[DM Worker] processInboxAutomations START: account=${instagramAccountId}, messageId=${messageId}, senderId=${senderId}, text="${messageText.slice(0, 100)}"`);
+
   const account = await prisma.instagramAccount.findUnique({
     where: { instagramId: instagramAccountId },
     select: { id: true, workspaceId: true, instagramId: true, accessToken: true },
   });
-  if (!account) return false;
+  
+  if (!account) {
+    console.log(`[DM Worker] processInboxAutomations: account NOT FOUND for instagramAccountId=${instagramAccountId}`);
+    return false;
+  }
+  
+  console.log(`[DM Worker] processInboxAutomations: found account id=${account.id}, workspaceId=${account.workspaceId}`);
 
   const rules = (await prisma.inboxAutomation.findMany({
     where: { instagramAccountId: account.id, isActive: true },
     orderBy: [{ priority: "asc" }, { createdAt: "asc" }],
   })) as InboxRule[];
-  if (rules.length === 0) return false;
+  
+  console.log(`[DM Worker] processInboxAutomations: found ${rules.length} active inbox automation rules`);
+  
+  if (rules.length === 0) {
+    console.log(`[DM Worker] processInboxAutomations: no rules found, returning false`);
+    return false;
+  }
+  
+  // Log each rule for debugging
+  for (const rule of rules) {
+    console.log(`[DM Worker] processInboxAutomations: rule=${rule.id}, name="${rule.name}", triggerType=${rule.triggerType}, keywords=${JSON.stringify(rule.keywords)}, matchAnyWord=${rule.matchAnyWord}, aiEnabled=${rule.aiEnabled}, message="${rule.message.slice(0, 50)}"`);
+  }
 
   // Reuse a name captured on an earlier interaction so {username} renders.
   const priorLog = await prisma.dmLog.findFirst({
@@ -1419,12 +1479,21 @@ async function processInboxAutomations(opts: {
   const commenterName = priorLog?.commenterName ?? null;
 
   // Tier 1: keyword rules.
+  console.log(`[DM Worker] processInboxAutomations: checking Tier 1 (KEYWORD rules)`);
   for (const rule of rules) {
     if (rule.triggerType !== "KEYWORD") continue;
     const hit = rule.matchAnyWord
       ? true
       : matchKeywords(messageText, rule.keywords, rule.wholeWordMatch).matched;
-    if (!hit) continue;
+    
+    console.log(`[DM Worker] processInboxAutomations: KEYWORD rule "${rule.name}" matchAnyWord=${rule.matchAnyWord}, keywords=${JSON.stringify(rule.keywords)}, hit=${hit}`);
+    
+    if (!hit) {
+      console.log(`[DM Worker] processInboxAutomations: KEYWORD rule "${rule.name}" did NOT match`);
+      continue;
+    }
+    
+    console.log(`[DM Worker] processInboxAutomations: KEYWORD rule "${rule.name}" MATCHED, attempting to deliver`);
     const handled = await deliverInboxRule({
       account,
       rule,
@@ -1434,6 +1503,7 @@ async function processInboxAutomations(opts: {
       commenterName,
       attemptsMade,
     });
+    console.log(`[DM Worker] processInboxAutomations: KEYWORD rule "${rule.name}" handled=${handled}`);
     if (handled) return true;
   }
 
@@ -1484,9 +1554,11 @@ async function processInboxAutomations(opts: {
   }
 
   // Tier 3: catch-all — simplest-one, first ALWAYS rule wins.
+  console.log(`[DM Worker] processInboxAutomations: checking Tier 3 (ALWAYS catch-all rules)`);
   const catchAll = rules.find((r) => r.triggerType === "ALWAYS");
   if (catchAll) {
-    return deliverInboxRule({
+    console.log(`[DM Worker] processInboxAutomations: found ALWAYS rule "${catchAll.name}", attempting to deliver`);
+    const handled = deliverInboxRule({
       account,
       rule: catchAll,
       messageId,
@@ -1495,8 +1567,11 @@ async function processInboxAutomations(opts: {
       commenterName,
       attemptsMade,
     });
+    console.log(`[DM Worker] processInboxAutomations: ALWAYS rule "${catchAll.name}" handled=${handled}`);
+    return handled;
   }
 
+  console.log(`[DM Worker] processInboxAutomations: no catch-all rule found, returning false`);
   return false;
 }
 
@@ -1516,6 +1591,8 @@ async function deliverInboxRule(opts: {
 }): Promise<boolean> {
   const { account, rule, messageId, messageText, senderId, commenterName, attemptsMade } = opts;
   const dedupeId = `dm:inbox:${messageId}`;
+  
+  console.log(`[DM Worker] deliverInboxRule START: ruleId=${rule.id}, ruleName="${rule.name}", triggerType=${rule.triggerType}, senderId=${senderId}`);
 
   // Resolve the reply text before claiming the send slot.
   let replyText: string | null = null;
@@ -1581,9 +1658,15 @@ async function deliverInboxRule(opts: {
     }
     replyText = renderMessageWithoutLink({ message: rule.message, commenterName });
   }
-  if (!replyText?.trim()) return false;
+  if (!replyText?.trim()) {
+    console.log(`[DM Worker] deliverInboxRule: replyText is empty, returning false`);
+    return false;
+  }
+
+  console.log(`[DM Worker] deliverInboxRule: ready to send - replyText="${replyText.slice(0, 100)}", aiUsed=${aiUsed}`);
 
   if (!account.accessToken) {
+    console.log(`[DM Worker] deliverInboxRule: NO access token for account ${account.id}`);
     await prisma.dmLog.create({
       data: {
         workspaceId: account.workspaceId,
@@ -1605,10 +1688,15 @@ async function deliverInboxRule(opts: {
     return true;
   }
 
+  console.log(`[DM Worker] deliverInboxRule: account has access token (encrypted)`);
+
   let accessToken: string;
   try {
     accessToken = decryptToken(account.accessToken);
-  } catch {
+    console.log(`[DM Worker] deliverInboxRule: successfully decrypted access token`);
+  } catch (decryptError) {
+    const decryptErrorMsg = decryptError instanceof Error ? decryptError.message : String(decryptError);
+    console.log(`[DM Worker] deliverInboxRule: FAILED to decrypt access token: ${decryptErrorMsg}`);
     await prisma.dmLog.create({
       data: {
         workspaceId: account.workspaceId,
@@ -1620,7 +1708,7 @@ async function deliverInboxRule(opts: {
         commentText: messageText,
         commentId: dedupeId,
         status: "FAILED",
-        errorMessage: "Failed to decrypt Instagram access token",
+        errorMessage: `Failed to decrypt Instagram access token: ${decryptErrorMsg}`,
         aiUsed: aiUsed || undefined,
         aiModel,
         aiIntent: rule.aiIntent,
@@ -1639,14 +1727,18 @@ async function deliverInboxRule(opts: {
         where: { commentId: dedupeId, instagramAccountId: account.id },
         select: { status: true },
       });
+      
       if (
         existing?.status === "SENT" ||
         existing?.status === "SKIPPED_PLAN_LIMIT" ||
         existing?.status === "PENDING"
       ) {
+        console.log(`[DM Worker] deliverInboxRule: dedupe check - existing status=${existing?.status}, skipping`);
         canProceed = false;
         return;
       }
+      
+      console.log(`[DM Worker] deliverInboxRule: no existing log found, creating PENDING entry`);
       await tx.dmLog.create({
         data: {
           workspaceId: account.workspaceId,
@@ -1673,13 +1765,25 @@ async function deliverInboxRule(opts: {
       error !== null &&
       "code" in error &&
       (error as { code?: string }).code === "P2002";
-    if (isUniqueViolation) return true;
+    if (isUniqueViolation) {
+      console.log(`[DM Worker] deliverInboxRule: unique violation (concurrent worker won), returning true`);
+      return true;
+    }
     throw error;
   }
-  if (!canProceed) return true;
+  
+  if (!canProceed) {
+    console.log(`[DM Worker] deliverInboxRule: canProceed=false, returning true (already handled)`);
+    return true;
+  }
+  
+  console.log(`[DM Worker] deliverInboxRule: passed dedupe check, canProceed=true`);
 
   const usage = await reserveWorkspaceDMSend(account.workspaceId);
+  console.log(`[DM Worker] deliverInboxRule: workspace DM usage - allowed=${usage.allowed}, limit=${usage.limit}`);
+  
   if (!usage.allowed) {
+    console.log(`[DM Worker] deliverInboxRule: WORKSPACE DM LIMIT REACHED (${usage.limit}), marking SKIPPED_PLAN_LIMIT`);
     await prisma.dmLog.updateMany({
       where: {
         commentId: dedupeId,
@@ -1695,7 +1799,13 @@ async function deliverInboxRule(opts: {
   }
 
   try {
-    await sendDirectMessage(accessToken, account.instagramId, senderId, replyText);
+    console.log(`[DM Worker] deliverInboxRule: SENDING DM to senderId=${senderId}, instagramAccountId=${account.instagramId}`);
+    console.log(`[DM Worker] deliverInboxRule: message="${replyText.slice(0, 200)}"`);
+    
+    const result = await sendDirectMessage(accessToken, account.instagramId, senderId, replyText);
+    
+    console.log(`[DM Worker] deliverInboxRule: DM SENT SUCCESSFULLY! response=${JSON.stringify(result)}`);
+    
     await prisma.dmLog.updateMany({
       where: {
         commentId: dedupeId,
@@ -1704,9 +1814,15 @@ async function deliverInboxRule(opts: {
       },
       data: { status: "SENT", dmSentAt: new Date(), errorMessage: null },
     });
+    
+    console.log(`[DM Worker] deliverInboxRule: DM log updated to SENT status`);
     return true;
   } catch (error) {
+    const errorMsg = formatError(error);
+    console.log(`[DM Worker] deliverInboxRule: FAILED to send DM: ${errorMsg}`);
+    
     await releaseWorkspaceDMReservation(account.workspaceId, usage.periodStart);
+    
     await prisma.dmLog.updateMany({
       where: {
         commentId: dedupeId,
@@ -1716,9 +1832,11 @@ async function deliverInboxRule(opts: {
       data: {
         status: "FAILED",
         attempts: attemptsMade + 1,
-        errorMessage: formatError(error),
+        errorMessage: errorMsg,
       },
     });
+    
+    console.log(`[DM Worker] deliverInboxRule: DM log updated to FAILED status with error: ${errorMsg}`);
     throw error;
   }
 }
