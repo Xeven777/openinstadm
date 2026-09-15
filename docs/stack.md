@@ -121,8 +121,6 @@ The required and optional names currently used by the application are:
 | `INSTAGRAM_APP_ID`, `INSTAGRAM_APP_SECRET` | Instagram Login OAuth credentials |
 | `FACEBOOK_APP_SECRET` | Meta webhook signature verification |
 | `WEBHOOK_VERIFY_TOKEN` | Meta webhook subscription verification |
-| `COMMENT_POLL_INTERVAL_MS`, `COMMENT_POLL_DISABLED` | Worker polling controls |
-| `DATABASE_POOL_MAX`, `DATABASE_IDLE_TIMEOUT_MS`, `DATABASE_CONNECTION_TIMEOUT_MS` | PostgreSQL pool tuning |
 | `ENABLE_HUMAN_AGENT_TAG` | Enables the optional human-agent tag behavior |
 
 Values belong in `.env` or the deployment host's secret settings, never in the
