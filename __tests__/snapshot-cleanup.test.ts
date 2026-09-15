@@ -1,8 +1,9 @@
 /**
  * Snapshot Cleanup Cron — Unit Tests
  *
- * Covers bearer-token auth (CRON_SECRET with NEXTAUTH_SECRET fallback) and the
- * expired-snapshot sweep (delete anything expired more than 7 days ago).
+ * Covers bearer-token auth (CRON_SECRET with NEXTAUTH_SECRET fallback), the
+ * expired-snapshot sweep (delete anything expired more than 7 days ago), and
+ * the webhook payload prune (delete raw payloads older than 30 days).
  */
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -10,6 +11,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const { mockPrisma } = vi.hoisted(() => ({
   mockPrisma: {
     apiSnapshot: {
+      deleteMany: vi.fn(),
+    },
+    webhookEvent: {
       deleteMany: vi.fn(),
     },
   },
@@ -22,6 +26,7 @@ vi.mock("@/lib/db/client", () => ({
 import { GET } from "../app/api/cron/snapshot-cleanup/route";
 
 const KEEP_EXPIRED_FOR_DAYS = 7;
+const KEEP_WEBHOOKS_FOR_DAYS = 30;
 const CRON_SECRET = "cron_secret_123";
 const NEXTAUTH_SECRET = "nextauth_secret_456";
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -36,6 +41,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   vi.unstubAllEnvs();
   mockPrisma.apiSnapshot.deleteMany.mockResolvedValue({ count: 0 });
+  mockPrisma.webhookEvent.deleteMany.mockResolvedValue({ count: 0 });
 });
 
 describe("snapshot cleanup cron", () => {
@@ -62,6 +68,7 @@ describe("snapshot cleanup cron", () => {
   it("sweeps snapshots expired more than 7 days ago and reports the count", async () => {
     vi.stubEnv("CRON_SECRET", CRON_SECRET);
     mockPrisma.apiSnapshot.deleteMany.mockResolvedValue({ count: 5 });
+    mockPrisma.webhookEvent.deleteMany.mockResolvedValue({ count: 12 });
 
     const before = Date.now();
     const response = await GET(buildRequest(`Bearer ${CRON_SECRET}`));
@@ -70,6 +77,7 @@ describe("snapshot cleanup cron", () => {
     const body = await response.json();
     expect(body.success).toBe(true);
     expect(body.data.deleted).toBe(5);
+    expect(body.data.webhooksDeleted).toBe(12);
 
     // One sweep, cut off at now minus 7 days (within a small tolerance for
     // the time that elapses while the test runs).
@@ -84,6 +92,17 @@ describe("snapshot cleanup cron", () => {
 
     // The reported cutoff round-trips the exact value used in the query.
     expect(body.data.cutoff).toBe(cutoff.where.expiresAt.lt.toISOString());
+
+    // Webhook prune: one sweep, cut off at now minus 30 days.
+    expect(mockPrisma.webhookEvent.deleteMany).toHaveBeenCalledTimes(1);
+    const webhookCutoff = mockPrisma.webhookEvent.deleteMany.mock
+      .calls[0][0] as { where: { createdAt: { lt: Date } } };
+    const webhookCutoffMs = webhookCutoff.where.createdAt.lt.getTime();
+    const expectedWebhookMs = before - KEEP_WEBHOOKS_FOR_DAYS * DAY_MS;
+    expect(Math.abs(webhookCutoffMs - expectedWebhookMs)).toBeLessThan(5000);
+    expect(body.data.webhookCutoff).toBe(
+      webhookCutoff.where.createdAt.lt.toISOString()
+    );
   });
 
   it("falls back to NEXTAUTH_SECRET when CRON_SECRET is not set", async () => {

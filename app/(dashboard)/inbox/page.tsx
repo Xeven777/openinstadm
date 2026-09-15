@@ -50,7 +50,10 @@ import {
 } from "@/lib/query/api";
 import { canManageInstagramAccounts, useWorkspaceContext } from "@/lib/workspace-context";
 
-const POLL_MS = 20_000;
+// 60s: each poll hits Postgres, and a tab left open at 20s keeps Neon awake
+// around the clock. Conversations still refresh on open/send; only the
+// background tick is slower.
+const POLL_MS = 60_000;
 // The seeded account is remembered in sessionStorage so a revisit can start on
 // the right account before the account list resolves.
 const SELECTED_ACCOUNT_KEY = "inbox:selectedAccount";

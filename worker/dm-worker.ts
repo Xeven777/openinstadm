@@ -13,14 +13,11 @@ const HEARTBEAT_INTERVAL_MS = 30_000;
 // it must fire every few minutes and Vercel's free crons only run once a day.
 //
 // Neon pooled still needs a query-free window to autosuspend (default 5 min).
-// A 5 min interval restarts the suspend timer on every sweep, so compute stays
-// at 0.02 CU forever (14+ CU-h/mo). 15-30 min gives a 10-25 min idle window
-// where Neon can actually suspend to 0 CU. Override via env for low/high volume.
-const POLL_INTERVAL_MS = Number(
-  process.env.COMMENT_POLL_INTERVAL_MS ?? 15 * 60_000
-);
-const POLL_DISABLED =
-  process.env.COMMENT_POLL_DISABLED === "true" || POLL_INTERVAL_MS <= 0;
+// 60 min gives a ~55 min idle window where Neon can actually suspend to 0 CU.
+// Polling covers comments only — DM inbox automations are webhook-only and
+// never need this sweep.
+const POLL_INTERVAL_MS = 60 * 60_000;
+const POLL_DISABLED = false;
 
 console.log(
   `[DM Worker] Started (poll=${POLL_DISABLED ? "disabled" : `${POLL_INTERVAL_MS / 60_000}min`}, heartbeat=30s)`

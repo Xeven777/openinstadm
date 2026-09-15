@@ -36,12 +36,14 @@ import {
 import { decryptToken } from "@/lib/meta/oauth";
 import { matchKeywords } from "@/lib/utils/keyword-matcher";
 
-// Only consider comments from the last few days — older ones are outside
+// Only consider comments from the last day — older ones are outside
 // Instagram's private-reply window anyway, so a DM to them would just fail.
-const LOOKBACK_HOURS = Number(process.env.COMMENT_POLL_LOOKBACK_HOURS ?? 72);
+// A short window also keeps each hourly sweep cheap on Neon.
 // Hard cap on how many new comments a single campaign can enqueue per sweep, so
-// a viral post drains gradually instead of bursting into the comment API.
-const MAX_NEW_PER_SWEEP = Number(process.env.COMMENT_POLL_MAX_PER_SWEEP ?? 30);
+// a viral post drains gradually instead of bursting into the comment API
+// (which Instagram rate-limits aggressively, error 368).
+const LOOKBACK_HOURS = 24;
+const MAX_NEW_PER_SWEEP = 15;
 // For "any post" campaigns, how many recent posts to scan.
 const RECENT_MEDIA_LIMIT = 10;
 
@@ -265,6 +267,9 @@ async function sweepCampaign(
  * already asks for. The trade-off: an ad becomes visible to the sweep only once
  * a single comment on it has arrived. That is enough for the failure being
  * covered here, where some webhooks arrive and others do not.
+ *
+ * The lookback matches the snapshot-cleanup cron's webhook retention (30d):
+ * older payloads are pruned, so scanning further back would read nothing.
  */
 export async function adMediaFor(postId: string): Promise<string[]> {
   try {
@@ -275,7 +280,7 @@ export async function adMediaFor(postId: string): Promise<string[]> {
            jsonb_array_elements(entry->'changes') change
       WHERE change->>'field' = 'comments'
         AND change->'value'->'media'->>'original_media_id' = ${postId}
-        AND w."createdAt" > now() - interval '90 days'
+        AND w."createdAt" > now() - interval '30 days'
     `;
     return rows
       .map((r) => r.mediaId)

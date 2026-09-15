@@ -12,30 +12,29 @@ function createPrismaClient() {
   }
 
   // Worker has a single serial reconciler + at most 5 concurrent jobs, so it
-  // needs far fewer connections than the web dashboard (which fires ~16 queries
-  // in parallel). A smaller pool + faster idle drain lets Neon pooled actually
-  // suspend between polls instead of holding 10 warm connections at 0.02 CU.
+  // needs far fewer connections than the web dashboard. Small pools + a fast
+  // idle drain let Neon pooled actually suspend between polls instead of
+  // holding warm connections at 0.02 CU. Trade-off: the dashboard stats
+  // aggregation fires ~16 queries in parallel, so a pool of 5 runs them in
+  // ~4 waves — a few hundred ms slower on cold loads, in exchange for much
+  // shorter Neon wake windows.
   const isWorker = process.env.WORKER === "true" || process.env.ROLE === "worker";
-  const poolMax = Number(process.env.DATABASE_POOL_MAX ?? (isWorker ? 3 : 10));
-  const idleTimeoutMillis = Number(process.env.DATABASE_IDLE_TIMEOUT_MS ?? 10_000);
+  const poolMax = isWorker ? 2 : 5;
+  const idleTimeoutMillis = 5_000;
 
   // Neon pooled compute suspends when idle — wake-up can take 5-15s. A 10s
   // connection timeout fires before the compute is ready and surfaces as
   // "Connection terminated due to connection timeout" from pg. 30s gives the
   // cold start enough headroom while still failing fast on a real outage.
-  const connectionTimeoutMillis = Number(
-    process.env.DATABASE_CONNECTION_TIMEOUT_MS ?? 30_000,
-  );
+  const connectionTimeoutMillis = 30_000;
 
   return new PrismaClient({
     adapter: new PrismaPg({
       connectionString: databaseUrl,
       connectionTimeoutMillis,
       idleTimeoutMillis,
-      // The dashboard stats aggregation fires ~16 queries in a single
-      // Promise.all; a pool of 5 would queue them in 4 sequential waves and
-      // add hundreds of ms of latency on a remote Postgres. 10 keeps them all
-      // in flight while staying well within Neon's connection budget.
+      // See above: 5 keeps the dashboard's parallel aggregation to ~4 waves
+      // while staying well within Neon's connection budget.
       max: poolMax,
     }),
   });
