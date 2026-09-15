@@ -1,20 +1,19 @@
 "use client";
 
 /**
- * Inbox Automations — DM-only auto-reply studio.
+ * Inbox Automations — one master config per Instagram account.
  *
- * Replaces the legacy per-account "Default DM reply" toggle with ordered,
- * feature-rich rules: keyword → AI intent → catch-all (ALWAYS).
- * DM-only, auto-send. AI replies are plain text grounded by the rule's
- * knowledge textbox (no RAG, never injects links).
+ * Simplified from multi-rule (keyword → intent → catch-all) to 2 types:
+ *   AI reply (knowledge textbox, plain text, 500 char, no links) and
+ *   Fallback reply (keyword list OR catch-all). One row per account.
+ *   Pipeline is AI-first then fallback, fixing the "Heya for price" bug.
  */
 
 import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { gooeyToast } from "goey-toast";
-import { Copy, Pencil, Plus, Robot, Trash, X } from "@phosphor-icons/react";
+import { Robot } from "@phosphor-icons/react";
 import AccountSelect, { type AccountOption } from "@/components/account-select";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -26,60 +25,10 @@ import {
   fetchAccountList,
   fetchInboxAutomations,
   type InboxAutomationItem,
-  type InboxTrigger,
 } from "@/lib/query/api";
 import { canManageAutomations, useWorkspaceContext } from "@/lib/workspace-context";
 
 const SELECTED_KEY = "inbox-automations:selectedAccount";
-
-type Draft = {
-  id?: string;
-  name: string;
-  triggerType: InboxTrigger;
-  keywords: string;
-  matchAnyWord: boolean;
-  aiEnabled: boolean;
-  aiIntent: string;
-  knowledge: string;
-  message: string;
-  priority: number;
-  isActive: boolean;
-};
-
-const emptyDraft = (triggerType: InboxTrigger = "KEYWORD"): Draft => ({
-  name: "",
-  triggerType,
-  keywords: "",
-  matchAnyWord: false,
-  aiEnabled: false,
-  aiIntent: "",
-  knowledge: "",
-  message: "",
-  priority: 0,
-  isActive: true,
-});
-
-function toDraft(r: InboxAutomationItem): Draft {
-  return {
-    id: r.id,
-    name: r.name,
-    triggerType: r.triggerType,
-    keywords: r.keywords.join(", "),
-    matchAnyWord: r.matchAnyWord,
-    aiEnabled: r.aiEnabled,
-    aiIntent: r.aiIntent ?? "",
-    knowledge: r.knowledge ?? "",
-    message: r.message ?? "",
-    priority: r.priority,
-    isActive: r.isActive,
-  };
-}
-
-function triggerBadge(t: InboxTrigger) {
-  if (t === "ALWAYS") return <Badge variant="secondary">Catch-all</Badge>;
-  if (t === "AI_INTENT") return <Badge variant="outline">AI intent</Badge>;
-  return <Badge variant="outline">Keywords</Badge>;
-}
 
 export default function InboxAutomationsPage() {
   const queryClient = useQueryClient();
@@ -88,19 +37,6 @@ export default function InboxAutomationsPage() {
     if (typeof window === "undefined") return "";
     return window.sessionStorage.getItem(SELECTED_KEY) ?? "";
   });
-  const [editing, setEditing] = useState<Draft | null>(null);
-  const [saving, setSaving] = useState(false);
-  const [formError, setFormError] = useState<string | null>(null);
-
-  const [playgroundInput, setPlaygroundInput] = useState("");
-  const [playgroundBusy, setPlaygroundBusy] = useState(false);
-  const [playgroundResult, setPlaygroundResult] = useState<{
-    matchedName?: string;
-    triggerType?: string;
-    reply?: string;
-    ai?: boolean;
-    aiError?: string;
-  } | null>(null);
 
   const accountsQuery = useQuery({
     queryKey: queryKeys.accounts,
@@ -111,15 +47,11 @@ export default function InboxAutomationsPage() {
 
   useEffect(() => {
     if (!accounts.length) return;
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- intentional: seed default account once list loads
     setSelectedAccountId((prev) => {
       const ok = prev && accounts.some((a) => a.id === prev);
-      return ok
-        ? prev
-        : accountsQuery.data?.selectedInstagramAccountId || accounts[0]?.id || "";
+      return ok ? prev : accountsQuery.data?.selectedInstagramAccountId || accounts[0]?.id || "";
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [accounts]);
+  }, [accounts, accountsQuery.data?.selectedInstagramAccountId]);
 
   useEffect(() => {
     if (typeof window !== "undefined" && selectedAccountId) {
@@ -127,92 +59,90 @@ export default function InboxAutomationsPage() {
     }
   }, [selectedAccountId]);
 
-  const rulesQuery = useQuery({
+  const configQuery = useQuery({
     queryKey: queryKeys.inboxAutomations(selectedAccountId),
     queryFn: () => fetchInboxAutomations(selectedAccountId || undefined),
     enabled: Boolean(selectedAccountId),
     staleTime: 15_000,
   });
-  const rules = useMemo(() => rulesQuery.data ?? [], [rulesQuery.data]);
-  const catchAllExists = rules.some((r) => r.triggerType === "ALWAYS");
+  const config: InboxAutomationItem | null = useMemo(() => {
+    const data = configQuery.data as unknown;
+    if (Array.isArray(data)) return (data[0] as InboxAutomationItem) ?? null;
+    return (data as InboxAutomationItem) ?? null;
+  }, [configQuery.data]);
+
+  // Form state — seeded from config
+  const [isActive, setIsActive] = useState(true);
+  const [aiEnabled, setAiEnabled] = useState(false);
+  const [knowledge, setKnowledge] = useState("");
+  const [aiProvider, setAiProvider] = useState("");
+  const [aiModel, setAiModel] = useState("");
+  const [fallbackKeywords, setFallbackKeywords] = useState("");
+  const [fallbackMessage, setFallbackMessage] = useState("");
+  const [wholeWordMatch, setWholeWordMatch] = useState(true);
+  const [matchAnyWord, setMatchAnyWord] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [playgroundInput, setPlaygroundInput] = useState("");
+  const [playgroundBusy, setPlaygroundBusy] = useState(false);
+  const [playgroundResult, setPlaygroundResult] = useState<{
+    reply?: string;
+    ai?: boolean;
+    aiError?: string;
+    matched?: string;
+  } | null>(null);
+
+  useEffect(() => {
+    if (!config) {
+      // reset to defaults when no config or account switch
+      setIsActive(true);
+      setAiEnabled(false);
+      setKnowledge("");
+      setAiProvider("");
+      setAiModel("");
+      setFallbackKeywords("");
+      setFallbackMessage("");
+      setWholeWordMatch(true);
+      setMatchAnyWord(false);
+      return;
+    }
+    setIsActive(config.isActive);
+    setAiEnabled(config.aiEnabled);
+    setKnowledge(config.knowledge ?? "");
+    setAiProvider(config.aiProvider ?? "");
+    setAiModel(config.aiModel ?? "");
+    setFallbackKeywords((config.fallbackKeywords ?? []).join(", "));
+    setFallbackMessage(config.fallbackMessage ?? "");
+    setWholeWordMatch(config.wholeWordMatch);
+    setMatchAnyWord(config.matchAnyWord);
+  }, [config]);
 
   function invalidate() {
-    queryClient.invalidateQueries({
-      queryKey: queryKeys.inboxAutomations(selectedAccountId),
-    });
+    queryClient.invalidateQueries({ queryKey: queryKeys.inboxAutomations(selectedAccountId) });
   }
 
-  async function toggleActive(rule: InboxAutomationItem, next: boolean) {
-    try {
-      const res = await fetch(`/api/inbox-automations?id=${rule.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ isActive: next }),
-      });
-      const payload = await res.json();
-      if (!payload?.success) throw new Error(payload?.error ?? "Failed");
-      invalidate();
-    } catch (e) {
-      gooeyToast.error(e instanceof Error ? e.message : "Failed to update");
-    }
-  }
-
-  async function removeRule(rule: InboxAutomationItem) {
-    if (!window.confirm(`Delete "${rule.name}"?`)) return;
-    try {
-      const res = await fetch(`/api/inbox-automations?id=${rule.id}`, { method: "DELETE" });
-      const payload = await res.json();
-      if (!payload?.success) throw new Error(payload?.error ?? "Failed");
-      gooeyToast.success("Rule deleted");
-      invalidate();
-    } catch (e) {
-      gooeyToast.error(e instanceof Error ? e.message : "Failed to delete");
-    }
-  }
-
-  function duplicateRule(rule: InboxAutomationItem) {
-    const d = toDraft(rule);
-    setFormError(null);
-    setEditing({
-      ...d,
-      id: undefined,
-      name: `${d.name} copy`,
-      triggerType: d.triggerType === "ALWAYS" ? "KEYWORD" : d.triggerType,
-      priority: d.priority + 1,
-    });
-    window.scrollTo({ top: 0, behavior: "smooth" });
-  }
-
-  async function saveDraft() {
-    if (!editing || !selectedAccountId) return;
-    setFormError(null);
-    if (!editing.name.trim()) return setFormError("Give the rule a name.");
-    if (editing.triggerType === "KEYWORD" && !editing.matchAnyWord && !editing.keywords.trim()) {
-      return setFormError("Add at least one keyword, or enable “match any message”.");
-    }
-    if (editing.triggerType === "AI_INTENT" && !editing.aiIntent.trim()) {
-      return setFormError("AI intent needs a name (e.g. pricing).");
-    }
-    if (!editing.aiEnabled && !editing.message.trim()) {
-      return setFormError("Add the reply message (or enable AI reply).");
-    }
+  async function save() {
+    if (!selectedAccountId) return;
+    if (!canManage) return gooeyToast.error("No permission");
     setSaving(true);
     try {
       const payload = {
-        name: editing.name.trim(),
         instagramAccountId: selectedAccountId,
-        triggerType: editing.triggerType,
-        keywords: editing.keywords.split(",").map((k) => k.trim()).filter(Boolean).slice(0, 10),
-        matchAnyWord: editing.matchAnyWord,
-        aiEnabled: editing.aiEnabled,
-        aiIntent: editing.aiIntent.trim() || null,
-        knowledge: editing.knowledge.trim() || null,
-        message: editing.message,
-        priority: editing.priority,
-        isActive: editing.isActive,
+        isActive,
+        aiEnabled,
+        knowledge: knowledge.trim() || null,
+        aiProvider: aiProvider.trim() || null,
+        aiModel: aiModel.trim() || null,
+        fallbackKeywords: fallbackKeywords
+          .split(",")
+          .map((k) => k.trim())
+          .filter(Boolean)
+          .slice(0, 10),
+        fallbackMessage,
+        wholeWordMatch,
+        matchAnyWord,
       };
-      const res = editing.id
-        ? await fetch(`/api/inbox-automations?id=${editing.id}`, {
+      const res = config
+        ? await fetch(`/api/inbox-automations?id=${config.id}`, {
             method: "PATCH",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(payload),
@@ -224,17 +154,30 @@ export default function InboxAutomationsPage() {
           });
       const data = await res.json();
       if (!data?.success) {
-        const fieldErrors = data?.details?.fieldErrors as Record<string, string[]> | undefined;
-        const first = fieldErrors && Object.keys(fieldErrors)[0];
-        throw new Error(first ? `${first}: ${fieldErrors[first][0]}` : data?.error ?? "Failed to save");
+        const details = data?.details?.fieldErrors as Record<string, string[]> | undefined;
+        const first = details && Object.keys(details)[0];
+        throw new Error(first ? `${first}: ${details[first][0]}` : data?.error ?? "Failed to save");
       }
-      gooeyToast.success(editing.id ? "Rule saved" : "Rule created");
-      setEditing(null);
+      gooeyToast.success(config ? "Config saved" : "Config created");
       invalidate();
     } catch (e) {
-      setFormError(e instanceof Error ? e.message : "Failed to save");
+      gooeyToast.error(e instanceof Error ? e.message : "Failed to save");
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function removeConfig() {
+    if (!config) return;
+    if (!window.confirm("Delete inbox config for this account?")) return;
+    try {
+      const res = await fetch(`/api/inbox-automations?id=${config.id}`, { method: "DELETE" });
+      const payload = await res.json();
+      if (!payload?.success) throw new Error(payload?.error ?? "Failed");
+      gooeyToast.success("Config deleted");
+      invalidate();
+    } catch (e) {
+      gooeyToast.error(e instanceof Error ? e.message : "Failed to delete");
     }
   }
 
@@ -251,13 +194,11 @@ export default function InboxAutomationsPage() {
       });
       const payload = await res.json();
       if (!payload?.success) throw new Error(payload?.error ?? "Preview failed");
-      const d = payload.data;
       setPlaygroundResult({
-        matchedName: d?.matched?.name,
-        triggerType: d?.matched?.triggerType,
-        reply: d?.reply,
-        ai: d?.ai,
-        aiError: d?.aiError,
+        reply: payload.data?.reply,
+        ai: payload.data?.ai,
+        aiError: payload.data?.aiError,
+        matched: payload.data?.matched?.type,
       });
     } catch (e) {
       gooeyToast.error(e instanceof Error ? e.message : "Preview failed");
@@ -270,447 +211,192 @@ export default function InboxAutomationsPage() {
     <div className="space-y-5">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div className="min-w-0">
-          <h1 className="mt-1 text-2xl font-bold tracking-tight sm:text-3xl">
-            Inbox Automations
-          </h1>
+          <h1 className="mt-1 text-2xl font-bold tracking-tight sm:text-3xl">Inbox Automations</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            DM-only auto-replies evaluated in order: keywords → AI intent →
-            catch-all. First match wins and sends instantly.
+            One master config per account — AI reply first, then simple fallback. Fixes keyword-shadow bugs.
           </p>
         </div>
-        <div className="flex flex-wrap items-end gap-4">
-          {accounts.length > 0 && (
-            <AccountSelect
-              accounts={accounts}
-              value={selectedAccountId}
-              onChange={setSelectedAccountId}
-              includeAll={false}
-            />
-          )}
-          {canManage && selectedAccountId && (
-            <Button
-              onClick={() => {
-                setFormError(null);
-                setEditing(emptyDraft());
-              }}
-            >
-              <Plus weight="bold" /> New rule
-            </Button>
-          )}
-        </div>
+        {accounts.length > 0 && (
+          <AccountSelect
+            accounts={accounts}
+            value={selectedAccountId}
+            onChange={setSelectedAccountId}
+            includeAll={false}
+          />
+        )}
       </div>
 
-      {!canManage && (
-        <p className="text-sm text-muted-foreground">
-          You have view-only access.
-        </p>
-      )}
+      {!canManage && <p className="text-sm text-muted-foreground">You have view-only access.</p>}
 
-      {/* Builder */}
-      {editing && (
+      {!selectedAccountId ? (
         <Card>
-          <CardContent className="space-y-4">
-            <div className="flex items-center justify-between">
-              <h2 className="text-base font-semibold">
-                {editing.id ? "Edit rule" : "New rule"}
-              </h2>
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                onClick={() => setEditing(null)}
-                aria-label="Close"
-              >
-                <X weight="bold" />
-              </Button>
-            </div>
-            {formError && (
-              <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
-                {formError}
-              </p>
-            )}
-            <div className="grid gap-4 md:grid-cols-2">
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Name</label>
-                <Input
-                  value={editing.name}
-                  onChange={(e) =>
-                    setEditing({ ...editing, name: e.target.value })
-                  }
-                  placeholder="e.g. Pricing FAQ"
-                  maxLength={100}
-                />
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-medium">
-                  Priority (lower runs first)
-                </label>
-                <Input
-                  type="number"
-                  min={0}
-                  max={9999}
-                  value={editing.priority}
-                  onChange={(e) =>
-                    setEditing({
-                      ...editing,
-                      priority: Math.max(
-                        0,
-                        Math.min(9999, Math.floor(Number(e.target.value) || 0)),
-                      ),
-                    })
-                  }
-                />
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Trigger</label>
-              <div className="grid gap-2 sm:grid-cols-3">
-                {(["KEYWORD", "AI_INTENT", "ALWAYS"] as InboxTrigger[]).map(
-                  (t) => (
-                    <button
-                      key={t}
-                      type="button"
-                      disabled={
-                        t === "ALWAYS" &&
-                        catchAllExists &&
-                        toDraft.length >= 0 &&
-                        !editing.id &&
-                        rules.some((r) => r.triggerType === "ALWAYS")
-                      }
-                      onClick={() => setEditing({ ...editing, triggerType: t })}
-                      className={`rounded-lg border px-3 py-2.5 text-left text-sm transition-colors ${
-                        editing.triggerType === t
-                          ? "border-primary bg-primary/5"
-                          : "border-border hover:border-foreground/20"
-                      }`}
-                    >
-                      <span className="font-medium">
-                        {t === "KEYWORD"
-                          ? "Keywords"
-                          : t === "AI_INTENT"
-                            ? "AI intent"
-                            : "Catch-all"}
-                      </span>
-                      <span className="block text-xs text-muted-foreground">
-                        {t === "KEYWORD"
-                          ? "Match words in the DM"
-                          : t === "AI_INTENT"
-                            ? "Classify meaning, then reply"
-                            : "Anything else (one per account)"}
-                      </span>
-                    </button>
-                  ),
-                )}
-              </div>
-              {editing.triggerType === "ALWAYS" &&
-                catchAllExists &&
-                !editing.id && (
-                  <p className="text-xs text-amber-600">
-                    This account already has a catch-all — edit it instead.
-                  </p>
-                )}
-            </div>
-
-            {editing.triggerType === "KEYWORD" && (
-              <div className="space-y-2">
-                <label className="text-sm font-medium">
-                  Keywords (comma separated)
-                </label>
-                <Input
-                  value={editing.keywords}
-                  onChange={(e) =>
-                    setEditing({ ...editing, keywords: e.target.value })
-                  }
-                  placeholder="price, cost, how much"
-                />
-                <label className="flex items-center gap-2 text-sm">
-                  <Switch
-                    checked={editing.matchAnyWord}
-                    onCheckedChange={(v) =>
-                      setEditing({ ...editing, matchAnyWord: v })
-                    }
-                  />
-                  Match any message
-                </label>
-              </div>
-            )}
-
-            {editing.triggerType === "AI_INTENT" && (
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Intent name</label>
-                <Input
-                  value={editing.aiIntent}
-                  onChange={(e) =>
-                    setEditing({ ...editing, aiIntent: e.target.value })
-                  }
-                  placeholder="pricing"
-                  maxLength={60}
-                />
-                <p className="text-xs text-muted-foreground">
-                  The classifier picks this intent when the DM means it — exact
-                  wording doesn’t matter.
-                </p>
-              </div>
-            )}
-
-            <div className="rounded-lg border border-border p-3 space-y-3">
-              <label className="flex items-center justify-between gap-3">
-                <span className="text-sm font-medium">
-                  <Robot className="mr-1 inline size-4" />
-                  AI reply
-                  <span className="block text-xs font-normal text-muted-foreground">
-                    Generate from knowledge. Plain text, no links. Needs
-                    AI_API_KEY.
-                  </span>
-                </span>
-                <Switch
-                  checked={editing.aiEnabled}
-                  onCheckedChange={(v) =>
-                    setEditing({ ...editing, aiEnabled: v })
-                  }
-                />
-              </label>
-              {editing.aiEnabled && (
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">
-                    Knowledge (added to the system prompt)
-                  </label>
-                  <Textarea
-                    value={editing.knowledge}
-                    onChange={(e) =>
-                      setEditing({ ...editing, knowledge: e.target.value })
-                    }
-                    placeholder="What you sell, prices, timings, policies — the AI grounds every claim in this."
-                    rows={4}
-                    maxLength={4000}
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    {editing.knowledge.length}/4000
-                  </p>
-                </div>
-              )}
-            </div>
-
-            <div className="space-y-2">
-              <label className="text-sm font-medium">
-                Reply message{" "}
-                {editing.aiEnabled && (
-                  <span className="font-normal text-muted-foreground">
-                    (static fallback when AI fails)
-                  </span>
-                )}
-              </label>
-              <Textarea
-                value={editing.message}
-                onChange={(e) =>
-                  setEditing({ ...editing, message: e.target.value })
-                }
-                placeholder="Hey {username}! Thanks for reaching out…"
-                rows={3}
-                maxLength={1000}
-              />
-              <p className="text-xs text-muted-foreground">
-                {"{username}"} personalizes. Plain text — no link buttons on
-                this page.
-              </p>
-            </div>
-
-            <div className="flex items-center justify-between gap-2">
-              <label className="flex items-center gap-2 text-sm">
-                <Switch
-                  checked={editing.isActive}
-                  onCheckedChange={(v) =>
-                    setEditing({ ...editing, isActive: v })
-                  }
-                />
-                Active
-              </label>
-              <div className="flex gap-2">
-                <Button variant="outline" onClick={() => setEditing(null)}>
-                  Cancel
-                </Button>
-                <Button
-                  onClick={() => void saveDraft()}
-                  disabled={saving || !canManage}
-                >
-                  {saving
-                    ? "Saving…"
-                    : editing.id
-                      ? "Save changes"
-                      : "Create rule"}
-                </Button>
-              </div>
-            </div>
+          <CardContent className="py-8 text-center text-sm text-muted-foreground">
+            Connect an Instagram account to configure inbox replies.
           </CardContent>
         </Card>
-      )}
-
-      {/* Rules list */}
-      <Card>
-        <CardContent className="space-y-3">
-          <div className="flex items-center justify-between">
-            <h2 className="text-sm font-semibold">
-              Rules{" "}
-              {rules.length > 0 && (
-                <span className="text-muted-foreground">({rules.length})</span>
-              )}
-            </h2>
-            <span className="text-xs text-muted-foreground">
-              Evaluated top-down by priority
-            </span>
-          </div>
-          {rulesQuery.isPending ? (
-            <div className="space-y-2">
-              {[...Array(3)].map((_, i) => (
-                <Skeleton key={i} className="h-16 w-full" />
-              ))}
-            </div>
-          ) : rulesQuery.isError ? (
-            <p className="text-sm text-destructive">Failed to load rules.</p>
-          ) : rules.length === 0 ? (
-            <div className="rounded-lg border border-dashed border-border p-6 text-center">
-              <p className="text-sm font-medium">No inbox rules yet</p>
-              <p className="mt-1 text-xs text-muted-foreground">
-                Create a keyword rule, an AI intent, or a catch-all so every DM
-                gets an instant answer.
-              </p>
-            </div>
-          ) : (
-            <ul className="space-y-2">
-              {rules.map((r) => (
-                <li
-                  key={r.id}
-                  className="flex flex-col gap-2 rounded-lg border border-border p-3 sm:flex-row sm:items-center sm:justify-between"
-                >
-                  <div className="min-w-0">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="truncate text-sm font-medium">
-                        {r.name}
-                      </span>
-                      {triggerBadge(r.triggerType)}
-                      {r.aiEnabled && <Badge variant="success">AI</Badge>}
-                      {!r.isActive && <Badge variant="muted">Paused</Badge>}
-                      <span className="text-xs text-muted-foreground">
-                        prio {r.priority}
-                      </span>
-                    </div>
-                    <p className="mt-1 truncate text-xs text-muted-foreground">
-                      {r.triggerType === "ALWAYS"
-                        ? "Anything unmatched"
-                        : r.triggerType === "AI_INTENT"
-                          ? `intent: ${r.aiIntent ?? "—"}`
-                          : r.matchAnyWord
-                            ? "any message"
-                            : r.keywords.join(", ")}
-                      {" · "}
-                      {r._count ? `${r._count.dmLogs} logged` : ""}
-                    </p>
-                  </div>
-                  <div className="flex shrink-0 items-center gap-1">
-                    <Switch
-                      checked={r.isActive}
-                      onCheckedChange={(v) => void toggleActive(r, v)}
-                      disabled={!canManage}
-                      aria-label="Toggle active"
-                    />
-                    {canManage && (
-                      <>
-                        <Button
-                          variant="ghost"
-                          size="icon-sm"
-                          onClick={() => {
-                            setFormError(null);
-                            setEditing(toDraft(r));
-                          }}
-                          aria-label="Edit"
-                        >
-                          <Pencil />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon-sm"
-                          onClick={() => duplicateRule(r)}
-                          aria-label="Duplicate"
-                        >
-                          <Copy />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon-sm"
-                          onClick={() => void removeRule(r)}
-                          aria-label="Delete"
-                          className="text-muted-foreground hover:text-destructive"
-                        >
-                          <Trash />
-                        </Button>
-                      </>
-                    )}
-                  </div>
-                </li>
-              ))}
-            </ul>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Playground */}
-      <Card>
-        <CardContent className="space-y-3">
-          <h2 className="text-sm font-semibold">Test playground</h2>
-          <p className="text-xs text-muted-foreground">
-            Simulate an inbound DM against the active rules — no message is
-            sent.
-          </p>
-          <div className="flex flex-col gap-2 sm:flex-row">
-            <Input
-              value={playgroundInput}
-              onChange={(e) => setPlaygroundInput(e.target.value)}
-              placeholder="e.g. hey, what are your prices?"
-              maxLength={1000}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") void runPlayground();
-              }}
-            />
-            <Button
-              onClick={() => void runPlayground()}
-              disabled={playgroundBusy || !playgroundInput.trim()}
-            >
-              {playgroundBusy ? "Testing…" : "Test"}
-            </Button>
-          </div>
-          {playgroundResult && (
-            <div className="rounded-lg border border-border bg-muted/50 p-3 text-sm">
-              {playgroundResult.matchedName ? (
-                <>
-                  <p className="text-xs text-muted-foreground">
-                    Matched{" "}
-                    <span className="font-medium text-foreground">
-                      {playgroundResult.matchedName}
-                    </span>
-                    {playgroundResult.triggerType &&
-                      ` (${playgroundResult.triggerType})`}
-                    {playgroundResult.ai && (
-                      <span className="ml-1 text-primary">· AI generated</span>
-                    )}
-                  </p>
-                  <p className="mt-2 whitespace-pre-wrap">
-                    {playgroundResult.reply || "(empty reply)"}
-                  </p>
-                  {playgroundResult.aiError && (
-                    <p className="mt-1 text-xs text-amber-600">
-                      AI failed, showed static text: {playgroundResult.aiError}
-                    </p>
-                  )}
-                </>
-              ) : (
-                <p className="text-muted-foreground">
-                  No rule would reply to this message.
+      ) : configQuery.isPending ? (
+        <div className="space-y-3">
+          <Skeleton className="h-48 w-full" />
+          <Skeleton className="h-48 w-full" />
+        </div>
+      ) : (
+        <>
+          <Card>
+            <CardContent className="space-y-4">
+              <div className="flex items-center justify-between">
+                <h2 className="text-sm font-semibold">Master Config</h2>
+                <label className="flex items-center gap-2 text-sm">
+                  <Switch checked={isActive} onCheckedChange={setIsActive} disabled={!canManage} /> Active
+                </label>
+              </div>
+              {config && (
+                <p className="text-xs text-muted-foreground">
+                  One row per account — editing the single master database entry.
                 </p>
               )}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+
+              {/* AI Reply */}
+              <div className="rounded-lg border border-border p-4 space-y-3">
+                <label className="flex items-center justify-between gap-3">
+                  <span className="text-sm font-medium">
+                    <Robot className="mr-1 inline size-4" /> AI Reply
+                    <span className="block text-xs font-normal text-muted-foreground">
+                      Plain text, 500 char, no links. Needs AI_API_KEY. When enabled, AI replies first.
+                    </span>
+                  </span>
+                  <Switch checked={aiEnabled} onCheckedChange={setAiEnabled} disabled={!canManage} />
+                </label>
+                {aiEnabled && (
+                  <div className="space-y-3">
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <div className="space-y-1">
+                        <label className="text-xs font-medium">Provider</label>
+                        <Input
+                          value={aiProvider}
+                          onChange={(e) => setAiProvider(e.target.value)}
+                          placeholder="openai (default) or groq"
+                          maxLength={30}
+                        />
+                        <p className="text-[10px] text-muted-foreground">Env AI_PROVIDER is default; override per account here.</p>
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-xs font-medium">Model</label>
+                        <Input
+                          value={aiModel}
+                          onChange={(e) => setAiModel(e.target.value)}
+                          placeholder="gpt-4o-mini"
+                          maxLength={60}
+                        />
+                        <p className="text-[10px] text-muted-foreground">Env AI_MODEL is default.</p>
+                      </div>
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-xs font-medium">Knowledge (system prompt)</label>
+                      <Textarea
+                        value={knowledge}
+                        onChange={(e) => setKnowledge(e.target.value)}
+                        placeholder="What you sell, prices, timings, policies — AI grounds every claim in this."
+                        rows={4}
+                        maxLength={4000}
+                      />
+                      <p className="text-xs text-muted-foreground">{knowledge.length}/4000</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Fallback */}
+              <div className="rounded-lg border border-border p-4 space-y-3">
+                <h3 className="text-sm font-medium">Fallback Reply</h3>
+                <p className="text-xs text-muted-foreground">
+                  Sent when AI is off, budget exhausted, or AI fails. If keywords empty it’s a catch-all; otherwise keyword-gated.
+                </p>
+                <div className="space-y-2">
+                  <label className="text-xs font-medium">Keywords (comma separated)</label>
+                  <Input
+                    value={fallbackKeywords}
+                    onChange={(e) => setFallbackKeywords(e.target.value)}
+                    placeholder="hey, hello, price, cost"
+                  />
+                  <div className="flex flex-wrap gap-4">
+                    <label className="flex items-center gap-2 text-xs">
+                      <Switch checked={wholeWordMatch} onCheckedChange={setWholeWordMatch} disabled={!canManage} /> Whole word
+                    </label>
+                    <label className="flex items-center gap-2 text-xs">
+                      <Switch checked={matchAnyWord} onCheckedChange={setMatchAnyWord} disabled={!canManage} /> Match any message
+                    </label>
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-medium">Reply message — supports {"{username}"}</label>
+                  <Textarea
+                    value={fallbackMessage}
+                    onChange={(e) => setFallbackMessage(e.target.value)}
+                    placeholder="Hey {username}! Thanks for reaching out…"
+                    rows={3}
+                    maxLength={1000}
+                  />
+                  <p className="text-xs text-muted-foreground">When AI is enabled this is not used unless AI fails.</p>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap gap-2 justify-between">
+                <div>
+                  {config && canManage && (
+                    <Button variant="ghost" onClick={() => void removeConfig()} className="text-destructive">
+                      Delete config
+                    </Button>
+                  )}
+                </div>
+                <div className="flex gap-2">
+                  <Button onClick={() => void save()} disabled={saving || !canManage}>
+                    {saving ? "Saving…" : config ? "Save changes" : "Create config"}
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="space-y-3">
+              <h2 className="text-sm font-semibold">Test playground</h2>
+              <p className="text-xs text-muted-foreground">Simulate a DM — AI first, then fallback. No message is sent.</p>
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <Input
+                  value={playgroundInput}
+                  onChange={(e) => setPlaygroundInput(e.target.value)}
+                  placeholder="e.g. hey, what are your prices?"
+                  maxLength={1000}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") void runPlayground();
+                  }}
+                />
+                <Button onClick={() => void runPlayground()} disabled={playgroundBusy || !playgroundInput.trim()}>
+                  {playgroundBusy ? "Testing…" : "Test"}
+                </Button>
+              </div>
+              {playgroundResult && (
+                <div className="rounded-lg border border-border bg-muted/50 p-3 text-sm">
+                  {playgroundResult.reply ? (
+                    <>
+                      <p className="text-xs text-muted-foreground">
+                        Via <span className="font-medium text-foreground">{playgroundResult.matched ?? "fallback"}</span>
+                        {playgroundResult.ai && <span className="ml-1 text-primary">· AI generated</span>}
+                      </p>
+                      <p className="mt-2 whitespace-pre-wrap">{playgroundResult.reply}</p>
+                      {playgroundResult.aiError && (
+                        <p className="mt-1 text-xs text-amber-600">AI failed, showed fallback: {playgroundResult.aiError}</p>
+                      )}
+                    </>
+                  ) : (
+                    <p className="text-muted-foreground">No reply would be sent for this message.</p>
+                  )}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </>
+      )}
     </div>
   );
 }

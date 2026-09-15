@@ -16,6 +16,7 @@
   },
   "dependencies": {
     "@ai-sdk/groq": "^4.0.41",
+    "@ai-sdk/openai": "^4.0.66",
     "@auth/prisma-adapter": "^2.11.3",
     "@base-ui/react": "^1.7.0",
     "@phosphor-icons/react": "^2.1.10",

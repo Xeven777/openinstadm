@@ -52,10 +52,18 @@ export function getMetaGraphApiVersion(): string {
 
 // --- AI DM replies (global key, DM-only auto-send) ---------------------------
 // Single global provider key keeps self-host simple. Workspace-level BYO is
-// intentionally out of scope for v1.
+// intentionally out of scope for v1. Provider is pluggable via vercel/ai-sdk
+// (AI_PROVIDER=openai|groq, default openai) so models are easily switched.
 export function getAIApiKey(): string | null {
   const v = process.env.AI_API_KEY?.trim();
   return v ? v : null;
+}
+
+export function getAIProvider(): string {
+  return (process.env.AI_PROVIDER?.trim().toLowerCase() || "openai").replace(
+    /[^a-z0-9-]/g,
+    "",
+  );
 }
 
 export function getAIModel(): string {

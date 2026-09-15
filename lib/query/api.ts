@@ -204,24 +204,19 @@ export interface CampaignDetail {
 export const fetchCampaignDetail = (id: string) =>
   getData<CampaignDetail>(`/api/automations?id=${encodeURIComponent(id)}`);
 
-export type InboxTrigger = "KEYWORD" | "AI_INTENT" | "ALWAYS";
-
 export interface InboxAutomationItem {
   id: string;
   workspaceId: string;
   instagramAccountId: string;
-  name: string;
   isActive: boolean;
-  priority: number;
-  triggerType: InboxTrigger;
-  keywords: string[];
+  aiEnabled: boolean;
+  knowledge: string | null;
+  aiProvider: string | null;
+  aiModel: string | null;
+  fallbackKeywords: string[];
+  fallbackMessage: string;
   wholeWordMatch: boolean;
   matchAnyWord: boolean;
-  aiEnabled: boolean;
-  aiIntent: string | null;
-  knowledge: string | null;
-  aiModel: string | null;
-  message: string;
   createdAt: string;
   updatedAt: string;
   instagramAccount?: { id: string; username: string } | null;

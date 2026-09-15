@@ -38,7 +38,7 @@ import {
   renderMessageWithTracking,
   renderMessageWithoutLink,
 } from "@/lib/tracking/message";
-import { classifyIntent, generateReply } from "@/lib/ai/client";
+import { generateReply } from "@/lib/ai/client";
 import { checkAiBudget, consumeAiBudget } from "@/lib/ai/budget";
 import { getAIModel, isAIEnabled } from "@/lib/env";
 
@@ -1403,32 +1403,26 @@ async function processMessage(job: Job<ProcessMessageJob>): Promise<void> {
 }
 
 /**
- * Inbox automation tiers for an inbound DM that matched no campaign.
- *
- * DM-only, auto-send. Rule evaluation order is `priority` asc:
- *   1. KEYWORD rules (matchAnyWord or matchKeywords)
- *   2. AI_INTENT rules (single classify call across all intents, then the
- *      matching rule replies — generated when aiEnabled, else its static text)
- *   3. ALWAYS catch-all (simplest-one: first one wins)
- *
- * At-most-once per inbound message via dedupe id `dm:inbox:<messageId>`.
- * Returns true when a rule handled the message (sent or deliberately
- * skipped), false when no rule matched.
+ * Simplified inbox automation: one master row per account.
+ * Only two types: AI reply (knowledge textbox, plain-text, no links)
+ * and fallback (keyword list or catch-all). AI is tried first when
+ * enabled and budget allows; on failure it falls through to fallback.
+ * This removes the old 3-tier (KEYWORD → AI_INTENT → ALWAYS) maze
+ * that caused price queries to get "Heya" keyword replies.
  */
-type InboxRule = {
+type InboxConfig = {
   id: string;
   workspaceId: string;
   instagramAccountId: string;
-  name: string;
-  triggerType: "KEYWORD" | "AI_INTENT" | "ALWAYS";
-  keywords: string[];
+  isActive: boolean;
+  aiEnabled: boolean;
+  knowledge: string | null;
+  aiProvider: string | null;
+  aiModel: string | null;
+  fallbackKeywords: string[];
+  fallbackMessage: string;
   wholeWordMatch: boolean;
   matchAnyWord: boolean;
-  aiEnabled: boolean;
-  aiIntent: string | null;
-  knowledge: string | null;
-  aiModel: string | null;
-  message: string;
 };
 
 async function processInboxAutomations(opts: {
@@ -1440,238 +1434,192 @@ async function processInboxAutomations(opts: {
 }): Promise<boolean> {
   const { instagramAccountId, messageId, messageText, senderId, attemptsMade } = opts;
 
-  console.log(`[DM Worker] processInboxAutomations START: account=${instagramAccountId}, messageId=${messageId}, senderId=${senderId}, text="${messageText.slice(0, 100)}"`);
-
   const account = await prisma.instagramAccount.findUnique({
     where: { instagramId: instagramAccountId },
     select: { id: true, workspaceId: true, instagramId: true, accessToken: true },
   });
-  
-  if (!account) {
-    console.log(`[DM Worker] processInboxAutomations: account NOT FOUND for instagramAccountId=${instagramAccountId}`);
-    return false;
-  }
-  
-  console.log(`[DM Worker] processInboxAutomations: found account id=${account.id}, workspaceId=${account.workspaceId}`);
+  if (!account) return false;
 
-  const rules = (await prisma.inboxAutomation.findMany({
-    where: { instagramAccountId: account.id, isActive: true },
-    orderBy: [{ priority: "asc" }, { createdAt: "asc" }],
-  })) as InboxRule[];
-  
-  console.log(`[DM Worker] processInboxAutomations: found ${rules.length} active inbox automation rules`);
-  
-  if (rules.length === 0) {
-    console.log(`[DM Worker] processInboxAutomations: no rules found, returning false`);
-    return false;
-  }
-  
-  // Log each rule for debugging
-  for (const rule of rules) {
-    console.log(`[DM Worker] processInboxAutomations: rule=${rule.id}, name="${rule.name}", triggerType=${rule.triggerType}, keywords=${JSON.stringify(rule.keywords)}, matchAnyWord=${rule.matchAnyWord}, aiEnabled=${rule.aiEnabled}, message="${rule.message.slice(0, 50)}"`);
-  }
+  const config = (await prisma.inboxAutomation.findUnique({
+    where: { instagramAccountId: account.id },
+  })) as InboxConfig | null;
 
-  // Reuse a name captured on an earlier interaction so {username} renders.
+  if (!config || !config.isActive) return false;
+
   const priorLog = await prisma.dmLog.findFirst({
     where: { commenterId: senderId },
     select: { commenterName: true },
   });
   const commenterName = priorLog?.commenterName ?? null;
 
-  // Tier 1: keyword rules.
-  console.log(`[DM Worker] processInboxAutomations: checking Tier 1 (KEYWORD rules)`);
-  for (const rule of rules) {
-    if (rule.triggerType !== "KEYWORD") continue;
-    const hit = rule.matchAnyWord
-      ? true
-      : matchKeywords(messageText, rule.keywords, rule.wholeWordMatch).matched;
-    
-    console.log(`[DM Worker] processInboxAutomations: KEYWORD rule "${rule.name}" matchAnyWord=${rule.matchAnyWord}, keywords=${JSON.stringify(rule.keywords)}, hit=${hit}`);
-    
-    if (!hit) {
-      console.log(`[DM Worker] processInboxAutomations: KEYWORD rule "${rule.name}" did NOT match`);
-      continue;
-    }
-    
-    console.log(`[DM Worker] processInboxAutomations: KEYWORD rule "${rule.name}" MATCHED, attempting to deliver`);
-    const handled = await deliverInboxRule({
-      account,
-      rule,
-      messageId,
-      messageText,
-      senderId,
-      commenterName,
-      attemptsMade,
-    });
-    console.log(`[DM Worker] processInboxAutomations: KEYWORD rule "${rule.name}" handled=${handled}`);
-    if (handled) return true;
-  }
-
-  // Tier 2: AI intent rules — one classify call across all intents.
-  const intentRules = rules.filter((r) => r.triggerType === "AI_INTENT" && r.aiIntent);
-  if (intentRules.length > 0 && isAIEnabled()) {
+  // Tier 1: AI reply — tried first when enabled. On success we send and return.
+  // On any failure (budget, timeout, empty) we fall through to fallback.
+  if (config.aiEnabled && isAIEnabled()) {
     const budget = await checkAiBudget(account.workspaceId);
     if (budget.allowed) {
-      let classified: string | null = null;
-      try {
-        const c = await classifyIntent(
-          messageText,
-          intentRules.map((r) => r.aiIntent as string)
-        );
-        classified = c.intent === "none" ? null : c.intent;
-      } catch (error) {
-        await prisma.operationalEvent
-          .create({
-            data: {
-              workspaceId: account.workspaceId,
-              source: "AI",
-              level: "WARNING",
-              message: `AI classify failed, falling through to catch-all: ${formatError(error)}`,
-              payload: { instagramAccountId: account.instagramId },
-            },
-          })
-          .catch(() => {});
-        classified = null;
-      }
-      if (classified) {
-        const rule = intentRules.find(
-          (r) => (r.aiIntent as string).toLowerCase() === classified.toLowerCase()
-        );
-        if (rule) {
-          const handled = await deliverInboxRule({
-            account,
-            rule,
-            messageId,
-            messageText,
-            senderId,
-            commenterName,
-            attemptsMade,
-          });
-          if (handled) return true;
-        }
-      }
+      const aiResult = await tryInboxAIReply({
+        account,
+        config,
+        messageId,
+        messageText,
+        senderId,
+        commenterName,
+        attemptsMade,
+      });
+      if (aiResult) return true;
     }
   }
 
-  // Tier 3: catch-all — simplest-one, first ALWAYS rule wins.
-  console.log(`[DM Worker] processInboxAutomations: checking Tier 3 (ALWAYS catch-all rules)`);
-  const catchAll = rules.find((r) => r.triggerType === "ALWAYS");
-  if (catchAll) {
-    console.log(`[DM Worker] processInboxAutomations: found ALWAYS rule "${catchAll.name}", attempting to deliver`);
-    const handled = deliverInboxRule({
-      account,
-      rule: catchAll,
-      messageId,
-      messageText,
-      senderId,
-      commenterName,
-      attemptsMade,
-    });
-    console.log(`[DM Worker] processInboxAutomations: ALWAYS rule "${catchAll.name}" handled=${handled}`);
-    return handled;
-  }
+  // Tier 2: Fallback — keyword-gated or catch-all when keywords empty.
+  const fallbackText = config.fallbackMessage?.trim();
+  if (!fallbackText) return false;
 
-  console.log(`[DM Worker] processInboxAutomations: no catch-all rule found, returning false`);
-  return false;
+  const isCatchAll = config.fallbackKeywords.length === 0 && !config.matchAnyWord;
+  // When keywords exist we gate; when empty or matchAnyWord we always send.
+  let shouldSendFallback = false;
+  if (config.matchAnyWord || isCatchAll) {
+    shouldSendFallback = true;
+  } else {
+    const hit = matchKeywords(messageText, config.fallbackKeywords, config.wholeWordMatch).matched;
+    shouldSendFallback = hit;
+  }
+  if (!shouldSendFallback) return false;
+
+  return deliverInboxFallback({
+    account,
+    config,
+    messageId,
+    messageText,
+    senderId,
+    commenterName,
+    attemptsMade,
+  });
 }
 
-/**
- * Deliver one inbox rule's reply as a plain-text DM (auto-send).
- * AI-enabled rules generate from the rule's knowledge textbox + recent thread
- * context; all other rules render the static template. AI never injects links.
- */
-async function deliverInboxRule(opts: {
+async function tryInboxAIReply(opts: {
   account: { id: string; workspaceId: string; instagramId: string; accessToken: string };
-  rule: InboxRule;
+  config: InboxConfig;
   messageId: string;
   messageText: string;
   senderId: string;
   commenterName: string | null;
   attemptsMade: number;
 }): Promise<boolean> {
-  const { account, rule, messageId, messageText, senderId, commenterName, attemptsMade } = opts;
+  const { account, config, messageId, messageText, senderId, commenterName, attemptsMade } = opts;
   const dedupeId = `dm:inbox:${messageId}`;
-  
-  console.log(`[DM Worker] deliverInboxRule START: ruleId=${rule.id}, ruleName="${rule.name}", triggerType=${rule.triggerType}, senderId=${senderId}`);
 
-  // Resolve the reply text before claiming the send slot.
   let replyText: string | null = null;
   let aiModel: string | null = null;
   let aiLatencyMs: number | null = null;
-  const aiUsed = rule.aiEnabled && isAIEnabled();
-
-  if (aiUsed) {
-    const budget = await checkAiBudget(account.workspaceId);
-    if (!budget.allowed) {
-      console.log(
-        `[DM Worker] AI budget exhausted for workspace ${account.workspaceId}, using static text`
-      );
-    } else {
-      const started = Date.now();
-      try {
-        await consumeAiBudget(account.workspaceId);
-        // Best-effort thread context: last few messages for tone continuity.
-        let history: string[] = [];
-        try {
-          const recent = await prisma.dmLog.findMany({
-            where: { commenterId: senderId, instagramAccountId: account.id },
-            orderBy: { createdAt: "desc" },
-            take: 5,
-            select: { commentText: true },
-          });
-          history = recent.map((r) => r.commentText).reverse();
-        } catch {
-          history = [];
-        }
-        const gen = await generateReply({
-          message: messageText,
-          knowledge: rule.knowledge ?? "",
-          username: commenterName,
-          history,
-        });
-        replyText = gen.text;
-        aiModel = rule.aiModel?.trim() || gen.model || getAIModel();
-        aiLatencyMs = Date.now() - started;
-      } catch (error) {
-        aiLatencyMs = Date.now() - started;
-        await prisma.operationalEvent
-          .create({
-            data: {
-              workspaceId: account.workspaceId,
-              source: "AI",
-              level: "WARNING",
-              message: `AI reply failed for rule "${rule.name}", using static text: ${formatError(error)}`,
-              payload: { ruleId: rule.id, instagramAccountId: account.instagramId },
-            },
-          })
-          .catch(() => {});
-        replyText = null;
-      }
+  const started = Date.now();
+  try {
+    await consumeAiBudget(account.workspaceId);
+    let history: string[] = [];
+    try {
+      const recent = await prisma.dmLog.findMany({
+        where: { commenterId: senderId, instagramAccountId: account.id },
+        orderBy: { createdAt: "desc" },
+        take: 5,
+        select: { commentText: true },
+      });
+      history = recent.map((r) => r.commentText).reverse();
+    } catch {
+      history = [];
     }
-  }
-
-  if (!replyText) {
-    if (aiUsed && !rule.message.trim()) {
-      // AI-only rule whose generation failed and has no static fallback —
-      // let the catch-all tier try instead of sending an empty DM.
-      return false;
-    }
-    replyText = renderMessageWithoutLink({ message: rule.message, commenterName });
-  }
-  if (!replyText?.trim()) {
-    console.log(`[DM Worker] deliverInboxRule: replyText is empty, returning false`);
+    const gen = await generateReply({
+      message: messageText,
+      knowledge: config.knowledge ?? "",
+      username: commenterName,
+      history,
+    });
+    replyText = gen.text;
+    aiModel = config.aiModel?.trim() || gen.model || getAIModel();
+    aiLatencyMs = Date.now() - started;
+  } catch (error) {
+    aiLatencyMs = Date.now() - started;
+    await prisma.operationalEvent
+      .create({
+        data: {
+          workspaceId: account.workspaceId,
+          source: "AI",
+          level: "WARNING",
+          message: `AI reply failed, falling through to fallback: ${formatError(error)}`,
+          payload: { instagramAccountId: account.instagramId },
+        },
+      })
+      .catch(() => {});
     return false;
   }
 
-  console.log(`[DM Worker] deliverInboxRule: ready to send - replyText="${replyText.slice(0, 100)}", aiUsed=${aiUsed}`);
+  if (!replyText?.trim()) return false;
+
+  return sendInboxDM({
+    account,
+    configId: config.id,
+    dedupeId,
+    messageText,
+    senderId,
+    commenterName,
+    attemptsMade,
+    replyText,
+    aiUsed: true,
+    aiModel,
+    aiLatencyMs,
+  });
+}
+
+async function deliverInboxFallback(opts: {
+  account: { id: string; workspaceId: string; instagramId: string; accessToken: string };
+  config: InboxConfig;
+  messageId: string;
+  messageText: string;
+  senderId: string;
+  commenterName: string | null;
+  attemptsMade: number;
+}): Promise<boolean> {
+  const { account, config, messageId, messageText, senderId, commenterName, attemptsMade } = opts;
+  const dedupeId = `dm:inbox:${messageId}`;
+  const replyText = renderMessageWithoutLink({ message: config.fallbackMessage, commenterName });
+  if (!replyText?.trim()) return false;
+  return sendInboxDM({
+    account,
+    configId: config.id,
+    dedupeId,
+    messageText,
+    senderId,
+    commenterName,
+    attemptsMade,
+    replyText,
+    aiUsed: false,
+    aiModel: null,
+    aiLatencyMs: null,
+  });
+}
+
+/**
+ * Shared DM send with advisory lock, plan limit, and audit.
+ */
+async function sendInboxDM(opts: {
+  account: { id: string; workspaceId: string; instagramId: string; accessToken: string };
+  configId: string;
+  dedupeId: string;
+  messageText: string;
+  senderId: string;
+  commenterName: string | null;
+  attemptsMade: number;
+  replyText: string;
+  aiUsed: boolean;
+  aiModel: string | null;
+  aiLatencyMs: number | null;
+}): Promise<boolean> {
+  const { account, configId, dedupeId, messageText, senderId, commenterName, attemptsMade, replyText, aiUsed, aiModel, aiLatencyMs } = opts;
 
   if (!account.accessToken) {
-    console.log(`[DM Worker] deliverInboxRule: NO access token for account ${account.id}`);
     await prisma.dmLog.create({
       data: {
         workspaceId: account.workspaceId,
         automationId: null,
-        inboxAutomationId: rule.id,
+        inboxAutomationId: configId,
         instagramAccountId: account.id,
         commenterId: senderId,
         commenterName,
@@ -1681,44 +1629,37 @@ async function deliverInboxRule(opts: {
         errorMessage: "No Instagram access token available",
         aiUsed: aiUsed || undefined,
         aiModel,
-        aiIntent: rule.aiIntent,
         aiLatencyMs,
       },
     });
     return true;
   }
 
-  console.log(`[DM Worker] deliverInboxRule: account has access token (encrypted)`);
-
   let accessToken: string;
   try {
     accessToken = decryptToken(account.accessToken);
-    console.log(`[DM Worker] deliverInboxRule: successfully decrypted access token`);
   } catch (decryptError) {
-    const decryptErrorMsg = decryptError instanceof Error ? decryptError.message : String(decryptError);
-    console.log(`[DM Worker] deliverInboxRule: FAILED to decrypt access token: ${decryptErrorMsg}`);
+    const msg = decryptError instanceof Error ? decryptError.message : String(decryptError);
     await prisma.dmLog.create({
       data: {
         workspaceId: account.workspaceId,
         automationId: null,
-        inboxAutomationId: rule.id,
+        inboxAutomationId: configId,
         instagramAccountId: account.id,
         commenterId: senderId,
         commenterName,
         commentText: messageText,
         commentId: dedupeId,
         status: "FAILED",
-        errorMessage: `Failed to decrypt Instagram access token: ${decryptErrorMsg}`,
+        errorMessage: `Failed to decrypt Instagram access token: ${msg}`,
         aiUsed: aiUsed || undefined,
         aiModel,
-        aiIntent: rule.aiIntent,
         aiLatencyMs,
       },
     });
     return true;
   }
 
-  // Advisory lock + pending claim so concurrent workers don't double-send.
   let canProceed = true;
   try {
     await prisma.$transaction(async (tx) => {
@@ -1727,116 +1668,58 @@ async function deliverInboxRule(opts: {
         where: { commentId: dedupeId, instagramAccountId: account.id },
         select: { status: true },
       });
-      
-      if (
-        existing?.status === "SENT" ||
-        existing?.status === "SKIPPED_PLAN_LIMIT" ||
-        existing?.status === "PENDING"
-      ) {
-        console.log(`[DM Worker] deliverInboxRule: dedupe check - existing status=${existing?.status}, skipping`);
+      if (existing?.status === "SENT" || existing?.status === "SKIPPED_PLAN_LIMIT" || existing?.status === "PENDING") {
         canProceed = false;
         return;
       }
-      
-      console.log(`[DM Worker] deliverInboxRule: no existing log found, creating PENDING entry`);
       await tx.dmLog.create({
         data: {
           workspaceId: account.workspaceId,
           automationId: null,
-          inboxAutomationId: rule.id,
+          inboxAutomationId: configId,
           instagramAccountId: account.id,
           commenterId: senderId,
           commenterName,
           commentText: messageText,
           commentId: dedupeId,
-          matchedKeyword: rule.aiIntent,
           status: "PENDING",
           attempts: attemptsMade + 1,
           aiUsed: aiUsed || undefined,
           aiModel,
-          aiIntent: rule.aiIntent,
           aiLatencyMs,
         },
       });
     });
   } catch (error) {
-    const isUniqueViolation =
-      typeof error === "object" &&
-      error !== null &&
-      "code" in error &&
-      (error as { code?: string }).code === "P2002";
-    if (isUniqueViolation) {
-      console.log(`[DM Worker] deliverInboxRule: unique violation (concurrent worker won), returning true`);
-      return true;
-    }
+    const isUniqueViolation = typeof error === "object" && error !== null && "code" in error && (error as { code?: string }).code === "P2002";
+    if (isUniqueViolation) return true;
     throw error;
   }
-  
-  if (!canProceed) {
-    console.log(`[DM Worker] deliverInboxRule: canProceed=false, returning true (already handled)`);
-    return true;
-  }
-  
-  console.log(`[DM Worker] deliverInboxRule: passed dedupe check, canProceed=true`);
+  if (!canProceed) return true;
 
   const usage = await reserveWorkspaceDMSend(account.workspaceId);
-  console.log(`[DM Worker] deliverInboxRule: workspace DM usage - allowed=${usage.allowed}, limit=${usage.limit}`);
-  
   if (!usage.allowed) {
-    console.log(`[DM Worker] deliverInboxRule: WORKSPACE DM LIMIT REACHED (${usage.limit}), marking SKIPPED_PLAN_LIMIT`);
     await prisma.dmLog.updateMany({
-      where: {
-        commentId: dedupeId,
-        instagramAccountId: account.id,
-        workspaceId: account.workspaceId,
-      },
-      data: {
-        status: "SKIPPED_PLAN_LIMIT",
-        errorMessage: `Monthly DM limit reached (${usage.limit})`,
-      },
+      where: { commentId: dedupeId, instagramAccountId: account.id, workspaceId: account.workspaceId },
+      data: { status: "SKIPPED_PLAN_LIMIT", errorMessage: `Monthly DM limit reached (${usage.limit})` },
     });
     return true;
   }
 
   try {
-    console.log(`[DM Worker] deliverInboxRule: SENDING DM to senderId=${senderId}, instagramAccountId=${account.instagramId}`);
-    console.log(`[DM Worker] deliverInboxRule: message="${replyText.slice(0, 200)}"`);
-    
-    const result = await sendDirectMessage(accessToken, account.instagramId, senderId, replyText);
-    
-    console.log(`[DM Worker] deliverInboxRule: DM SENT SUCCESSFULLY! response=${JSON.stringify(result)}`);
-    
+    await sendDirectMessage(accessToken, account.instagramId, senderId, replyText);
     await prisma.dmLog.updateMany({
-      where: {
-        commentId: dedupeId,
-        instagramAccountId: account.id,
-        workspaceId: account.workspaceId,
-      },
+      where: { commentId: dedupeId, instagramAccountId: account.id, workspaceId: account.workspaceId },
       data: { status: "SENT", dmSentAt: new Date(), errorMessage: null },
     });
-    
-    console.log(`[DM Worker] deliverInboxRule: DM log updated to SENT status`);
     return true;
   } catch (error) {
     const errorMsg = formatError(error);
-    console.log(`[DM Worker] deliverInboxRule: FAILED to send DM: ${errorMsg}`);
-    
     await releaseWorkspaceDMReservation(account.workspaceId, usage.periodStart);
-    
     await prisma.dmLog.updateMany({
-      where: {
-        commentId: dedupeId,
-        instagramAccountId: account.id,
-        workspaceId: account.workspaceId,
-      },
-      data: {
-        status: "FAILED",
-        attempts: attemptsMade + 1,
-        errorMessage: errorMsg,
-      },
+      where: { commentId: dedupeId, instagramAccountId: account.id, workspaceId: account.workspaceId },
+      data: { status: "FAILED", attempts: attemptsMade + 1, errorMessage: errorMsg },
     });
-    
-    console.log(`[DM Worker] deliverInboxRule: DM log updated to FAILED status with error: ${errorMsg}`);
     throw error;
   }
 }

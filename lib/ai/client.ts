@@ -1,27 +1,33 @@
 /**
  * AI provider client for DM auto-replies.
  *
- * Global-key, DM-only, auto-send. Uses the Vercel AI SDK (`ai` + `@ai-sdk/groq`)
- * instead of a raw fetch call. Model + key come from env:
- *   AI_API_KEY (required to enable), AI_MODEL (e.g. "llama-3.3-70b-versatile").
+ * Simplified: single master config per account (AI + fallback), DM-only
+ * auto-send. Uses Vercel AI SDK (`ai` + provider) so model/provider are
+ * easily swapped via env:
+ *   AI_API_KEY (required), AI_PROVIDER=openai|groq, AI_MODEL=gpt-4o-mini
  *
- * Two operations:
- *  - classifyIntent: cheap small call returning one of the known intents or "none"
- *  - generateReply: grounded reply using the rule's knowledge textbox as the
- *    system context. Plain text only — never injects tracked links (per spec).
+ * Only one LLM operation now: generateReply grounded by the knowledge
+ * textbox. No classify step — that tier was the source of the "Heya for price"
+ * bug (keyword shadowed intent). Plain text only, never injects links.
  */
 
 import { generateText, APICallError } from "ai";
 import { createGroq } from "@ai-sdk/groq";
-import { getAIApiKey, getAIModel } from "@/lib/env";
+import { createOpenAI } from "@ai-sdk/openai";
+import { getAIApiKey, getAIModel, getAIProvider } from "@/lib/env";
 
-const CLASSIFY_TIMEOUT_MS = 8_000;
 const GENERATE_TIMEOUT_MS = 15_000;
 const MAX_REPLY_CHARS = 500;
 
-export interface AIClassifyResult {
-  intent: string; // intent name or "none"
-  confidence: number; // 0..1 heuristic
+function getModel() {
+  const apiKey = getAIApiKey();
+  if (!apiKey) throw new Error("AI is not configured (AI_API_KEY missing)");
+  const provider = getAIProvider();
+  const modelName = getAIModel();
+  if (provider === "groq") {
+    return createGroq({ apiKey })(modelName);
+  }
+  return createOpenAI({ apiKey })(modelName);
 }
 
 async function chatComplete(opts: {
@@ -31,12 +37,9 @@ async function chatComplete(opts: {
   temperature: number;
   timeoutMs: number;
 }): Promise<string> {
-  const apiKey = getAIApiKey();
-  if (!apiKey) throw new Error("AI is not configured (AI_API_KEY missing)");
-  const groq = createGroq({ apiKey });
   try {
     const result = await generateText({
-      model: groq(getAIModel()),
+      model: getModel(),
       system: opts.system,
       prompt: opts.user,
       maxOutputTokens: opts.maxOutputTokens,
@@ -56,41 +59,9 @@ async function chatComplete(opts: {
 }
 
 /**
- * Classify a DM into one of `intents` (rule aiIntent names) or "none".
- * Keeps the prompt tiny so this stays cheap.
- */
-export async function classifyIntent(
-  message: string,
-  intents: string[],
-): Promise<AIClassifyResult> {
-  if (intents.length === 0) return { intent: "none", confidence: 0 };
-  const system =
-    `You are a DM intent classifier. Allowed intents: ${intents.join(", ")}. ` +
-    `Respond with ONLY the intent name, or "none" if no intent matches. No punctuation, no explanation.`;
-  const raw = await chatComplete({
-    system,
-    user: message.slice(0, 1000),
-    maxOutputTokens: 20,
-    temperature: 0,
-    timeoutMs: CLASSIFY_TIMEOUT_MS,
-  });
-  const cleaned = raw
-    .toLowerCase()
-    .trim()
-    .replace(/[^a-z0-9-_ ]/g, "");
-  const hit = intents.find((i) => i.toLowerCase() === cleaned);
-  if (hit) return { intent: hit, confidence: 0.9 };
-  if (cleaned === "none" || cleaned === "")
-    return { intent: "none", confidence: 0.9 };
-  // Fuzzy: provider returned something close — treat as low-confidence none
-  // rather than hallucinating a rule match.
-  return { intent: "none", confidence: 0.4 };
-}
-
-/**
- * Generate a grounded plain-text reply. `knowledge` is the rule's knowledge
- * textbox, injected verbatim as the system context (no RAG in v1).
- * `history` is the last few thread messages for tone continuity.
+ * Generate a grounded plain-text reply. `knowledge` is the account's
+ * knowledge textbox, injected verbatim as system context (no RAG).
+ * `history` is last few thread messages for tone continuity.
  */
 export async function generateReply(opts: {
   message: string;
@@ -119,7 +90,6 @@ export async function generateReply(opts: {
     temperature: 0.4,
     timeoutMs: GENERATE_TIMEOUT_MS,
   });
-  // Guardrails: plain text, bounded, no links (per spec: AI never injects links).
   const text = raw
     .replace(/https?:\/\/\S+/g, "")
     .replace(/\[.*?\]\(.*?\)/g, "")

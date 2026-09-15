@@ -287,35 +287,28 @@ model DmLog {
   @@index([status])
 }
 
-/// Inbox (DM-only) automations. Replaces the legacy per-account
-/// `fallbackReplyEnabled/message` catch-all with ordered, feature-rich rules:
-/// keyword → AI intent (grounded by a knowledge textbox, no RAG) → always.
-/// DM-only, auto-send. AI never injects links — plain text only.
+/// One master config per Instagram account — simplifies the old multi-rule
+/// (KEYWORD → AI_INTENT → ALWAYS) maze that caused "Heya for price" bugs.
+/// Only two types remain: AI reply (knowledge textbox, plain text, no links)
+/// and a simple fallback (keyword list OR catch-all). One row per account.
 model InboxAutomation {
   id                 String @id @default(cuid())
   workspaceId        String
-  instagramAccountId String
+  instagramAccountId String @unique
 
-  name     String
   isActive Boolean @default(true)
-  /// Lower = evaluated first.
-  priority Int @default(0)
 
-  triggerType    InboxTrigger @default(KEYWORD)
-  keywords       String[]     @default([])
-  wholeWordMatch Boolean      @default(true)
-  matchAnyWord   Boolean      @default(false)
-
-  // AI tier: when true and the trigger matches, the reply is generated from
-  // `knowledge` (+ recent thread context) instead of the static `message`.
+  // AI tier — grounded by knowledge, DM-only auto-send, 500 char, no RAG.
   aiEnabled  Boolean @default(false)
-  aiIntent   String?
   knowledge  String?
+  aiProvider String?
   aiModel    String?
 
-  // Static response (keyword + catch-all tiers). Supports {username}.
-  // AI tier ignores this and generates plain text instead.
-  message String @default("")
+  // Fallback tier — simple keyword match or catch-all when keywords empty.
+  fallbackKeywords String[] @default([])
+  fallbackMessage  String   @default("")
+  wholeWordMatch   Boolean  @default(true)
+  matchAnyWord     Boolean  @default(false)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -325,8 +318,6 @@ model InboxAutomation {
   dmLogs           DmLog[]
 
   @@index([workspaceId])
-  @@index([instagramAccountId, priority])
-  @@index([instagramAccountId, isActive, priority])
 }
 
 model TrackedLink {

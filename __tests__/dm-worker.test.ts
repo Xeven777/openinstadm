@@ -55,6 +55,7 @@ const {
     },
     inboxAutomation: {
       findMany: vi.fn(),
+      findUnique: vi.fn(),
     },
     operationalEvent: {
       create: vi.fn(),
@@ -263,10 +264,11 @@ beforeEach(() => {
   mockPrisma.instagramAccount.findUnique.mockResolvedValue({
     workspaceId: "workspace_123",
   });
-  // Inbox automations (DM-only tiers): no rules by default, so a DM that
+  // Inbox automations (DM-only tiers): no config by default, so a DM that
   // matches no campaign keyword sends nothing — same as the legacy behavior
   // when the fallback reply was disabled.
   mockPrisma.inboxAutomation.findMany.mockResolvedValue([]);
+  mockPrisma.inboxAutomation.findUnique.mockResolvedValue(null);
   mockPrisma.dmLog.findMany.mockResolvedValue([]);
   mockPrisma.operationalEvent.create.mockResolvedValue({});
   mockDecryptToken.mockReturnValue("decrypted_token");
@@ -1133,7 +1135,7 @@ describe("DM Worker — DM keyword trigger", () => {
   });
 });
 
-describe("DM Worker — Inbox automations (keyword → AI → catch-all)", () => {
+describe("DM Worker — Inbox automations (AI-first → fallback)", () => {
   function createMockMessageJob(data: Record<string, unknown> = {}) {
     return {
       name: "process-message",
@@ -1150,7 +1152,7 @@ describe("DM Worker — Inbox automations (keyword → AI → catch-all)", () =>
   }
 
   beforeEach(() => {
-    // No campaign matches — force the inbox tiers.
+    // No campaign matches — force the inbox config.
     mockPrisma.automation.findMany.mockResolvedValue([]);
     mockMatchKeywords.mockImplementation((text: string, keywords: string[]) => ({
       matched: (keywords as string[]).some((k) =>
@@ -1166,24 +1168,21 @@ describe("DM Worker — Inbox automations (keyword → AI → catch-all)", () =>
     } as unknown as never);
   });
 
-  it("should send the catch-all reply when no keyword rule matches", async () => {
-    mockPrisma.inboxAutomation.findMany.mockResolvedValue([
-      {
-        id: "inbox_catchall",
-        workspaceId: "workspace_123",
-        instagramAccountId: "ig_account_row_1",
-        name: "Catch-all reply",
-        triggerType: "ALWAYS",
-        keywords: [],
-        wholeWordMatch: true,
-        matchAnyWord: false,
-        aiEnabled: false,
-        aiIntent: null,
-        knowledge: null,
-        aiModel: null,
-        message: "Hey {username}! Thanks for reaching out.",
-      },
-    ]);
+  it("should send the fallback catch-all when keywords are empty", async () => {
+    mockPrisma.inboxAutomation.findUnique.mockResolvedValue({
+      id: "inbox_catchall",
+      workspaceId: "workspace_123",
+      instagramAccountId: "ig_account_row_1",
+      isActive: true,
+      aiEnabled: false,
+      knowledge: null,
+      aiProvider: null,
+      aiModel: null,
+      fallbackKeywords: [],
+      fallbackMessage: "Hey {username}! Thanks for reaching out.",
+      wholeWordMatch: true,
+      matchAnyWord: false,
+    });
 
     const processor = getProcessor();
     await processor(createMockMessageJob());
@@ -1205,43 +1204,25 @@ describe("DM Worker — Inbox automations (keyword → AI → catch-all)", () =>
     );
   });
 
-  it("should prefer a matching keyword rule over the catch-all", async () => {
-    mockPrisma.inboxAutomation.findMany.mockResolvedValue([
-      {
-        id: "inbox_kw",
-        workspaceId: "workspace_123",
-        instagramAccountId: "ig_account_row_1",
-        name: "Pricing",
-        triggerType: "KEYWORD",
-        keywords: ["price"],
-        wholeWordMatch: true,
-        matchAnyWord: false,
-        aiEnabled: false,
-        aiIntent: null,
-        knowledge: null,
-        aiModel: null,
-        message: "Pricing starts at $9.",
-      },
-      {
-        id: "inbox_catchall",
-        workspaceId: "workspace_123",
-        instagramAccountId: "ig_account_row_1",
-        name: "Catch-all reply",
-        triggerType: "ALWAYS",
-        keywords: [],
-        wholeWordMatch: true,
-        matchAnyWord: false,
-        aiEnabled: false,
-        aiIntent: null,
-        knowledge: null,
-        aiModel: null,
-        message: "Catch-all text.",
-      },
-    ]);
+  it("should send fallback only when its keywords match, otherwise nothing", async () => {
+    mockPrisma.inboxAutomation.findUnique.mockResolvedValue({
+      id: "inbox_kw",
+      workspaceId: "workspace_123",
+      instagramAccountId: "ig_account_row_1",
+      isActive: true,
+      aiEnabled: false,
+      knowledge: null,
+      aiProvider: null,
+      aiModel: null,
+      fallbackKeywords: ["price"],
+      fallbackMessage: "Pricing starts at $9.",
+      wholeWordMatch: true,
+      matchAnyWord: false,
+    });
 
     const processor = getProcessor();
+    // price query → hits keyword
     await processor(createMockMessageJob({ messageText: "what is the price?" }));
-
     expect(mockSendDirectMessage).toHaveBeenCalledWith(
       "decrypted_token",
       "ig_456",
@@ -1250,8 +1231,30 @@ describe("DM Worker — Inbox automations (keyword → AI → catch-all)", () =>
     );
   });
 
-  it("should send nothing when no inbox rule matches and there is no catch-all", async () => {
-    mockPrisma.inboxAutomation.findMany.mockResolvedValue([]);
+  it("should send nothing when fallback keywords do not match", async () => {
+    mockPrisma.inboxAutomation.findUnique.mockResolvedValue({
+      id: "inbox_kw",
+      workspaceId: "workspace_123",
+      instagramAccountId: "ig_account_row_1",
+      isActive: true,
+      aiEnabled: false,
+      knowledge: null,
+      aiProvider: null,
+      aiModel: null,
+      fallbackKeywords: ["price"],
+      fallbackMessage: "Pricing starts at $9.",
+      wholeWordMatch: true,
+      matchAnyWord: false,
+    });
+    mockMatchKeywords.mockReturnValue({ matched: false, matchedKeyword: null });
+    const processor = getProcessor();
+    await processor(createMockMessageJob({ messageText: "hello there" }));
+
+    expect(mockSendDirectMessage).not.toHaveBeenCalled();
+  });
+
+  it("should send nothing when no inbox config exists", async () => {
+    mockPrisma.inboxAutomation.findUnique.mockResolvedValue(null);
     const processor = getProcessor();
     await processor(createMockMessageJob());
 

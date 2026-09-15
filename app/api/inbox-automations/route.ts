@@ -6,68 +6,35 @@ import {
   getCurrentWorkspaceContext,
   getCurrentWorkspaceId,
 } from "@/lib/workspace-access";
-import { classifyIntent, generateReply } from "@/lib/ai/client";
+import { generateReply } from "@/lib/ai/client";
 import { isAIEnabled } from "@/lib/env";
 
-// This list is read-your-writes — never cache it at the route or CDN layer.
-const triggerEnum = z.enum(["KEYWORD", "AI_INTENT", "ALWAYS"]);
-
+// One master config per Instagram account: AI + fallback only.
 const baseFields = {
-  name: z.string().min(1).max(100),
   instagramAccountId: z.string().min(1),
   isActive: z.boolean().optional().default(true),
-  priority: z.number().int().min(0).max(9999).optional().default(0),
-  triggerType: triggerEnum.optional().default("KEYWORD"),
-  keywords: z.array(z.string().min(1).max(50)).max(10).optional().default([]),
+  aiEnabled: z.boolean().optional().default(false),
+  knowledge: z.string().max(4000).optional().nullable(),
+  aiProvider: z.string().max(30).optional().nullable(),
+  aiModel: z.string().max(60).optional().nullable(),
+  fallbackKeywords: z.array(z.string().min(1).max(50)).max(10).optional().default([]),
+  fallbackMessage: z.string().max(1000).optional().default(""),
   wholeWordMatch: z.boolean().optional().default(true),
   matchAnyWord: z.boolean().optional().default(false),
-  aiEnabled: z.boolean().optional().default(false),
-  aiIntent: z.string().min(1).max(60).optional().nullable(),
-  knowledge: z.string().max(4000).optional().nullable(),
-  aiModel: z.string().max(60).optional().nullable(),
-  message: z.string().max(1000).optional().default(""),
 };
 
-const createSchema = z
-  .object(baseFields)
-  .refine((d) => d.triggerType !== "KEYWORD" || d.matchAnyWord || d.keywords.length >= 1, {
-    message: "Add at least one keyword, or match any word",
-    path: ["keywords"],
-  })
-  .refine((d) => d.triggerType !== "AI_INTENT" || Boolean(d.aiIntent?.trim()), {
-    message: "AI intent needs a name (e.g. pricing)",
-    path: ["aiIntent"],
-  })
-  .refine(
-    (d) =>
-      !d.aiEnabled ||
-      Boolean(d.knowledge?.trim()) ||
-      d.triggerType !== "AI_INTENT" ||
-      true,
-    { message: "Add knowledge so the AI stays grounded", path: ["knowledge"] }
-  )
-  .refine(
-    (d) =>
-      d.aiEnabled ||
-      d.triggerType === "ALWAYS" ||
-      Boolean(d.message?.trim()) ||
-      d.matchAnyWord,
-    { message: "Add the reply message", path: ["message"] }
-  );
+const createSchema = z.object(baseFields);
 
 const updateSchema = z.object({
-  name: z.string().min(1).max(100).optional(),
   isActive: z.boolean().optional(),
-  priority: z.number().int().min(0).max(9999).optional(),
-  triggerType: triggerEnum.optional(),
-  keywords: z.array(z.string().min(1).max(50)).max(10).optional(),
+  aiEnabled: z.boolean().optional(),
+  knowledge: z.string().max(4000).optional().nullable(),
+  aiProvider: z.string().max(30).optional().nullable(),
+  aiModel: z.string().max(60).optional().nullable(),
+  fallbackKeywords: z.array(z.string().min(1).max(50)).max(10).optional(),
+  fallbackMessage: z.string().max(1000).optional(),
   wholeWordMatch: z.boolean().optional(),
   matchAnyWord: z.boolean().optional(),
-  aiEnabled: z.boolean().optional(),
-  aiIntent: z.string().min(1).max(60).optional().nullable(),
-  knowledge: z.string().max(4000).optional().nullable(),
-  aiModel: z.string().max(60).optional().nullable(),
-  message: z.string().max(1000).optional(),
 });
 
 async function assertAccount(workspaceId: string, instagramAccountId: string) {
@@ -88,16 +55,12 @@ export async function GET(request: NextRequest) {
   if (id) {
     const row = await prisma.inboxAutomation.findFirst({
       where: { id, workspaceId },
-      include: {
-        _count: { select: { dmLogs: true } },
-      },
+      include: { _count: { select: { dmLogs: true } } },
     });
     if (!row) {
       return NextResponse.json({ success: false, error: "Not found" }, { status: 404 });
     }
-    const sent = await prisma.dmLog.count({
-      where: { inboxAutomationId: id, status: "SENT" },
-    });
+    const sent = await prisma.dmLog.count({ where: { inboxAutomationId: id, status: "SENT" } });
     return NextResponse.json(
       { success: true, data: { ...row, stats: { total: row._count.dmLogs, sent } } },
       { headers: { "Cache-Control": "no-store" } }
@@ -109,7 +72,7 @@ export async function GET(request: NextRequest) {
       workspaceId,
       ...(instagramAccountId ? { instagramAccountId } : {}),
     },
-    orderBy: [{ priority: "asc" }, { createdAt: "asc" }],
+    orderBy: { createdAt: "asc" },
     include: {
       instagramAccount: { select: { id: true, username: true } },
       _count: { select: { dmLogs: true } },
@@ -141,40 +104,30 @@ export async function POST(request: NextRequest) {
   if (!account) {
     return NextResponse.json({ success: false, error: "Account not found" }, { status: 404 });
   }
-  // Simplest-one: only one ALWAYS catch-all per account.
-  if (parsed.data.triggerType === "ALWAYS") {
-    const existing = await prisma.inboxAutomation.findFirst({
-      where: {
-        workspaceId: context.workspaceId,
-        instagramAccountId: parsed.data.instagramAccountId,
-        triggerType: "ALWAYS",
-      },
-      select: { id: true },
-    });
-    if (existing) {
-      return NextResponse.json(
-        { success: false, error: "This account already has a catch-all rule — edit it instead" },
-        { status: 409 }
-      );
-    }
+  const existing = await prisma.inboxAutomation.findUnique({
+    where: { instagramAccountId: parsed.data.instagramAccountId },
+    select: { id: true },
+  });
+  if (existing) {
+    return NextResponse.json(
+      { success: false, error: "This account already has an inbox config — edit it instead" },
+      { status: 409 }
+    );
   }
 
   const created = await prisma.inboxAutomation.create({
     data: {
       workspaceId: context.workspaceId,
       instagramAccountId: parsed.data.instagramAccountId,
-      name: parsed.data.name.trim(),
       isActive: parsed.data.isActive,
-      priority: parsed.data.priority,
-      triggerType: parsed.data.triggerType,
-      keywords: parsed.data.matchAnyWord ? [] : parsed.data.keywords,
+      aiEnabled: parsed.data.aiEnabled,
+      knowledge: parsed.data.knowledge?.trim() || null,
+      aiProvider: parsed.data.aiProvider?.trim() || null,
+      aiModel: parsed.data.aiModel?.trim() || null,
+      fallbackKeywords: parsed.data.matchAnyWord ? [] : parsed.data.fallbackKeywords,
+      fallbackMessage: parsed.data.fallbackMessage ?? "",
       wholeWordMatch: parsed.data.wholeWordMatch,
       matchAnyWord: parsed.data.matchAnyWord,
-      aiEnabled: parsed.data.aiEnabled,
-      aiIntent: parsed.data.aiIntent?.trim() || null,
-      knowledge: parsed.data.knowledge?.trim() || null,
-      aiModel: parsed.data.aiModel?.trim() || null,
-      message: parsed.data.message ?? "",
     },
   });
   return NextResponse.json({ success: true, data: created }, { status: 201 });
@@ -206,26 +159,10 @@ export async function PATCH(request: NextRequest) {
   if (!existing) {
     return NextResponse.json({ success: false, error: "Not found" }, { status: 404 });
   }
-  if (parsed.data.triggerType === "ALWAYS" && existing.triggerType !== "ALWAYS") {
-    const clash = await prisma.inboxAutomation.findFirst({
-      where: {
-        workspaceId: context.workspaceId,
-        instagramAccountId: existing.instagramAccountId,
-        triggerType: "ALWAYS",
-        id: { not: id },
-      },
-      select: { id: true },
-    });
-    if (clash) {
-      return NextResponse.json(
-        { success: false, error: "This account already has a catch-all rule" },
-        { status: 409 }
-      );
-    }
-  }
   const data = { ...parsed.data } as Record<string, unknown>;
-  if (parsed.data.matchAnyWord === true) data.keywords = [];
-  if (parsed.data.name) data.name = (parsed.data.name as string).trim();
+  if (parsed.data.matchAnyWord === true) data.fallbackKeywords = [];
+  if (parsed.data.knowledge !== undefined) data.knowledge = (parsed.data.knowledge as string)?.trim() || null;
+  if (parsed.data.fallbackMessage !== undefined) data.fallbackMessage = parsed.data.fallbackMessage ?? "";
   const updated = await prisma.inboxAutomation.update({ where: { id }, data });
   return NextResponse.json({ success: true, data: updated });
 }
@@ -254,22 +191,18 @@ export async function DELETE(request: NextRequest) {
 }
 
 // --- Preview / playground ----------------------------------------------------
-// PUT /api/inbox-automations { instagramAccountId?, messageText, ruleId? }
-// Returns which rule would match + a simulated reply (AI called for real when
-// the matched rule has aiEnabled; otherwise renders the static template).
+// PUT /api/inbox-automations { instagramAccountId, messageText }
+// Returns simulated reply: AI first if enabled, else fallback gated by keywords.
 const previewSchema = z.object({
-  instagramAccountId: z.string().min(1).optional(),
+  instagramAccountId: z.string().min(1),
   messageText: z.string().min(1).max(1000),
-  ruleId: z.string().min(1).optional(),
 });
 
 export async function PUT(request: NextRequest) {
-  // PUT is the preview RPC (POST/PATCH/DELETE stay RESTful for CRUD).
   const workspaceId = await getCurrentWorkspaceId();
   if (!workspaceId) {
     return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
   }
-  // Preview is available even without AI configured (static tiers still work).
   const body = await request.json().catch(() => null);
   const parsed = previewSchema.safeParse(body);
   if (!parsed.success) {
@@ -278,98 +211,65 @@ export async function PUT(request: NextRequest) {
       { status: 400 }
     );
   }
-  const { matchKeywords } = await import("@/lib/utils/keyword-matcher");
-  const rules = await prisma.inboxAutomation.findMany({
-    where: {
-      workspaceId,
-      isActive: true,
-      ...(parsed.data.ruleId
-        ? { id: parsed.data.ruleId }
-        : parsed.data.instagramAccountId
-          ? { instagramAccountId: parsed.data.instagramAccountId }
-          : {}),
-    },
-    orderBy: [{ priority: "asc" }, { createdAt: "asc" }],
+  const config = await prisma.inboxAutomation.findFirst({
+    where: { workspaceId, instagramAccountId: parsed.data.instagramAccountId, isActive: true },
   });
-  if (rules.length === 0) {
-    return NextResponse.json({ success: true, data: { matched: null } });
+  if (!config) {
+    return NextResponse.json({ success: true, data: { matched: null, reply: null } });
   }
 
-  const aiIntents = rules
-    .filter((r) => r.triggerType === "AI_INTENT" && r.aiIntent)
-    .map((r) => r.aiIntent as string);
-
-  let classified: string | null = null;
-  if (aiIntents.length > 0 && isAIEnabled()) {
+  // AI first
+  if (config.aiEnabled && isAIEnabled()) {
     try {
-      const c = await classifyIntent(parsed.data.messageText, aiIntents);
-      classified = c.intent === "none" ? null : c.intent;
-    } catch {
-      classified = null;
-    }
-  }
-
-  for (const rule of rules) {
-    let matched = false;
-    if (rule.triggerType === "ALWAYS") matched = true;
-    else if (rule.triggerType === "AI_INTENT") {
-      matched = Boolean(
-        rule.aiIntent && classified && rule.aiIntent.toLowerCase() === classified.toLowerCase()
-      );
-    } else {
-      matched = rule.matchAnyWord
-        ? true
-        : matchKeywords(parsed.data.messageText, rule.keywords, rule.wholeWordMatch).matched;
-    }
-    if (!matched) continue;
-
-    if (rule.aiEnabled && isAIEnabled()) {
-      try {
-        const gen = await generateReply({
-          message: parsed.data.messageText,
-          knowledge: rule.knowledge ?? "",
-          username: null,
-        });
+      const gen = await generateReply({
+        message: parsed.data.messageText,
+        knowledge: config.knowledge ?? "",
+        username: null,
+      });
+      return NextResponse.json({
+        success: true,
+        data: { matched: { type: "AI", id: config.id }, reply: gen.text, ai: true, model: gen.model },
+      });
+    } catch (e) {
+      // fall through to fallback
+      const aiError = e instanceof Error ? e.message : "AI failed";
+      const fallback = await fallbackPreview(config, parsed.data.messageText);
+      if (fallback) {
         return NextResponse.json({
           success: true,
-          data: {
-            matched: {
-              id: rule.id,
-              name: rule.name,
-              triggerType: rule.triggerType,
-              aiIntent: rule.aiIntent,
-            },
-            reply: gen.text,
-            ai: true,
-            model: gen.model,
-            classified,
-          },
-        });
-      } catch (e) {
-        return NextResponse.json({
-          success: true,
-          data: {
-            matched: { id: rule.id, name: rule.name, triggerType: rule.triggerType },
-            reply: rule.message || "(AI failed — static fallback empty)",
-            ai: false,
-            aiError: e instanceof Error ? e.message : "AI failed",
-            classified,
-          },
+          data: { ...fallback, aiError },
         });
       }
+      return NextResponse.json({
+        success: true,
+        data: { matched: null, reply: null, aiError },
+      });
     }
-
-    const { renderMessageWithoutLink } = await import("@/lib/tracking/message");
-    return NextResponse.json({
-      success: true,
-      data: {
-        matched: { id: rule.id, name: rule.name, triggerType: rule.triggerType },
-        reply: renderMessageWithoutLink({ message: rule.message, commenterName: "there" }),
-        ai: false,
-        classified,
-      },
-    });
   }
 
-  return NextResponse.json({ success: true, data: { matched: null, classified } });
+  const fallback = await fallbackPreview(config, parsed.data.messageText);
+  if (fallback) return NextResponse.json({ success: true, data: fallback });
+  return NextResponse.json({ success: true, data: { matched: null, reply: null } });
+}
+
+async function fallbackPreview(
+  config: { id: string; fallbackKeywords: string[]; fallbackMessage: string; wholeWordMatch: boolean; matchAnyWord: boolean },
+  messageText: string
+) {
+  const { matchKeywords } = await import("@/lib/utils/keyword-matcher");
+  const { renderMessageWithoutLink } = await import("@/lib/tracking/message");
+  const isCatchAll = config.fallbackKeywords.length === 0 && !config.matchAnyWord;
+  let shouldSend = false;
+  if (config.matchAnyWord || isCatchAll) shouldSend = true;
+  else {
+    const hit = matchKeywords(messageText, config.fallbackKeywords, config.wholeWordMatch).matched;
+    shouldSend = hit;
+  }
+  if (!shouldSend) return null;
+  if (!config.fallbackMessage.trim()) return null;
+  return {
+    matched: { type: "FALLBACK", id: config.id },
+    reply: renderMessageWithoutLink({ message: config.fallbackMessage, commenterName: "there" }),
+    ai: false,
+  };
 }
