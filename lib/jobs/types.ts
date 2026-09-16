@@ -88,6 +88,21 @@ export const DM_TASK_RETRY = {
 } as const;
 
 /**
+ * Throw this when retrying a job cannot possibly help — an expired messaging
+ * window, a missing access token, a dead encryption key.
+ *
+ * Handlers stay runner-agnostic: the Trigger.dev tasks translate this into
+ * `AbortTaskRunError`, which stops retries. (It replaces BullMQ's
+ * `UnrecoverableError`, which did the same job on the old worker.)
+ */
+export class PermanentJobFailureError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "PermanentJobFailureError";
+  }
+}
+
+/**
  * The job context handlers receive. BullMQ passed its own `Job` object; the
  * Trigger.dev tasks pass the equivalent fields so the handler logic stays
  * runner-agnostic.

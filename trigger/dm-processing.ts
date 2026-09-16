@@ -14,7 +14,12 @@
  */
 
 import os from "node:os";
-import { schedules, task, type TaskRunContext } from "@trigger.dev/sdk";
+import {
+  AbortTaskRunError,
+  schedules,
+  task,
+  type TaskRunContext,
+} from "@trigger.dev/sdk";
 import {
   processComment,
   processFollowUp,
@@ -29,6 +34,7 @@ import {
   DM_TASK_RETRY,
   FOLLOWUP_TASK_ID,
   MESSAGE_TASK_ID,
+  PermanentJobFailureError,
   POSTBACK_TASK_ID,
   RECONCILE_TASK_ID,
   type ProcessCommentJob,
@@ -75,6 +81,26 @@ function toError(error: unknown): Error {
   return error instanceof Error ? error : new Error(String(error));
 }
 
+/**
+ * Run a handler, translating the domain's "do not retry" error into the
+ * runner's abort signal.
+ *
+ * The handlers throw `PermanentJobFailureError` for things a retry cannot fix
+ * (an expired messaging window, a missing token). Trigger.dev retries anything
+ * else, so without this a hopeless job would burn all three attempts — with
+ * backoff windows up to 45 minutes — and mail an alert for each one.
+ */
+async function runHandler(handler: () => Promise<void>): Promise<void> {
+  try {
+    await handler();
+  } catch (error) {
+    if (error instanceof PermanentJobFailureError) {
+      throw new AbortTaskRunError(error.message);
+    }
+    throw error;
+  }
+}
+
 // Every DM task shares the queue (so a burst can never exceed five concurrent
 // Meta sends) and the retry policy.
 const DM_TASK_OPTIONS = {
@@ -87,11 +113,13 @@ export const processCommentTask = task({
   ...DM_TASK_OPTIONS,
   run: async (payload: ProcessCommentJob, { ctx }) => {
     await touchRunnerHeartbeat(ctx);
-    await processComment({
-      data: payload,
-      id: ctx.run.id,
-      attemptsMade: attemptsMade(ctx),
-    });
+    await runHandler(() =>
+      processComment({
+        data: payload,
+        id: ctx.run.id,
+        attemptsMade: attemptsMade(ctx),
+      })
+    );
   },
   onFailure: async ({ payload, ctx, error }) => {
     await recordJobFailure(
@@ -111,11 +139,13 @@ export const processPostbackTask = task({
   ...DM_TASK_OPTIONS,
   run: async (payload: ProcessPostbackJob, { ctx }) => {
     await touchRunnerHeartbeat(ctx);
-    await processPostback({
-      data: payload,
-      id: ctx.run.id,
-      attemptsMade: attemptsMade(ctx),
-    });
+    await runHandler(() =>
+      processPostback({
+        data: payload,
+        id: ctx.run.id,
+        attemptsMade: attemptsMade(ctx),
+      })
+    );
   },
   onFailure: async ({ payload, ctx, error }) => {
     await recordJobFailure(
@@ -135,11 +165,13 @@ export const processFollowupTask = task({
   ...DM_TASK_OPTIONS,
   run: async (payload: ProcessFollowUpJob, { ctx }) => {
     await touchRunnerHeartbeat(ctx);
-    await processFollowUp({
-      data: payload,
-      id: ctx.run.id,
-      attemptsMade: attemptsMade(ctx),
-    });
+    await runHandler(() =>
+      processFollowUp({
+        data: payload,
+        id: ctx.run.id,
+        attemptsMade: attemptsMade(ctx),
+      })
+    );
   },
   onFailure: async ({ payload, ctx, error }) => {
     await recordJobFailure(
@@ -159,11 +191,13 @@ export const processMessageTask = task({
   ...DM_TASK_OPTIONS,
   run: async (payload: ProcessMessageJob, { ctx }) => {
     await touchRunnerHeartbeat(ctx);
-    await processMessage({
-      data: payload,
-      id: ctx.run.id,
-      attemptsMade: attemptsMade(ctx),
-    });
+    await runHandler(() =>
+      processMessage({
+        data: payload,
+        id: ctx.run.id,
+        attemptsMade: attemptsMade(ctx),
+      })
+    );
   },
   onFailure: async ({ payload, ctx, error }) => {
     await recordJobFailure(

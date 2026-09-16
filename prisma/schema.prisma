@@ -402,6 +402,23 @@ model OperationalEvent {
   @@index([workspaceId, source, level, createdAt])
 }
 
+/// Instagram's 24-hour messaging window, one row per (account, user).
+///
+/// Meta only allows sending within 24 hours of the user's last inbound message
+/// or button tap, so scheduled follow-ups check this before sending. The stored
+/// time only ever moves forward, and the row is pruned once it is older than
+/// the window (the daily snapshot-cleanup cron does that).
+model MessagingInteraction {
+  instagramAccountId String
+  userId             String
+  /// Meta's event time for the user's latest inbound message or button tap.
+  respondedAt        DateTime
+  updatedAt          DateTime @updatedAt
+
+  @@id([instagramAccountId, userId])
+  @@index([respondedAt])
+}
+
 /// Fixed-window counters, formerly Redis keys.
 ///
 /// One row per logical counter; the key encodes the scope — `dm:<instagramId>`

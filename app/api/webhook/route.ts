@@ -9,11 +9,13 @@ import {
 import {
   parseCommentEvents,
   parseMessageEvents,
+  parseMessagingInteractions,
   parsePostbackEvents,
   parseReadEvents,
   verifyWebhookSignature,
 } from "@/lib/meta/webhook";
 import { Prisma } from "@/app/generated/prisma/client";
+import { recordMessagingInteraction } from "@/lib/meta/messaging-window";
 
 const OPENING_DM_READ_FALLBACK_DELAY_MS = 5 * 60 * 1000;
 
@@ -108,6 +110,13 @@ export async function POST(request: NextRequest) {
   });
 
   try {
+    // Store eligibility before enqueuing: a zero-delay follow-up may run as
+    // soon as the reveal is delivered. Include attachment-only responses too.
+    for (const event of parseMessagingInteractions(
+      payload as Parameters<typeof parseMessagingInteractions>[0]
+    )) {
+      await recordMessagingInteraction(event.instagramAccountId, event.userId, event.timestamp);
+    }
     const commentEvents = parseCommentEvents(
       payload as Parameters<typeof parseCommentEvents>[0]
     );

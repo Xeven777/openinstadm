@@ -363,7 +363,9 @@ Meta apps in Development mode only allow authorized test accounts to connect.
    - **Callback URL**: `<YOUR-TUNNEL-URL>/api/webhook`
    - **Verify Token**: Paste the `WEBHOOK_VERIFY_TOKEN` you generated in Step 1.
    - Click **Verify and Save**.
-   - Under Subscription Fields, click **Subscribe** next to **`comments`** and **`messages`**.
+   - Under Subscription Fields, click **Subscribe** next to **`comments`**, **`messages`**, and **`messaging_postbacks`**. The last field delivers button taps, including “I'm following”.
+   - Existing connected accounts also need the account-level subscription updated. From the configured project, run `node --import tsx scripts/repair-instagram-webhooks.ts` to inspect subscriptions, then add `--apply` to repair them. The script preserves existing fields and verifies the result.
+   - Deploy the web app before the updated worker: the webhook records user message/button timestamps in Redis so the worker can verify the follow-up messaging window. Reading a DM or commenting does not open that window. Follow-ups with no recorded response, or less than one minute remaining, are logged as failed without sending. After deployment, older conversations need a fresh message or button tap to establish eligibility.
 
 ### 5. Go Live
 

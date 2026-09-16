@@ -1,5 +1,6 @@
 import {
   COMMENT_TASK_ID,
+  PermanentJobFailureError,
   type JobContext,
   type ProcessCommentJob,
   type ProcessFollowUpJob,
@@ -10,6 +11,8 @@ import { enqueueDMJob, enqueueFollowUpJob } from "./enqueue";
 import { prisma } from "@/lib/db/client";
 import {
   MetaApiError,
+  MessagingWindowClosedError,
+  PermissionError,
   RateLimitError,
   TokenExpiredError,
   getUserFollowStatus,
@@ -36,6 +39,7 @@ import {
 import { generateReply } from "@/lib/ai/client";
 import { checkAiBudget, consumeAiBudget } from "@/lib/ai/budget";
 import { getAIModel, isAIEnabled } from "@/lib/env";
+import { hasOpenMessagingWindow } from "@/lib/meta/messaging-window";
 
 function formatError(error: unknown): string {
   if (error instanceof MetaApiError) {
@@ -990,8 +994,8 @@ export async function processPostback(
 
 /**
  * Send the scheduled appreciation follow-up. Runs after its delay elapses.
- * Best-effort: if the message can't be delivered (e.g. the 24-hour messaging
- * window closed because the delay was long), it is logged, not retried forever.
+ * Persist delivery outcomes. Transient errors use the runner's bounded retries;
+ * permanent errors remain failed and visible without futile retries.
  */
 export async function processFollowUp(
   job: JobContext<ProcessFollowUpJob>
@@ -1007,20 +1011,51 @@ export async function processFollowUp(
     !automation ||
     !automation.followUpEnabled ||
     !automation.followUpMessage?.trim() ||
-    automation.instagramAccount.instagramId !== instagramAccountId ||
-    !automation.instagramAccount.accessToken
+    automation.instagramAccount.instagramId !== instagramAccountId
   ) {
     return;
   }
 
-  let accessToken: string;
-  try {
-    accessToken = decryptToken(automation.instagramAccount.accessToken);
-  } catch {
-    return;
-  }
+  const commentId = `followup:${job.id ?? `${automationId}_${userId}`}`;
+  const where = { automationId_commentId: { automationId, commentId } };
+  const existing = await prisma.dmLog.findUnique({ where });
+  if (existing?.status === "SENT") return;
+
+  await prisma.dmLog.upsert({
+    where,
+    create: {
+      workspaceId: automation.workspaceId,
+      automationId,
+      instagramAccountId: automation.instagramAccountId,
+      commenterId: userId,
+      commenterName,
+      commentText: "(follow-up)",
+      commentId,
+      status: "PENDING",
+      attempts: job.attemptsMade + 1,
+    },
+    update: { status: "PENDING", attempts: job.attemptsMade + 1, errorMessage: null },
+  });
 
   try {
+    if (!automation.instagramAccount.accessToken) {
+      throw new PermanentJobFailureError(
+        "Instagram account has no access token; reconnect the account"
+      );
+    }
+    let accessToken: string;
+    try {
+      accessToken = decryptToken(automation.instagramAccount.accessToken);
+    } catch {
+      throw new PermanentJobFailureError(
+        "Failed to decrypt Instagram access token; check the job runner's encryption key"
+      );
+    }
+    if (!(await hasOpenMessagingWindow(instagramAccountId, userId))) {
+      throw new PermanentJobFailureError(
+        "Follow-up not sent: no verified user response within Instagram's 24-hour messaging window"
+      );
+    }
     await sendDirectMessage(
       accessToken,
       automation.instagramAccount.instagramId,
@@ -1031,11 +1066,23 @@ export async function processFollowUp(
       })
     );
   } catch (error) {
-    console.log(
-      "[DM Worker] Failed to send follow-up message:",
-      formatError(error)
-    );
+    await prisma.dmLog.update({
+      where,
+      data: { status: "FAILED", errorMessage: formatError(error) },
+    });
+    if (
+      error instanceof MessagingWindowClosedError ||
+      error instanceof TokenExpiredError ||
+      error instanceof PermissionError
+    ) {
+      throw new PermanentJobFailureError(formatError(error));
+    }
+    throw error;
   }
+  await prisma.dmLog.update({
+    where,
+    data: { status: "SENT", dmSentAt: new Date(), errorMessage: null },
+  });
 }
 
 /**
