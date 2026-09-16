@@ -33,7 +33,7 @@ This checklist tracks all ongoing bugs, optimizations, setup items, and new feat
 - [ ] **Add Missing Database Indexes**: Update [`prisma/schema.prisma`](/prisma/schema.prisma) with composite indexes for `DmLog(commenterId, status)`, `WebhookEvent(createdAt, processedAt)`, and `OperationalEvent(workspaceId, createdAt)`.
 - [x] **Asynchronous Analytics Logging**: Offload `LinkClick` DB insertion in [`app/r/[slug]/route.ts`](/app/r/%5Bslug%5D/route.ts#L30) using Next.js `after()` or `waitUntil()`.
 - [x] **Batch Webhook DB Updates**: Consolidate repeated single-record updates for `webhookEvent.id` in [`app/api/webhook/route.ts`](/app/api/webhook/route.ts#L110).
-- [ ] **Tune BullMQ Memory Settings**: Adjust Redis completed/failed job retention counts in [`lib/queue/client.ts`](/lib/queue/client.ts#L83) to optimize Redis memory footprint.
+- [x] **Tune BullMQ Memory Settings**: obsolete — the BullMQ queue is gone. Run retention is configured in the Trigger.dev dashboard, and the retry policy lives in [`lib/jobs/types.ts`](/lib/jobs/types.ts).
 
 ### ⚡ Campaign Builder (new/edit page) performance — 2026-08-17
 
@@ -141,7 +141,7 @@ The earlier checklist above reflected the intended end state. A fresh code audit
 
 - [x] **Reduce Meta Graph API traffic sharply**: Long Postgres snapshot TTLs now prevent repeated Meta hits for profile, posts, and overview across navigation, refreshes, tabs, devices, and serverless instances.
 - [x] **Keep UI fast on repeat visits**: IndexedDB-persisted TanStack Query should paint cached client-island data immediately in the same browser.
-- [ ] **Keep production dependency footprint small**: Postgres remains the only durable cache dependency; Redis is still only needed for BullMQ queueing.
+- [x] **Keep production dependency footprint small**: done — Postgres is the only durable dependency. The queue moved to Trigger.dev and the counters/heartbeat moved into Postgres ([`lib/db/window-counter.ts`](/lib/db/window-counter.ts)), so Redis is no longer required at all.
 
 ---
 
@@ -280,8 +280,8 @@ When a user sends an inbound DM:
 # 1. Check if worker is running
 ps aux | grep dm-worker
 
-# 2. Check Redis queue depth
-npx bullmq-cli list dm-processing
+# 2. Check runner queue depth (Trigger.dev dashboard, or this CLI command)
+npx trigger.dev runs list --status QUEUED
 
 # 3. Query DmLog for recent entries
 psql -c "SELECT status, commentText, errorMessage, createdAt FROM dm_logs ORDER BY createdAt DESC LIMIT 20;"
@@ -372,7 +372,7 @@ No new webhook subscription needed for replies — just parser detection of `rep
 | `lib/queue/client.ts` | Add `source` field to `ProcessMessageJob` interface. |
 | `prisma/schema.prisma` | Add `storyReplyTriggerEnabled Boolean @default(false)` to `Automation`. Add `source DmSource @default(COMMENT)` column to `DmLog` with new `DmSource` enum (`COMMENT`, `DM`, `STORY_REPLY`, `POSTBACK`). |
 | `lib/queue/dm-worker.ts` | In `processMessage`: if `source === "STORY_REPLY"`, only match automations where `storyReplyTriggerEnabled === true`. If `source === "DM"`, only match `dmTriggerEnabled === true`. Pass `source` through to `DmLog`. |
-| `app/api/webhook/route.ts` | Pass `source` from parsed events into the BullMQ job data. |
+| `app/api/webhook/route.ts` | Pass `source` from parsed events into the job payload. |
 | `app/api/automations/route.ts` | Add `storyReplyTriggerEnabled` to create/update Zod schema. |
 | `components/campaign-builder.tsx` | Add toggle: "also reply when someone replies to your story". |
 | `components/campaign-detail.tsx` | Show story reply trigger status in summary. |

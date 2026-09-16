@@ -12,7 +12,7 @@ const {
   mockDecryptToken,
   mockMatchKeywords,
   mockReserveDMSlot,
-  mockQueueAdd,
+  mockEnqueueJob,
   mockReserveWorkspaceDMSend,
   mockReleaseWorkspaceDMReservation,
 } = vi.hoisted(() => ({
@@ -71,7 +71,7 @@ const {
   mockDecryptToken: vi.fn(),
   mockMatchKeywords: vi.fn(),
   mockReserveDMSlot: vi.fn(),
-  mockQueueAdd: vi.fn(),
+  mockEnqueueJob: vi.fn(),
   mockReserveWorkspaceDMSend: vi.fn(),
   mockReleaseWorkspaceDMReservation: vi.fn(),
 }));
@@ -127,34 +127,23 @@ vi.mock("@/lib/billing/usage", () => ({
   releaseWorkspaceDMReservation: mockReleaseWorkspaceDMReservation,
 }));
 
-vi.mock("@/lib/ops/worker-health", () => ({
-  recordWorkerAlert: vi.fn(),
+// The handlers trigger follow-ups and rate-limit retries through this module.
+// Every producer is mapped to one mock so a test can assert on any of them.
+vi.mock("@/lib/jobs/enqueue", () => ({
+  enqueueDMJob: mockEnqueueJob,
+  enqueueDMJobs: mockEnqueueJob,
+  enqueueCommentJob: mockEnqueueJob,
+  enqueuePostbackJob: mockEnqueueJob,
+  enqueueFollowUpJob: mockEnqueueJob,
+  enqueueMessageJob: mockEnqueueJob,
 }));
 
-vi.mock("@/lib/queue/client", () => ({
-  getDMQueue: () => ({
-    add: mockQueueAdd,
-  }),
-  getRedisConnection: vi.fn(),
-  POSTBACK_JOB_NAME: "process-postback",
-  FOLLOWUP_JOB_NAME: "process-followup",
-  MESSAGE_JOB_NAME: "process-message",
-}));
-
-vi.mock("bullmq", () => {
-  function MockWorker(_name: string, processor: unknown) {
-    (global as Record<string, unknown>).__dmWorkerProcessor = processor;
-    return {
-      on: vi.fn(),
-      close: vi.fn(),
-    };
-  }
-  return {
-    Worker: MockWorker,
-  };
-});
-
-import { createDMWorker } from "../lib/queue/dm-worker";
+import {
+  processComment,
+  processFollowUp,
+  processMessage,
+  processPostback,
+} from "../lib/jobs/dm-handlers";
 
 const usagePeriodStart = new Date("2026-05-01T00:00:00.000Z");
 
@@ -196,19 +185,41 @@ const mockJobData = {
   mediaId: "media_101",
 };
 
-function getProcessor(): (job: {
+type MockJob = {
   name?: string;
   data: typeof mockJobData | Record<string, unknown>;
   id: string;
   attemptsMade: number;
-}) => Promise<void> {
-  createDMWorker();
-  return (global as Record<string, unknown>).__dmWorkerProcessor as (job: {
-    name?: string;
-    data: typeof mockJobData | Record<string, unknown>;
-    id: string;
-    attemptsMade: number;
-  }) => Promise<void>;
+};
+
+/**
+ * Dispatch a mock job to the handler the matching Trigger.dev task runs.
+ *
+ * The handlers used to be reached through `createDMWorker()`'s BullMQ
+ * processor; they are exported directly now, so the tests call them and only
+ * the dispatch-by-name glue is simulated here.
+ */
+function getProcessor(): (job: MockJob) => Promise<void> {
+  return async (mockJob: MockJob) => {
+    // The mock data is deliberately loose; each case asserts the shape the
+    // handler expects by construction.
+    const context = {
+      data: mockJob.data,
+      id: mockJob.id,
+      attemptsMade: mockJob.attemptsMade,
+    } as unknown as Parameters<typeof processComment>[0];
+
+    switch (mockJob.name) {
+      case "process-postback":
+        return processPostback(context as unknown as Parameters<typeof processPostback>[0]);
+      case "process-followup":
+        return processFollowUp(context as unknown as Parameters<typeof processFollowUp>[0]);
+      case "process-message":
+        return processMessage(context as unknown as Parameters<typeof processMessage>[0]);
+      default:
+        return processComment(context);
+    }
+  };
 }
 
 function createMockJob(data = mockJobData) {
@@ -442,17 +453,17 @@ describe("DM Worker — Full Pipeline", () => {
       usagePeriodStart
     );
     expect(mockSendPrivateReply).not.toHaveBeenCalled();
-    expect(mockQueueAdd).toHaveBeenCalledWith(
-      "process-comment",
-      expect.objectContaining({
+    expect(mockEnqueueJob).toHaveBeenCalledWith({
+      task: "process-comment",
+      data: expect.objectContaining({
         commentId: "comment_555",
         requeueAttempt: 1,
       }),
-      expect.objectContaining({
-        delay: 1800000,
-        jobId: "comment_ig_456_comment_555_retry_1",
-      })
-    );
+      options: expect.objectContaining({
+        delayMs: 1800000,
+        idempotencyKey: "comment_ig_456_comment_555_retry_1",
+      }),
+    });
   });
 
   it("should skip with SKIPPED_RATE_LIMIT after max requeue attempts", async () => {

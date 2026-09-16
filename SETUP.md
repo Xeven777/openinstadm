@@ -16,8 +16,9 @@ Before we start, you will need:
 1. **An Instagram Business or Creator Account**: Personal accounts do not support the API. You can switch for free in Instagram's settings under **Settings** → **Account type**.
 2. **A Facebook Account**: Meta's developer platform requires a Facebook account.
 3. **A Resend Account**: Go to [Resend.com](https://resend.com) to create a free account. This is required to send login emails (magic links).
-4. **PostgreSQL & Redis** (one of): Docker Desktop, a local install, or a free cloud account (Neon/Supabase + Upstash). Docker is **optional** — see Step 2.
-5. **Node.js** (v18 or higher) installed on your machine.
+4. **PostgreSQL** (one of): Docker Desktop, a local install, or a free cloud account (Neon/Supabase). Docker is **optional** — see Step 2.
+5. **A Trigger.dev account** ([trigger.dev](https://trigger.dev)): the free tier runs the background jobs that send the DMs. Nothing is sent until the job runner exists.
+6. **Node.js** (v18 or higher) installed on your machine.
 
 ---
 
@@ -59,28 +60,25 @@ openssl rand -hex 16
 
    Open the `.env` file in your text editor and fill in the values generated in Step 1.
 
-3. **Start PostgreSQL & Redis (Datastores)**:
+3. **Start PostgreSQL (the only datastore)**:
 
-   Docker is not required. Pick **one** option per datastore — either run Postgres/Redis **locally**, or use a **free cloud** service.
+   Docker is not required. Pick **one** option — run Postgres **locally**, or use a **free cloud** service. There is no Redis and no queue service to set up: the job queue runs on Trigger.dev and every counter the app needs lives in Postgres.
 
    ### Option A — Local install (no Docker)
 
-   Install PostgreSQL and Redis directly on your machine:
+   Install PostgreSQL directly on your machine:
 
-   - **macOS**: `brew install postgresql@16 redis`
-   - **Ubuntu/Debian**: `sudo apt install postgresql redis-server`
-   - **Windows**: Installers from [postgresql.org](https://www.postgresql.org/download/) and [redis.io](https://redis.io/docs/latest/operate/oss_and_stack/install/install-redis/).
+   - **macOS**: `brew install postgresql@16`
+   - **Ubuntu/Debian**: `sudo apt install postgresql`
+   - **Windows**: Installer from [postgresql.org](https://www.postgresql.org/download/).
 
-   Then start them:
+   Then start it:
 
    ```bash
    # Postgres (macOS via brew)
    brew services start postgresql@16
    # Postgres (Debian/Ubuntu)
    sudo systemctl start postgresql
-
-   # Redis (either platform)
-   redis-server --daemonize yes
    ```
 
    Create the database and a user matching `.env.example`:
@@ -94,12 +92,11 @@ openssl rand -hex 16
 
    ```env
    DATABASE_URL=postgresql://postgres:postgres@localhost:5432/openinstadm
-   REDIS_URL=redis://localhost:6379
    ```
 
    > On Debian/Ubuntu the default Postgres user is `postgres`, but `pg_isready`/`psql` need `sudo -u postgres`. If the password fails, run `sudo -u postgres psql -c "ALTER USER postgres PASSWORD 'postgres';"`.
 
-   ### Option B — Free cloud Postgres + Redis (no local setup, no Docker)
+   ### Option B — Free cloud Postgres (no local setup, no Docker)
 
    The free tiers below are plenty for local development:
 
@@ -107,23 +104,19 @@ openssl rand -hex 16
    | ------- | ----------------- | --------- |
    | [Neon](https://neon.tech) | Serverless Postgres | 0.5 GB storage, branch-based DB |
    | [Supabase](https://supabase.com) | Postgres + connection pooling | 500 MB, always free |
-   | [Aiven](https://aiven.io) | Postgres or Redis | Small free nodes per service |
-   | [Upstash](https://upstash.com) | Redis (serverless) | 10k commands/day, always free |
 
-   1. Sign up, create an instance, and copy the connection string for each.
+   1. Sign up, create an instance, and copy the connection string.
    - **Neon/Supabase**: gives a `postgresql://...` URL → paste into `DATABASE_URL`.
-   - **Upstash/Aiven Redis**: gives a `rediss://...` URL → paste into `REDIS_URL`.
 
    2. Update `.env`:
 
    ```env
    DATABASE_URL=postgresql://user:password@your-neon-host/dbname?sslmode=require
-   REDIS_URL=rediss://user:password@your-upstash-host:6379
    ```
 
    > **Tip**: Prefer the pooler/connection-URL, not the direct one, on Supabase/Neon — Prisma handles pooled connections much better. Make sure the `sslmode=require` (or `?ssl=true` for Supabase) param is present, or Prisma will refuse to connect.
 
-   Docker alternative (if you ever want it): `infra/docker/docker-compose.yml` provides the exact same Postgres (port `5432`) and Redis (port `6379`) for consistent local dev. Run it from the repository root with the `-f infra/docker/docker-compose.yml` option. See the "To reset everything" snippet below.
+   Docker alternative (if you ever want it): `infra/docker/docker-compose.yml` provides the exact same Postgres (port `5432`) for consistent local dev. Run it from the repository root with the `-f infra/docker/docker-compose.yml` option. See the "To reset everything" snippet below.
 
 4. **Initialize the Database**:
    Run the following commands to create the tables in your database:
@@ -143,7 +136,7 @@ openssl rand -hex 16
    npm run db:generate && npm run db:migrate
    ```
 
-   No Docker? Reset your local Postgres/Redis by dropping the database and re-creating it:
+   No Docker? Reset your local Postgres by dropping the database and re-creating it:
 
    ```bash
    dropdb openinstadm && createdb openinstadm
@@ -391,41 +384,53 @@ npm run dev
 
 This runs the web interface on `http://localhost:3000` (which your tunnel from Step 3 is routing to).
 
-### Terminal 2: Background Worker
+### Terminal 2: Background Job Runner
 
 ```bash
-npm run worker
+npm run trigger:dev
 ```
 
-This starts the background queue worker that processes the comments and DMs.
+This runs the Trigger.dev worker locally and executes the jobs the web app triggers — the DMs, button reveals, and the hourly comment sweep. `trigger:dev` reads your `.env`, so it sees the same `DATABASE_URL`, `ENCRYPTION_KEY`, and Instagram credentials as the app.
+
+> **Nothing is sent without it.** If comments arrive but no DM does, the runner is the first thing to check.
 
 ---
 
 ## ☁️ Step 6: Production Deployment
 
-For every production layout, the web app and worker must use the same Postgres database, the same Redis instance, and the exact same `ENCRYPTION_KEY`. The worker may use an internal Docker hostname for Redis while Vercel uses a public TLS hostname; those URLs can differ, but they must reach the same Redis instance.
+Every production layout uses the same Postgres database and the exact same `ENCRYPTION_KEY` in two places: whatever hosts the app, and wherever the jobs run. Choose one of these layouts:
 
-Choose one of these layouts:
+- **Vercel** (Free): For hosting the web app.
+- **Neon** (Free): For PostgreSQL.
+- **Trigger.dev** (Free): For the background jobs. This replaces the always-on worker host entirely — there is no Redis, no queue service, and no VM to keep alive.
 
-- **Vercel** (Free): For hosting the front-end web app.
-- **Railway** (Free/Hobby): For PostgreSQL, Redis, and the background worker.
-- **Vercel + Neon + VM Compose**: Vercel hosts the web app, Neon hosts Postgres, and a VM runs the published worker image plus Redis. This is documented below.
+### 1. Deploy the job runner (Trigger.dev)
 
-### 1. Railway Setup (Databases & Worker)
+1. Create a project at [trigger.dev](https://trigger.dev) and copy its **Project ref** (`proj_...`) and a **Secret key** (`tr_...`) from **Project settings → API keys**.
+2. Add the runner's environment variables in the Trigger.dev dashboard (**Environment Variables**). It needs everything the job code touches:
 
-1. Log in to [Railway.app](https://railway.app) and click **New Project**.
-2. Add **PostgreSQL** and **Redis** services.
-3. Import your GitHub repository to deploy the Worker.
-4. Under the Worker's Settings:
-   - Set **Build Command** to: `npm run db:generate`
-   - Set **Start Command** to: `npm run worker`
-5. Add all variables in the Worker's **Variables** tab (use Railway's internal database URLs, e.g., `postgres.railway.internal`).
+   | Variable | Why |
+   | --- | --- |
+   | `DATABASE_URL` | The same Neon pooled URL the app uses |
+   | `ENCRYPTION_KEY` | The identical 64-hex key, or every send fails to decrypt |
+   | `NEXTAUTH_URL` | DM links are built from it — a wrong value ships links to localhost |
+   | `INSTAGRAM_APP_ID`, `INSTAGRAM_APP_SECRET` | Instagram Login credentials |
+   | `AI_API_KEY`, `AI_PROVIDER`, `AI_MODEL`, `AI_BUDGET_PER_HOUR` | Only if AI replies are enabled |
+   | `META_GRAPH_API_VERSION` | Optional; defaults to `v26.0` |
+
+3. Deploy the tasks from your machine:
+
+   ```bash
+   TRIGGER_PROJECT_REF=proj_your_project_ref npm run trigger:deploy
+   ```
+
+   The tasks live in `trigger/` and are not part of the Next.js build, so this is a separate deploy from Vercel. Run it again whenever `trigger/`, `lib/jobs/`, or the code they import changes.
 
 ### 2. Vercel Setup (Web App)
 
 1. Import your GitHub repository into Vercel.
-2. In Vercel Project Settings, add all Environment Variables from your `.env`.
-   - ⚠️ Use Railway's **Public Proxy URLs** (e.g., `*.proxy.rlwy.net`) for `DATABASE_URL` and `REDIS_URL`.
+2. In Vercel Project Settings, add all Environment Variables from your `.env`, plus:
+   - `TRIGGER_SECRET_KEY` — without it the webhook cannot trigger a single job.
 3. Deploy the application.
 
 ### 3. Run Migrations on Production Database
@@ -433,12 +438,16 @@ Choose one of these layouts:
 Run this command from your local machine to configure the production database:
 
 ```bash
-DATABASE_URL="postgresql://postgres:password@your-railway-proxy.rlwy.net:5432/railway" npm run db:migrate
+DATABASE_URL="postgresql://user:password@your-neon-host/dbname?sslmode=require" npm run db:migrate
 ```
 
-### Option B — Vercel + Neon + VM Compose (Worker + Redis)
+### ⚠️ Removed layout: Vercel + Neon + VM Compose (Worker + Redis)
 
-This option is useful when the web app is deployed on Vercel, Postgres is hosted on Neon, and you want a long-running worker plus Redis on your own VM. It uses the public Docker Hub image:
+The steps below describe a **layout that no longer exists** and should not be followed. It ran the published worker container image next to a Redis container on a VM, with Vercel enqueuing BullMQ jobs into that Redis instance. That stack has been removed from the repository: jobs run on Trigger.dev, the queue no longer uses Redis, and the worker container, its image, and the Redis instance are gone. Use **Step 6.1 (Deploy the job runner)** instead — the runner needs the same `DATABASE_URL` and `ENCRYPTION_KEY`, and nothing else.
+
+> Kept in place only until this section is deleted outright. Do not provision Redis or run a worker container.
+
+The removed layout used the public Docker Hub image:
 
 ```text
 sounogh/openinstadm-worker:latest
@@ -700,9 +709,10 @@ sudo certbot renew --dry-run
 
 ### 3. Comments are logged, but DMs are not being sent
 
-- **Cause**: Your background worker is not running.
-- **Fix**: Check `https://<your-domain>/api/health` and verify `"worker": { "healthy": true }`. If it is `false`, start the worker using `npm run worker`.
+- **Cause**: The job runner is not executing the jobs.
+- **Fix**: Check `https://<your-domain>/api/health` and verify `"worker": { "healthy": true }` — that field now means "a DM job ran recently". If it is `false`, the runner is idle or unreachable: in development run `npm run trigger:dev`; in production confirm the tasks are deployed (`npm run trigger:deploy`) and that the runner environment has `DATABASE_URL` and `ENCRYPTION_KEY`.
+- **Also check**: `TRIGGER_SECRET_KEY` must be set where the web app runs. Without it the webhook cannot trigger anything, and the failed trigger is recorded as a `FAILED` `WebhookEvent`.
 
-### 4. Decryption errors in the worker
+### 4. Decryption errors in the job runner
 
-- **Cause**: The `ENCRYPTION_KEY` in your web app `.env` file does not match the `ENCRYPTION_KEY` set in your worker process. They must be completely identical.
+- **Cause**: The `ENCRYPTION_KEY` in your web app `.env` file does not match the `ENCRYPTION_KEY` set in the job runner's environment (Trigger.dev, or `.env` for `npm run trigger:dev`). They must be completely identical.

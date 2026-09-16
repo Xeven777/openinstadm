@@ -28,7 +28,7 @@ const faqs = [
   {
     question: "Is it really free? What's the catch?",
     answer:
-      "There is no catch. It's MIT-licensed open source with no billing layer, no seat limits, and no plan caps. The whole stack runs on free tiers: Vercel for the web app, Neon for Postgres, Redis Cloud for the queue, an Oracle Cloud always-free VM for the worker, and Resend for login emails.",
+      "There is no catch. It's MIT-licensed open source with no billing layer, no seat limits, and no plan caps. The whole stack runs on free tiers: Vercel for the web app, Neon for Postgres, Trigger.dev for the background jobs, and Resend for login emails.",
     icon: <BookOpenIcon weight="duotone" className="size-4" />,
   },
   {
@@ -40,13 +40,13 @@ const faqs = [
   {
     question: "What do I need to run it?",
     answer:
-      "A Meta developer app, a Resend account for login emails, and somewhere to host Postgres and Redis alongside the two processes. The Instagram account you connect has to be a Business or Creator account \u2014 personal accounts don't support the API. The code deploys in minutes; the Meta app setup is the part that takes real time, and the setup guide walks you through it.",
+      "A Meta developer app, a Resend account for login emails, and somewhere to host Postgres. The Instagram account you connect has to be a Business or Creator account \u2014 personal accounts don't support the API. The code deploys in minutes; the Meta app setup is the part that takes real time, and the setup guide walks you through it.",
     icon: <HardDrivesIcon weight="duotone" className="size-4" />,
   },
   {
-    question: "Why are there two processes to run?",
+    question: "Why is there a separate job runner?",
     answer:
-      "The web app serves the dashboard and receives webhooks; a separate background worker does the sending, because sends have to survive rate limits and retries \u2014 that's what BullMQ on Redis is for. Both share the same Postgres, Redis, and encryption key. If comments come in and no DM ever arrives, the worker is the first thing to check.",
+      "The web app serves the dashboard and receives webhooks; a background job runner does the sending, because sends have to survive rate limits, retries, and spikes. Jobs run on Trigger.dev, so there is no always-on host to keep alive \u2014 both the app and the runner share the same Postgres and encryption key. If comments come in and no DM ever arrives, the runner is the first thing to check.",
     icon: <QueueIcon weight="duotone" className="size-4" />,
   },
   {

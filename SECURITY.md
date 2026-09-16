@@ -29,7 +29,7 @@ The parts most worth scrutiny:
 
 Never commit any of these, and rotate one if it is exposed anywhere it could be logged:
 
-- `DATABASE_URL`, `REDIS_URL`
+- `DATABASE_URL`, `TRIGGER_SECRET_KEY`
 - `NEXTAUTH_SECRET`, `CRON_SECRET`, `ENCRYPTION_KEY`
 - `RESEND_API_KEY`
 - `INSTAGRAM_APP_SECRET`, `FACEBOOK_APP_SECRET`

@@ -16,9 +16,10 @@
  * handled comments. Each sweep is capped so it can never flood the comment API
  * (which Instagram rate-limits aggressively, error 368).
  *
- * It runs on an interval in the worker process because Vercel's free crons only
- * fire once a day. Matching and sending reuse the worker's processComment, so
- * rate limiting and logging behave exactly as for webhook-delivered comments.
+ * It runs on the job runner's hourly schedule because Vercel's free crons only
+ * fire once a day. Matching and sending reuse the same processComment handler
+ * the webhook path triggers, so rate limiting and logging behave exactly as for
+ * webhook-delivered comments.
  *
  * Known limitation, handled not fixed: comments removed by Instagram's Hidden
  * Words / spam filter may not be returned by the Graph API at all. Disable that
@@ -26,7 +27,7 @@
  */
 
 import { prisma } from "@/lib/db/client";
-import { getDMQueue } from "@/lib/queue/client";
+import { enqueueCommentJob } from "@/lib/jobs/enqueue";
 import {
   getRecentMediaComments,
   getUserMedia,
@@ -168,8 +169,6 @@ async function sweepCampaign(
   }
   if (mediaIds.length === 0) return stat;
 
-  const queue = getDMQueue();
-
   for (const mediaId of mediaIds) {
     let comments: InstagramComment[];
     try {
@@ -228,12 +227,12 @@ async function sweepCampaign(
       .slice(0, MAX_NEW_PER_SWEEP);
 
     for (const c of fresh) {
-      // No deterministic jobId here: a retained completed/failed job from an
-      // earlier sweep would otherwise be treated as a duplicate and silently
-      // drop this add, so the comment would never be retried. Dedup is handled
-      // above (owner-reply + DmLog guards) and the worker is idempotent
+      // No idempotency key here: keying the run would make a repeat sweep of an
+      // already-triggered comment collapse into the earlier run, so a comment
+      // that failed on the first attempt could never be retried. Dedup is
+      // handled above (owner-reply + DmLog guards) and the handler is idempotent
       // (publicReplySentAt / SENT), so re-processing a comment is safe.
-      await queue.add("process-comment", {
+      await enqueueCommentJob({
         instagramAccountId: account.instagramId,
         commentId: c.id,
         commentText: c.text ?? "",

@@ -29,7 +29,7 @@ What happened instead?
 - OS:
 - Node version:
 - Database:
-- Redis:
+- Job runner (local `trigger:dev` or deployed):
 - Browser:
 
 ## Logs Or Screenshots

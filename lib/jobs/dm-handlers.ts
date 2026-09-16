@@ -1,16 +1,12 @@
-import { Worker, type Job } from "bullmq";
 import {
-  getDMQueue,
-  getRedisConnection,
-  MESSAGE_JOB_NAME,
-  POSTBACK_JOB_NAME,
-  FOLLOWUP_JOB_NAME,
-  type DmQueueJob,
+  COMMENT_TASK_ID,
+  type JobContext,
   type ProcessCommentJob,
+  type ProcessFollowUpJob,
   type ProcessMessageJob,
   type ProcessPostbackJob,
-  type ProcessFollowUpJob,
-} from "./client";
+} from "./types";
+import { enqueueDMJob, enqueueFollowUpJob } from "./enqueue";
 import { prisma } from "@/lib/db/client";
 import {
   MetaApiError,
@@ -32,7 +28,6 @@ import {
   releaseWorkspaceDMReservation,
   reserveWorkspaceDMSend,
 } from "@/lib/billing/usage";
-import { recordWorkerAlert } from "@/lib/ops/worker-health";
 import {
   buildTrackedUrl,
   renderMessageWithTracking,
@@ -41,8 +36,6 @@ import {
 import { generateReply } from "@/lib/ai/client";
 import { checkAiBudget, consumeAiBudget } from "@/lib/ai/budget";
 import { getAIModel, isAIEnabled } from "@/lib/env";
-
-const BACKOFF_DELAYS = [5 * 60 * 1000, 15 * 60 * 1000, 45 * 60 * 1000];
 
 function formatError(error: unknown): string {
   if (error instanceof MetaApiError) {
@@ -191,7 +184,9 @@ async function sendRevealDirectMessage(
   }
 }
 
-async function processComment(job: Job<ProcessCommentJob>): Promise<void> {
+export async function processComment(
+  job: JobContext<ProcessCommentJob>
+): Promise<void> {
   console.log(`[DM Worker] === processComment JOB START ===`);
   console.log(`[DM Worker] Job ID: ${job.id}`);
   console.log(`[DM Worker] Attempt: ${job.attemptsMade}`);
@@ -573,17 +568,17 @@ async function processComment(job: Job<ProcessCommentJob>): Promise<void> {
           },
         });
 
-        await getDMQueue().add(
-          "process-comment",
-          {
+        await enqueueDMJob({
+          task: COMMENT_TASK_ID,
+          data: {
             ...job.data,
             requeueAttempt: requeueAttempt + 1,
           },
-          {
-            delay: rateLimit.requeueDelayMs,
-            jobId: `comment_${instagramAccountId}_${commentId}_retry_${requeueAttempt + 1}`,
-          }
-        );
+          options: {
+            delayMs: rateLimit.requeueDelayMs,
+            idempotencyKey: `comment_${instagramAccountId}_${commentId}_retry_${requeueAttempt + 1}`,
+          },
+        });
         continue;
       }
     }
@@ -735,8 +730,7 @@ async function processComment(job: Job<ProcessCommentJob>): Promise<void> {
       ) {
         const delayMs =
           Math.max(0, automation.followUpDelayMinutes ?? 0) * 60_000;
-        await getDMQueue().add(
-          FOLLOWUP_JOB_NAME,
+        await enqueueFollowUpJob(
           {
             instagramAccountId: automation.instagramAccount.instagramId,
             userId: commenterId,
@@ -744,8 +738,8 @@ async function processComment(job: Job<ProcessCommentJob>): Promise<void> {
             commenterName,
           },
           {
-            delay: delayMs,
-            jobId: `followup_${automation.id}_${commenterId}`,
+            delayMs,
+            idempotencyKey: `followup_${automation.id}_${commenterId}`,
           }
         );
       }
@@ -792,7 +786,9 @@ async function processComment(job: Job<ProcessCommentJob>): Promise<void> {
  * The postback payload is `reveal:<automationId>`; the sender is the user's
  * IGSID (same id as their comment author id), which we DM directly.
  */
-async function processPostback(job: Job<ProcessPostbackJob>): Promise<void> {
+export async function processPostback(
+  job: JobContext<ProcessPostbackJob>
+): Promise<void> {
   const { instagramAccountId, userId, payload, fallback } = job.data;
 
   const isFollowCheck = payload.startsWith("followcheck:");
@@ -923,8 +919,7 @@ async function processPostback(job: Job<ProcessPostbackJob>): Promise<void> {
     if (automation.followUpEnabled && automation.followUpMessage?.trim()) {
       const delayMs =
         Math.max(0, automation.followUpDelayMinutes ?? 0) * 60_000;
-      await getDMQueue().add(
-        FOLLOWUP_JOB_NAME,
+      await enqueueFollowUpJob(
         {
           instagramAccountId: automation.instagramAccount.instagramId,
           userId,
@@ -932,8 +927,8 @@ async function processPostback(job: Job<ProcessPostbackJob>): Promise<void> {
           commenterName,
         },
         {
-          delay: delayMs,
-          jobId: `followup_${automation.id}_${userId}`,
+          delayMs,
+          idempotencyKey: `followup_${automation.id}_${userId}`,
         }
       );
     }
@@ -998,7 +993,9 @@ async function processPostback(job: Job<ProcessPostbackJob>): Promise<void> {
  * Best-effort: if the message can't be delivered (e.g. the 24-hour messaging
  * window closed because the delay was long), it is logged, not retried forever.
  */
-async function processFollowUp(job: Job<ProcessFollowUpJob>): Promise<void> {
+export async function processFollowUp(
+  job: JobContext<ProcessFollowUpJob>
+): Promise<void> {
   const { instagramAccountId, userId, automationId, commenterName } = job.data;
 
   const automation = await prisma.automation.findFirst({
@@ -1049,7 +1046,9 @@ async function processFollowUp(job: Job<ProcessFollowUpJob>): Promise<void> {
  * comments) and delivers the reveal directly, honouring the follow gate.
  * Dedup is per inbound message id, so each message triggers at most one reply.
  */
-async function processMessage(job: Job<ProcessMessageJob>): Promise<void> {
+export async function processMessage(
+  job: JobContext<ProcessMessageJob>
+): Promise<void> {
   const { instagramAccountId, messageId, messageText, senderId } = job.data;
 
   console.log(`[DM Worker] processMessage START: account=${instagramAccountId}, messageId=${messageId}, senderId=${senderId}, text="${messageText.slice(0, 100)}"`);
@@ -1313,8 +1312,7 @@ async function processMessage(job: Job<ProcessMessageJob>): Promise<void> {
         // follow prompt — no link went out yet in that branch.
         if (automation.followUpEnabled && automation.followUpMessage?.trim()) {
           console.log(`[DM Worker] processMessage: scheduling follow-up for ${senderId}, delay=${automation.followUpDelayMinutes ?? 0}min`);
-          await getDMQueue().add(
-            FOLLOWUP_JOB_NAME,
+          await enqueueFollowUpJob(
             {
               instagramAccountId: automation.instagramAccount.instagramId,
               userId: senderId,
@@ -1322,8 +1320,8 @@ async function processMessage(job: Job<ProcessMessageJob>): Promise<void> {
               commenterName,
             },
             {
-              delay: Math.max(0, automation.followUpDelayMinutes ?? 0) * 60_000,
-              jobId: `followup_${automation.id}_${senderId}`,
+              delayMs: Math.max(0, automation.followUpDelayMinutes ?? 0) * 60_000,
+              idempotencyKey: `followup_${automation.id}_${senderId}`,
             }
           );
           console.log(`[DM Worker] processMessage: follow-up job scheduled successfully`);
@@ -1722,29 +1720,29 @@ async function sendInboxDM(opts: {
     });
     throw error;
   }
+}/**
+ * Record a terminal failure for one job run.
+ *
+ * The Trigger.dev tasks call this from their `onFailure` hook once the last
+ * attempt has failed. It replaces the BullMQ worker's "failed" event handler.
+ * This OperationalEvent row is also what the diagnostics page lists as a worker
+ * alert, so a failure is recorded once rather than in two places.
+ */
+export interface JobFailureContext {
+  taskId: string;
+  runId: string;
+  attemptsMade: number;
+  data: { instagramAccountId?: string; commentId?: string } | undefined;
 }
 
-async function processJob(job: Job<DmQueueJob>): Promise<void> {
-  if (job.name === POSTBACK_JOB_NAME) {
-    return processPostback(job as Job<ProcessPostbackJob>);
-  }
-  if (job.name === FOLLOWUP_JOB_NAME) {
-    return processFollowUp(job as Job<ProcessFollowUpJob>);
-  }
-  if (job.name === MESSAGE_JOB_NAME) {
-    return processMessage(job as Job<ProcessMessageJob>);
-  }
-  return processComment(job as Job<ProcessCommentJob>);
-}
-
-async function recordWorkerFailure(
-  job: Job<DmQueueJob> | undefined,
+export async function recordJobFailure(
+  failure: JobFailureContext,
   error: Error
-) {
+): Promise<void> {
+  const instagramAccountId = failure.data?.instagramAccountId;
+  const commentId = failure.data?.commentId ?? null;
+
   try {
-    const instagramAccountId = job?.data.instagramAccountId;
-    const commentId =
-      job && "commentId" in job.data ? job.data.commentId : null;
     const account = instagramAccountId
       ? await prisma.instagramAccount.findUnique({
           where: { instagramId: instagramAccountId },
@@ -1757,78 +1755,22 @@ async function recordWorkerFailure(
         workspaceId: account?.workspaceId ?? null,
         source: "WORKER",
         level: "ERROR",
-        message: `DM worker job ${job?.id ?? "unknown"} failed: ${error.message}`,
+        message: `DM job ${failure.taskId} (${failure.runId}) failed: ${error.message}`,
         payload: {
-          jobId: job?.id ?? null,
-          attemptsMade: job?.attemptsMade ?? null,
+          taskId: failure.taskId,
+          runId: failure.runId,
+          attemptsMade: failure.attemptsMade,
           instagramAccountId: instagramAccountId ?? null,
           commentId,
         },
       },
     });
-
-    await recordWorkerAlert({
-      level: "error",
-      message: error.message,
-      jobId: job?.id,
-      instagramAccountId,
-      commentId: commentId ?? undefined,
-    });
   } catch (recordError) {
     console.error(
-      "[DM Worker] Failed to record worker failure:",
+      "[DM Worker] Failed to record job failure:",
       formatError(recordError)
     );
   }
 }
 
-export function createDMWorker(): Worker<DmQueueJob> {
-  const worker = new Worker<DmQueueJob>(
-    "dm-processing",
-    processJob,
-    {
-      connection: getRedisConnection(),
-      concurrency: 5,
-      drainDelay: 10,
-      stalledInterval: 120000,
-      settings: {
-        backoffStrategy: (attemptsMade: number) =>
-          BACKOFF_DELAYS[Math.min(attemptsMade - 1, BACKOFF_DELAYS.length - 1)],
-      },
-    }
-  );
-
-  worker.on("completed", (job) => {
-    console.log(`[DM Worker] Job ${job.id} completed`);
-  });
-
-  worker.on("failed", (job, err) => {
-    console.error(
-      `[DM Worker] Job ${job?.id} failed (attempt ${job?.attemptsMade}):`,
-      err.message
-    );
-    void recordWorkerFailure(job, err);
-  });
-
-  worker.on("error", (err) => {
-    console.error("[DM Worker] Worker error:", err.message);
-    void prisma.operationalEvent
-      .create({
-        data: {
-          source: "WORKER",
-          level: "ERROR",
-          message: `DM worker process error: ${err.message}`,
-          payload: { name: err.name },
-        },
-      })
-      .catch((recordError) => {
-        console.error(
-          "[DM Worker] Failed to record worker process error:",
-          formatError(recordError)
-        );
-      });
-  });
-
-  return worker;
-}
 

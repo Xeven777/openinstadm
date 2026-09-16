@@ -11,14 +11,16 @@ function createPrismaClient() {
     throw new Error("DATABASE_URL environment variable is required");
   }
 
-  // Worker has a single serial reconciler + at most 5 concurrent jobs, so it
-  // needs far fewer connections than the web dashboard. Small pools + a fast
-  // idle drain let Neon pooled actually suspend between polls instead of
-  // holding warm connections at 0.02 CU. Trade-off: the dashboard stats
-  // aggregation fires ~16 queries in parallel, so a pool of 5 runs them in
-  // ~4 waves — a few hundred ms slower on cold loads, in exchange for much
-  // shorter Neon wake windows.
-  const isWorker = process.env.WORKER === "true" || process.env.ROLE === "worker";
+  // The job runner (set `WORKER=true` in its environment) handles at most 5
+  // concurrent jobs plus the hourly reconciliation sweep, so it needs far fewer
+  // connections than the web dashboard. Small pools + a fast idle drain let
+  // Neon pooled actually suspend between jobs instead of holding warm
+  // connections at 0.02 CU. Trade-off: the dashboard stats aggregation fires
+  // ~16 queries in parallel, so a pool of 5 runs them in ~4 waves — a few
+  // hundred ms slower on cold loads, in exchange for much shorter Neon wake
+  // windows.
+  const isWorker =
+    process.env.WORKER === "true" || process.env.ROLE === "worker";
   const poolMax = isWorker ? 2 : 5;
   const idleTimeoutMillis = 5_000;
 

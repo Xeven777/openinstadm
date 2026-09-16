@@ -29,12 +29,13 @@ import {
 /**
  * Diagnostics Page (Server Component)
  *
- * Queries Redis queue counts + Postgres failure tables directly on every render
- * — no client fetch, no JSON round-trip. The only client island is the Refresh
- * button, which re-runs this component server-side via router.refresh().
+ * Queries runner queue counts and the Postgres failure tables directly on every
+ * render — no client fetch, no JSON round-trip. The only client island is the
+ * Refresh button, which re-runs this component server-side via
+ * router.refresh().
  *
- * Rendered as two Suspense regions so the fast Redis reads (queue counts,
- * worker health, worker alerts) paint immediately while the Postgres failure
+ * Rendered as two Suspense regions so the fast reads (runner counts, job
+ * activity, worker alerts) paint immediately while the heavier Postgres failure
  * tables stream in behind them.
  */
 
@@ -166,11 +167,11 @@ async function DiagnosticsOverview() {
 
   const {
     queueCounts,
+    runnerAvailable,
+    runnerError,
     workerHealth,
     workerAlerts,
-    redisAvailable,
-  } =
-    await getDiagnosticsOverview();
+  } = await getDiagnosticsOverview();
 
   const healthy = workerHealth.healthy;
   const workerAgeSeconds =
@@ -184,7 +185,7 @@ async function DiagnosticsOverview() {
           <CardContent className="gap-1.5">
             <div className="flex items-center justify-between gap-2">
               <p className="truncate text-sm text-muted-foreground">
-                Worker health
+                Runner health
               </p>
               <span
                 className={cn(
@@ -203,18 +204,12 @@ async function DiagnosticsOverview() {
                 healthy ? "text-success" : "text-warning",
               )}
             >
-              {!redisAvailable
-                ? "Redis unavailable"
-                : healthy
-                  ? "Healthy"
-                  : "Needs attention"}
+              {healthy ? "Healthy" : "Needs attention"}
             </p>
             <p className="text-xs text-muted-foreground">
-              {!redisAvailable
-                ? "Queue and heartbeat checks are unavailable"
-                : workerAgeSeconds == null
-                ? "No heartbeat found"
-                : `Last heartbeat ${workerAgeSeconds}s ago`}
+              {workerAgeSeconds == null
+                ? "No job activity recorded yet"
+                : `Last job ran ${workerAgeSeconds}s ago`}
             </p>
           </CardContent>
         </Card>
@@ -223,7 +218,7 @@ async function DiagnosticsOverview() {
             <CardContent className="gap-1.5">
               <div className="flex items-center justify-between gap-2">
                 <p className="truncate text-sm text-muted-foreground">
-                  Queue {label.toLowerCase()}
+                  Jobs {label.toLowerCase()}
                 </p>
                 <span className="flex size-7 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
                   <Icon className="size-4" />
@@ -236,6 +231,12 @@ async function DiagnosticsOverview() {
           </Card>
         ))}
       </div>
+
+      {!runnerAvailable ? (
+        <p className="text-xs text-muted-foreground">
+          {runnerError ?? "Run counts are unavailable."}
+        </p>
+      ) : null}
 
       <Section title="Recent Worker Alerts" icon={BellRinging}>
         {workerAlerts.length ? (

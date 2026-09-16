@@ -1,18 +1,19 @@
 import { prisma } from "@/lib/db/client";
 import {
-  getDMQueueForDiagnostics,
-  withDiagnosticsRedisConnection,
-} from "@/lib/queue/client";
+  getRunnerQueueCounts,
+  isRunnerConfigured,
+  type RunnerQueueCounts,
+} from "@/lib/jobs/runner-stats";
 import { getWorkerAlerts, getWorkerHealth } from "@/lib/ops/worker-health";
 
 /**
  * Shared server-side queries for the production diagnostics page.
  *
- * The page is split into two Suspense regions so the fast Redis reads (queue
- * counts, worker health, worker alerts) paint before the slower Postgres
+ * The page is split into two Suspense regions so the fast reads (runner queue
+ * counts, job activity, worker alerts) paint before the slower Postgres
  * sections stream in:
  *
- *   - getDiagnosticsOverview() — Redis only (no DB round-trip)
+ *   - getDiagnosticsOverview() — runner API + two small Postgres reads
  *   - getDiagnosticsSections() — Postgres failure tables
  *   - getDiagnosticsData()     — both combined, for the admin API route
  *
@@ -20,41 +21,44 @@ import { getWorkerAlerts, getWorkerHealth } from "@/lib/ops/worker-health";
  * strings).
  */
 
-export async function getDiagnosticsOverview() {
-  try {
-    return await withDiagnosticsRedisConnection(async (redis) => {
-      const queue = getDMQueueForDiagnostics(redis);
+export interface DiagnosticsOverview {
+  queueCounts: RunnerQueueCounts | null;
+  runnerAvailable: boolean;
+  runnerError: string | null;
+  workerHealth: Awaited<ReturnType<typeof getWorkerHealth>>;
+  workerAlerts: Awaited<ReturnType<typeof getWorkerAlerts>>;
+}
 
-      try {
-        const [queueCounts, workerHealth, workerAlerts] = await Promise.all([
-          queue.getJobCounts("waiting", "active", "delayed", "failed"),
-          getWorkerHealth(redis),
-          getWorkerAlerts(10, redis),
-        ]);
-
+export async function getDiagnosticsOverview(): Promise<DiagnosticsOverview> {
+  // The runner API is the one source that is external to this app, so it is the
+  // only one that degrades instead of failing: an outage there should show as
+  // unavailable tiles, not as a broken diagnostics page. The two Postgres reads
+  // are left to fail loudly — if the database is down, the rest of the page is
+  // gone anyway.
+  const [runner, workerHealth, workerAlerts] = await Promise.all([
+    getRunnerQueueCounts().then(
+      (counts) => ({ counts, error: null as string | null }),
+      (error: unknown) => {
+        console.error("[Diagnostics] Runner check failed", error);
         return {
-          queueCounts,
-          workerHealth,
-          workerAlerts,
-          redisAvailable: true,
-          redisError: null,
+          counts: null,
+          error: isRunnerConfigured()
+            ? "The job runner is unreachable."
+            : "TRIGGER_SECRET_KEY is not set, so run counts are unavailable.",
         };
-      } finally {
-        await queue.close();
       }
-    });
-  } catch (error) {
-    // The Diagnostics page is an operational aid. Redis outages should be
-    // visible in the page rather than leaving its Suspense fallback on screen.
-    console.error("[Diagnostics] Redis check failed", error);
-    return {
-      queueCounts: null,
-      workerHealth: { healthy: false, heartbeat: null, ageMs: null },
-      workerAlerts: [],
-      redisAvailable: false,
-      redisError: "Redis is unavailable.",
-    };
-  }
+    ),
+    getWorkerHealth(),
+    getWorkerAlerts(10),
+  ]);
+
+  return {
+    queueCounts: runner.counts,
+    runnerAvailable: runner.counts !== null,
+    runnerError: runner.error,
+    workerHealth,
+    workerAlerts,
+  };
 }
 
 export async function getDiagnosticsSections(workspaceId: string) {

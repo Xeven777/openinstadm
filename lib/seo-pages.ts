@@ -197,7 +197,7 @@ export const linkdmAlternativePage: SeoPageConfig = {
     },
     {
       title: "Own your stack",
-      body: "Self-host with no seat limits or opaque AI markups. Your Postgres, your Redis, your encryption key. Hosted SaaS also available if you prefer managed.",
+      body: "Self-host with no seat limits or opaque AI markups. Your Postgres, your job runner, your encryption key. Hosted SaaS also available if you prefer managed.",
     },
     {
       title: "Prove the click",
@@ -254,11 +254,11 @@ export const chatfuelAlternativePage: SeoPageConfig = {
     },
     {
       title: "Reliable delivery",
-      body: "BullMQ queues, deduplication, rate-limit awareness, and webhook + polling reconciliation so spikes don't drop comments.",
+      body: "Durable background jobs, deduplication, rate-limit awareness, and webhook + polling reconciliation so spikes don't drop comments.",
     },
     {
       title: "Open & auditable",
-      body: "MIT-licensed core. Inspect the queue, worker, Meta client, and encryption. Self-host or use the hosted version.",
+      body: "MIT-licensed core. Inspect the job runner, handlers, Meta client, and encryption. Self-host or use the hosted version.",
     },
   ],
   comparisonTitle: "OpenInstaDM vs Chatfuel",

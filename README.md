@@ -30,14 +30,14 @@
 ![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript&logoColor=white)
 ![Prisma](https://img.shields.io/badge/Prisma-7-2D3748?logo=prisma&logoColor=white)
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-4169E1?logo=postgresql&logoColor=white)
-![Redis](https://img.shields.io/badge/Redis-BullMQ-DC382D?logo=redis&logoColor=white)
+![Jobs](https://img.shields.io/badge/Jobs-Trigger.dev-475569?logo=lightning&logoColor=white)
 ![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-4-38B2AC?logo=tailwindcss&logoColor=white)
 ![Auth.js](https://img.shields.io/badge/Auth.js-5-black)
 ![Meta API](https://img.shields.io/badge/Meta_Graph_API-0064E0?logo=meta&logoColor=white)
 
 <br>
 
-**Keywords:** `instagram-automation` · `comment-to-dm` · `manychat-alternative` · `meta-api` · `instagram-dm-bot` · `bullmq` · `nextjs` · `self-hosted`
+**Keywords:** `instagram-automation` · `comment-to-dm` · `manychat-alternative` · `meta-api` · `instagram-dm-bot` · `trigger.dev` · `nextjs` · `self-hosted`
 
 [Documentation](SETUP.md) · [Tech Stack](docs/stack.md) · [Contributing](CONTRIBUTING.md) · [Report a Bug](https://github.com/Xeven777/openinstadm/issues)
 
@@ -103,10 +103,10 @@ OpenInstaDM is built around Meta's official Instagram private replies. It does *
 [Meta Webhook POST] ──►  app/api/webhook/route.ts   (verifies HMAC-SHA256 signature)
                                   │
                                   ▼
-                        Enqueue BullMQ job ──►  worker/dm-worker.ts
+                     Trigger DM job ──►  trigger/dm-processing.ts
                                   │                      │
                                   ▼                      ▼
-                        lib/queue/dm-worker.ts    lib/meta/client.ts
+                        lib/jobs/dm-handlers.ts    lib/meta/client.ts
                                   │                      │
             ┌─────────────────────┼──────────────────────┘
             ▼                     ▼                      ▼
@@ -120,17 +120,17 @@ OpenInstaDM is built around Meta's official Instagram private replies. It does *
 1. Someone comments on your Instagram post or reel.
 2. Meta sends a webhook to your OpenInstaDM instance.
 3. OpenInstaDM checks the comment against your active campaigns.
-4. On a keyword match, it queues a job.
-5. A background worker sends the private reply — and the public reply, if you enabled one.
+4. On a keyword match, it hands the work to the background job runner.
+5. The runner sends the private reply — and the public reply, if you enabled one.
 
-The web app receives the webhook and serves the dashboard. A **separate worker process** does the sending, because the send has to survive rate limits and retries. Both talk to the same Postgres and Redis.
+The web app receives the webhook and serves the dashboard, but never sends a DM itself. Sending happens on **Trigger.dev**, a managed background-job runner, so retries, backoff, and concurrency are handled without an always-on host to babysit. Both sides share one Postgres database and the same encryption key — all state, including the rate-limit counters, lives there.
 
 ---
 
 ## Quick start
 
 > [!IMPORTANT]
-> You need a few free accounts before anything works: a **Meta developer app**, a **Resend** account for login emails, and somewhere to host (Vercel for the web app, Railway for the worker plus Postgres and Redis). The Instagram account you connect **must** be a Business or Creator account, not a personal one.
+> You need a few free accounts before anything works: a **Meta developer app**, a **Resend** account for login emails, and somewhere to host (Vercel for the web app, Neon for Postgres, and Trigger.dev — free tier — for the job runner). The Instagram account you connect **must** be a Business or Creator account, not a personal one.
 
 The honest version: the code deploys in minutes, but the Meta app setup is the part that takes real time. Read [SETUP.md](SETUP.md) before you start. It is the single setup guide — covering hosting, your domain, the environment, and every Meta wrong turn so you do not have to find them yourself.
 
@@ -145,19 +145,15 @@ git clone https://github.com/Xeven777/openinstadm.git
 cd openinstadm
 npm install
 cp .env.example .env      # then fill in the values, see SETUP.md
-docker compose -f infra/docker/docker-compose.yml up -d  # starts Postgres and Redis
+docker compose -f infra/docker/docker-compose.yml up -d  # starts Postgres
 npm run db:migrate
 npm run dev               # web app on http://localhost:3000
-npm run worker            # in a second terminal, this sends the DMs
+npm run trigger:dev       # in a second terminal, this executes the jobs
 ```
-### Run the published worker image in a vm
-
-The public worker image is available as 'sounogh/openinstadm-worker'. It can be run alongside a Redis and Postgres container in Docker Compose on a VM while the web app is hosted on a seperate client. 
-
-Note: As the worker and client must connect to the same Redis and Postgres container,the VM hosting the Docker Compose will require a public External IP address,a DNS,TLS and secure connection to the client.
+For production, deploy the tasks with `npm run trigger:deploy` — they live in `trigger/` and are not part of the Next.js build.
 
 > [!WARNING]
-> **Two processes, always.** `npm run dev` serves the app and receives webhooks. `npm run worker` is what actually sends the messages. If comments come in and no DM ever arrives, the worker is the first thing to check.
+> **The app triggers jobs; the runner executes them.** `npm run dev` serves the app and receives webhooks. `npm run trigger:dev` (locally) or a Trigger.dev deployment (production) is what actually sends the messages. If comments come in and no DM ever arrives, check the runner first — and make sure `TRIGGER_SECRET_KEY` is set where the app runs, or nothing can be triggered at all.
 
 Full environment variables and the production layout are in [SETUP.md](SETUP.md).
 
@@ -173,12 +169,12 @@ If you use Claude Code, Cursor, or a similar tool, the Meta setup is a lot faste
 
 - **Next.js 16** and **React 19** for the web app and API routes
 - **Prisma 7** with **PostgreSQL**
-- **BullMQ** on **Redis** for the send queue and the worker
+- **Trigger.dev** for the send queue, retries, and the scheduled comment sweep
 - **Auth.js (NextAuth)** with email magic links through **Resend**
 - **Tailwind CSS** for the interface
 - The official **Instagram API** with Instagram Login
 
-For the complete stack — application libraries, the two runtime processes, and the free services this runs on (Vercel, Neon, Redis Cloud, an Oracle Cloud always-free VM for the worker, Resend, Meta) — see [docs/stack.md](docs/stack.md).
+For the complete stack — application libraries, the app and the job runner, and the free services this runs on (Vercel, Neon, Trigger.dev, Resend, Meta) — see [docs/stack.md](docs/stack.md).
 
 ---
 

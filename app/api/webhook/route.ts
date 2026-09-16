@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
-import { getDMQueue } from "@/lib/queue/client";
+import { enqueueDMJobs, type DmJobRequest } from "@/lib/jobs/enqueue";
+import {
+  COMMENT_TASK_ID,
+  MESSAGE_TASK_ID,
+  POSTBACK_TASK_ID,
+} from "@/lib/jobs/types";
 import {
   parseCommentEvents,
   parseMessageEvents,
@@ -8,7 +13,6 @@ import {
   parseReadEvents,
   verifyWebhookSignature,
 } from "@/lib/meta/webhook";
-import { MESSAGE_JOB_NAME, POSTBACK_JOB_NAME } from "@/lib/queue/client";
 import { Prisma } from "@/app/generated/prisma/client";
 
 const OPENING_DM_READ_FALLBACK_DELAY_MS = 5 * 60 * 1000;
@@ -107,7 +111,11 @@ export async function POST(request: NextRequest) {
     const commentEvents = parseCommentEvents(
       payload as Parameters<typeof parseCommentEvents>[0]
     );
-    const queue = getDMQueue();
+
+    // Everything parsed from this payload is collected here and triggered in one
+    // batch at the end of the handler. Trigger.dev batches per task, so a
+    // payload with ten comments costs one API call instead of ten.
+    const jobs: DmJobRequest[] = [];
 
     const commentAccountIds = [
       ...new Set(commentEvents.map((e) => e.instagramAccountId)),
@@ -125,9 +133,9 @@ export async function POST(request: NextRequest) {
 
     let webhookWorkspaceId: string | null = null;
     for (const event of commentEvents) {
-      await queue.add(
-        "process-comment",
-        {
+      jobs.push({
+        task: COMMENT_TASK_ID,
+        data: {
           instagramAccountId: event.instagramAccountId,
           commentId: event.commentId,
           commentText: event.commentText,
@@ -136,10 +144,12 @@ export async function POST(request: NextRequest) {
           mediaId: event.mediaId,
           source: "WEBHOOK",
         },
-        {
-          jobId: `comment_${event.instagramAccountId}_${event.commentId}`,
-        }
-      );
+        options: {
+          // Meta retries webhook deliveries, so the same comment can arrive
+          // twice. The key collapses the duplicate trigger into one run.
+          idempotencyKey: `comment_${event.instagramAccountId}_${event.commentId}`,
+        },
+      });
 
       const wsId = commentAccountMap.get(event.instagramAccountId);
       if (wsId && !webhookWorkspaceId) {
@@ -153,22 +163,22 @@ export async function POST(request: NextRequest) {
     );
 
     for (const event of postbackEvents) {
-      await queue.add(
-        POSTBACK_JOB_NAME,
-        {
+      jobs.push({
+        task: POSTBACK_TASK_ID,
+        data: {
           instagramAccountId: event.instagramAccountId,
           userId: event.userId,
           payload: event.payload,
           mid: event.mid,
         },
-        {
-          // BullMQ forbids ":" in custom job ids, and the payload is
-          // "reveal:<id>", so build with underscores and strip any colons.
-          jobId: `postback_${event.instagramAccountId}_${event.userId}_${(
+        options: {
+          // The payload is "reveal:<id>". A key containing colons is needlessly
+          // hostile to anything that later splits on them, so keep underscores.
+          idempotencyKey: `postback_${event.instagramAccountId}_${event.userId}_${(
             event.mid ?? event.payload
           ).replace(/:/g, "_")}`,
-        }
-      );
+        },
+      });
     }
 
     // Inbound DMs → keyword-triggered autoreply.
@@ -200,25 +210,23 @@ export async function POST(request: NextRequest) {
 
     for (const event of messageEvents) {
       console.log(`[Webhook] Queuing MESSAGE_JOB for: instagramAccountId=${event.instagramAccountId}, messageId=${event.messageId}`);
-      await queue.add(
-        MESSAGE_JOB_NAME,
-        {
+      // base64url keeps the key injective whatever the mid contains —
+      // substituting characters would let two distinct mids collapse onto one
+      // key and silently drop a reply.
+      const messageKey = `message_${event.instagramAccountId}_${Buffer.from(
+        event.messageId
+      ).toString("base64url")}`;
+      jobs.push({
+        task: MESSAGE_TASK_ID,
+        data: {
           instagramAccountId: event.instagramAccountId,
           messageId: event.messageId,
           messageText: event.messageText,
           senderId: event.senderId,
         },
-        {
-          // Message ids can contain characters BullMQ rejects in a job id (":"
-          // in particular). base64url encodes into exactly the allowed alphabet
-          // and stays injective — substituting invalid characters would let two
-          // distinct mids collapse onto one job id, silently dropping a reply.
-          jobId: `message_${event.instagramAccountId}_${Buffer.from(
-            event.messageId
-          ).toString("base64url")}`,
-        }
-      );
-      console.log(`[Webhook] Queued MESSAGE_JOB: ${`message_${event.instagramAccountId}_${Buffer.from(event.messageId).toString("base64url")}`}`);
+        options: { idempotencyKey: messageKey },
+      });
+      console.log(`[Webhook] Queued MESSAGE_JOB: ${messageKey}`);
 
       const wsId = messageAccountMap.get(event.instagramAccountId);
       if (wsId && !webhookWorkspaceId) {
@@ -227,7 +235,7 @@ export async function POST(request: NextRequest) {
     }
 
     // If a user reads the opening DM and never taps the button, deliver the
-    // same next-step DM after five minutes. The worker no-ops this delayed job
+    // same next-step DM after five minutes. The handler no-ops this delayed run
     // if a real button tap has already delivered the reveal.
     const readEvents = parseReadEvents(
       payload as Parameters<typeof parseReadEvents>[0]
@@ -289,22 +297,27 @@ export async function POST(request: NextRequest) {
       for (const event of events) {
         const scheduled = scheduledByUser.get(event.userId) ?? new Set();
         for (const automationId of scheduled) {
-          await queue.add(
-            POSTBACK_JOB_NAME,
-            {
+          jobs.push({
+            task: POSTBACK_TASK_ID,
+            data: {
               instagramAccountId: igAccountId,
               userId: event.userId,
               payload: `reveal:${automationId}`,
               fallback: true,
             },
-            {
-              delay: OPENING_DM_READ_FALLBACK_DELAY_MS,
-              jobId: `read_fallback_${igAccountId}_${event.userId}_${automationId}`,
-            }
-          );
+            options: {
+              delayMs: OPENING_DM_READ_FALLBACK_DELAY_MS,
+              idempotencyKey: `read_fallback_${igAccountId}_${event.userId}_${automationId}`,
+            },
+          });
         }
       }
     }
+
+    // Trigger the payload's jobs before marking the event processed: if the
+    // runner call throws, the catch below records the webhook as FAILED instead
+    // of acknowledging work that was never queued.
+    await enqueueDMJobs(jobs);
 
     await prisma.webhookEvent.update({
       where: { id: webhookEvent.id },

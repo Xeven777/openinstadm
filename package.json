@@ -10,7 +10,8 @@
     "lint": "eslint",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate deploy",
-    "worker": "cross-env NODE_OPTIONS='--network-family-autoselection-attempt-timeout=2000' tsx worker/dm-worker.ts",
+    "trigger:dev": "trigger dev",
+    "trigger:deploy": "trigger deploy",
     "typecheck": "tsc --noEmit",
     "test": "vitest run"
   },
@@ -26,14 +27,13 @@
     "@tanstack/query-persist-client-core": "^5.101.4",
     "@tanstack/react-query": "^5.101.4",
     "@tanstack/react-query-persist-client": "^5.101.4",
+    "@trigger.dev/sdk": "^4.6.2",
     "ai": "^7.0.99",
-    "bullmq": "^5.81.3",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cn": "^0.2.6",
     "cross-env": "^10.1.0",
     "goey-toast": "^0.5.0",
-    "ioredis": "^5.11.1",
     "motion": "^13.1.1",
     "next": "^16.3.4",
     "next-auth": "^5.0.0-beta.32",
@@ -60,6 +60,7 @@
     "eslint-config-next": "^16.3.4",
     "prisma": "7.9.1",
     "tailwindcss": "^4.3.3",
+    "trigger.dev": "^4.6.2",
     "typescript": "^5.9.3",
     "vitest": "^5.0.0"
   }

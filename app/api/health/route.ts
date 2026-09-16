@@ -2,9 +2,9 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { getDiagnosticsOverview } from "@/lib/server/diagnostics";
 
-// Health must reflect live state (worker heartbeat, queue depth), never a
-// cached response, or it reports stale worker start times. Under cacheComponents
-// the handler stays request-time dynamic automatically: its database and Redis
+// Health must reflect live state (job activity, queue depth), never a cached
+// response, or it reports stale runner activity. Under cacheComponents the
+// handler stays request-time dynamic automatically: its database and runner API
 // checks are runtime data access, which terminates prerendering.
 
 type CheckStatus = "ok" | "error";
@@ -32,20 +32,19 @@ export async function GET() {
     getDiagnosticsOverview(),
   ]);
 
-  const redis: HealthCheck = diagnostics.redisAvailable
-    ? { status: "ok" }
-    : { status: "error", detail: diagnostics.redisError ?? "Redis check failed" };
+  // Queue depth now comes from the job runner (Trigger.dev) rather than from a
+  // Redis-backed BullMQ queue, but the check name and payload shape are kept so
+  // existing monitors keep working.
   const queue: HealthCheck & { counts?: unknown } = diagnostics.queueCounts
     ? { status: "ok", counts: diagnostics.queueCounts }
     : {
         status: "error",
-        detail: diagnostics.redisError ?? "Queue check failed",
+        detail: diagnostics.runnerError ?? "Queue check failed",
       };
   const worker = diagnostics.workerHealth;
 
   const healthy =
     database.status === "ok" &&
-    redis.status === "ok" &&
     queue.status === "ok" &&
     worker.healthy;
 
@@ -54,7 +53,6 @@ export async function GET() {
       status: healthy ? "ok" : "degraded",
       checks: {
         database,
-        redis,
         queue,
         worker,
       },

@@ -1,13 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const {
-  mockWithDiagnosticsRedisConnection,
-  mockGetDMQueueForDiagnostics,
+  mockGetRunnerQueueCounts,
+  mockIsRunnerConfigured,
   mockGetWorkerHealth,
   mockGetWorkerAlerts,
 } = vi.hoisted(() => ({
-  mockWithDiagnosticsRedisConnection: vi.fn(),
-  mockGetDMQueueForDiagnostics: vi.fn(),
+  mockGetRunnerQueueCounts: vi.fn(),
+  mockIsRunnerConfigured: vi.fn(),
   mockGetWorkerHealth: vi.fn(),
   mockGetWorkerAlerts: vi.fn(),
 }));
@@ -16,9 +16,9 @@ vi.mock("@/lib/db/client", () => ({
   prisma: {},
 }));
 
-vi.mock("@/lib/queue/client", () => ({
-  withDiagnosticsRedisConnection: mockWithDiagnosticsRedisConnection,
-  getDMQueueForDiagnostics: mockGetDMQueueForDiagnostics,
+vi.mock("@/lib/jobs/runner-stats", () => ({
+  getRunnerQueueCounts: mockGetRunnerQueueCounts,
+  isRunnerConfigured: mockIsRunnerConfigured,
 }));
 
 vi.mock("@/lib/ops/worker-health", () => ({
@@ -28,53 +28,66 @@ vi.mock("@/lib/ops/worker-health", () => ({
 
 import { getDiagnosticsOverview } from "../lib/server/diagnostics";
 
+const runnerCounts = { waiting: 2, active: 1, delayed: 0, failed: 3 };
+const healthyHeartbeat = {
+  healthy: true,
+  heartbeat: { checkedAt: "2026-09-08T00:00:00.000Z" },
+  ageMs: 1_000,
+};
+
 describe("getDiagnosticsOverview", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockGetWorkerHealth.mockResolvedValue(healthyHeartbeat);
+    mockGetWorkerAlerts.mockResolvedValue([]);
   });
 
-  it("returns usable diagnostics after a successful bounded Redis probe", async () => {
-    const redis = {};
-    const queue = {
-      getJobCounts: vi.fn().mockResolvedValue({
-        waiting: 2,
-        active: 1,
-        delayed: 0,
-        failed: 3,
-      }),
-      close: vi.fn().mockResolvedValue(undefined),
-    };
-
-    mockWithDiagnosticsRedisConnection.mockImplementation(
-      async (operation) => operation(redis),
-    );
-    mockGetDMQueueForDiagnostics.mockReturnValue(queue);
-    mockGetWorkerHealth.mockResolvedValue({
-      healthy: true,
-      heartbeat: { checkedAt: "2026-09-08T00:00:00.000Z" },
-      ageMs: 1_000,
-    });
-    mockGetWorkerAlerts.mockResolvedValue([]);
+  it("returns runner counts and worker state when both sources answer", async () => {
+    mockGetRunnerQueueCounts.mockResolvedValue(runnerCounts);
 
     await expect(getDiagnosticsOverview()).resolves.toMatchObject({
-      queueCounts: { waiting: 2, active: 1, delayed: 0, failed: 3 },
-      redisAvailable: true,
-      redisError: null,
+      queueCounts: runnerCounts,
+      runnerAvailable: true,
+      runnerError: null,
+      workerHealth: { healthy: true },
+      workerAlerts: [],
     });
-    expect(queue.close).toHaveBeenCalledOnce();
   });
 
-  it("returns a degraded result when Redis cannot be reached", async () => {
-    mockWithDiagnosticsRedisConnection.mockRejectedValue(
-      new Error("connection refused"),
-    );
+  it("degrades the queue tiles when the runner API fails", async () => {
+    mockIsRunnerConfigured.mockReturnValue(true);
+    mockGetRunnerQueueCounts.mockRejectedValue(new Error("401 Unauthorized"));
 
-    await expect(getDiagnosticsOverview()).resolves.toEqual({
+    await expect(getDiagnosticsOverview()).resolves.toMatchObject({
       queueCounts: null,
-      workerHealth: { healthy: false, heartbeat: null, ageMs: null },
-      workerAlerts: [],
-      redisAvailable: false,
-      redisError: "Redis is unavailable.",
+      runnerAvailable: false,
+      runnerError: "The job runner is unreachable.",
+      workerHealth: { healthy: true },
+    });
+  });
+
+  it("explains a missing runner key instead of blaming the connection", async () => {
+    mockIsRunnerConfigured.mockReturnValue(false);
+    mockGetRunnerQueueCounts.mockRejectedValue(new Error("no key"));
+
+    await expect(getDiagnosticsOverview()).resolves.toMatchObject({
+      queueCounts: null,
+      runnerError:
+        "TRIGGER_SECRET_KEY is not set, so run counts are unavailable.",
+    });
+  });
+
+  it("reports job activity as unhealthy when nothing has run", async () => {
+    mockGetRunnerQueueCounts.mockResolvedValue(runnerCounts);
+    mockGetWorkerHealth.mockResolvedValue({
+      healthy: false,
+      heartbeat: null,
+      ageMs: null,
+    });
+
+    await expect(getDiagnosticsOverview()).resolves.toMatchObject({
+      workerHealth: { healthy: false, ageMs: null },
+      runnerAvailable: true,
     });
   });
 });

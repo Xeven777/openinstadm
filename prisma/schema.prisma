@@ -396,8 +396,42 @@ model OperationalEvent {
   @@index([source])
   @@index([level])
   @@index([createdAt])
+  // Diagnostics: worker alerts on the overview, newest first.
+  @@index([source, level, createdAt])
   // Diagnostics: token-refresh failures per workspace, newest first.
   @@index([workspaceId, source, level, createdAt])
+}
+
+/// Fixed-window counters, formerly Redis keys.
+///
+/// One row per logical counter; the key encodes the scope — `dm:<instagramId>`
+/// for the hourly private-reply cap, `ai:<workspaceId>` for the hourly AI
+/// budget — so both share a single atomic claim path.
+///
+/// The window rolls lazily: the first claim after `windowSeconds` of inactivity
+/// resets the count. That matches the TTL-on-first-write behaviour the Redis
+/// keys had. Clock-aligned buckets would not: they allow two full quotas either
+/// side of an hour boundary, which for the private-reply cap means two times
+/// Meta's documented limit.
+model WindowCounter {
+  key         String   @id
+  windowStart DateTime
+  count       Int      @default(0)
+  updatedAt   DateTime @updatedAt
+}
+
+/// Liveness marker for the DM job runner. A single row, upserted by every task
+/// run, replacing the Redis heartbeat key the old worker refreshed on a timer.
+model RunnerHeartbeat {
+  id        String    @id
+  taskId    String?
+  runId     String?
+  hostname  String?
+  pid       Int?
+  startedAt DateTime?
+  checkedAt DateTime  @updatedAt
+
+  @@index([checkedAt])
 }
 
 enum WorkspaceRole {

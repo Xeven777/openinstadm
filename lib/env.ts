@@ -84,7 +84,6 @@ export const serverEnvSchema = z.object({
   NEXTAUTH_URL: z.string().url(),
   NEXTAUTH_SECRET: z.string().min(16),
   DATABASE_URL: z.string().min(1),
-  REDIS_URL: z.string().min(1),
   ENCRYPTION_KEY: z.string().regex(HEX_32_BYTE),
   INSTAGRAM_APP_ID: z.string().min(1),
   INSTAGRAM_APP_SECRET: z.string().min(1),

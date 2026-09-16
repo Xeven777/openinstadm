@@ -1,5 +1,8 @@
 # OpenInstaDM — Local Development Services
 # Run from the repository root: docker compose -f infra/docker/docker-compose.yml up -d
+#
+# Postgres only: jobs run on Trigger.dev and rate-limit/budget counters live in
+# Postgres, so there is no Redis (or any other local service) to start.
 
 services:
   postgres:
@@ -18,18 +21,5 @@ services:
       timeout: 5s
       retries: 5
 
-  redis:
-    image: redis:7-alpine
-    ports:
-      - "6379:6379"
-    volumes:
-      - redisdata:/data
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
-
 volumes:
   pgdata:
-  redisdata:

@@ -5,7 +5,8 @@
  *
  * The diagnostics page is a Server Component, so "refresh" is just re-rendering
  * it server-side: this button calls `router.refresh()`, which re-runs the
- * component's queries against Redis/Postgres and streams fresh data back.
+ * component's queries against Postgres and the runner API, and streams fresh
+ * data back.
  */
 
 import { useTransition } from "react";
