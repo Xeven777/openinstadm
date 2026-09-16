@@ -15,6 +15,7 @@ const {
   mockQueueAdd,
   mockReserveWorkspaceDMSend,
   mockReleaseWorkspaceDMReservation,
+  mockHasOpenMessagingWindow,
 } = vi.hoisted(() => ({
   mockPrisma: {
     $transaction: vi.fn(async (cb: (tx: unknown) => unknown) => {
@@ -74,6 +75,7 @@ const {
   mockQueueAdd: vi.fn(),
   mockReserveWorkspaceDMSend: vi.fn(),
   mockReleaseWorkspaceDMReservation: vi.fn(),
+  mockHasOpenMessagingWindow: vi.fn(),
 }));
 
 vi.mock("@/lib/db/client", () => ({
@@ -108,6 +110,12 @@ vi.mock("@/lib/meta/client", () => ({
   RateLimitError: class RateLimitError extends Error {
     name = "RateLimitError";
   },
+  PermissionError: class PermissionError extends Error {},
+  MessagingWindowClosedError: class MessagingWindowClosedError extends Error {},
+}));
+
+vi.mock("@/lib/meta/messaging-window", () => ({
+  hasOpenMessagingWindow: mockHasOpenMessagingWindow,
 }));
 
 vi.mock("@/lib/meta/oauth", () => ({
@@ -151,6 +159,9 @@ vi.mock("bullmq", () => {
   }
   return {
     Worker: MockWorker,
+    UnrecoverableError: class UnrecoverableError extends Error {
+      name = "UnrecoverableError";
+    },
   };
 });
 
@@ -315,6 +326,103 @@ beforeEach(() => {
     message_id: "msg_006",
   });
   mockGetUserFollowStatus.mockResolvedValue(true);
+  mockHasOpenMessagingWindow.mockResolvedValue(true);
+});
+
+describe("DM Worker — follow-up delivery", () => {
+  const job = {
+    name: "process-followup",
+    id: "followup_auto_789_commenter_999",
+    attemptsMade: 0,
+    data: {
+      instagramAccountId: "ig_456",
+      automationId: "auto_789",
+      userId: "commenter_999",
+      commenterName: "Sam",
+    },
+  };
+  beforeEach(() => {
+    mockPrisma.automation.findFirst.mockResolvedValue({
+      ...mockAutomation, followUpEnabled: true, followUpMessage: "Thanks {username}!",
+    });
+  });
+
+  it("records successful delivery and skips an already-sent retry", async () => {
+    await getProcessor()(job);
+    expect(mockSendDirectMessage).toHaveBeenCalledWith("decrypted_token", "ig_456", "commenter_999", "Thanks Sam!");
+    expect(mockPrisma.dmLog.update).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ status: "SENT", errorMessage: null }),
+    }));
+    mockPrisma.dmLog.findUnique.mockResolvedValue({ status: "SENT" });
+    await getProcessor()({ ...job, attemptsMade: 1 });
+    expect(mockSendDirectMessage).toHaveBeenCalledTimes(1);
+  });
+
+  it("persists network failures and throws so BullMQ retries", async () => {
+    const error = new Error("fetch failed");
+    mockSendDirectMessage.mockRejectedValueOnce(error);
+    const process = getProcessor();
+    await expect(process(job)).rejects.toBe(error);
+    expect(mockPrisma.dmLog.update).toHaveBeenCalledWith(expect.objectContaining({
+      data: { status: "FAILED", errorMessage: "fetch failed" },
+    }));
+    await process({ ...job, attemptsMade: 1 });
+    expect(mockPrisma.dmLog.upsert).toHaveBeenLastCalledWith(expect.objectContaining({
+      update: { status: "PENDING", attempts: 2, errorMessage: null },
+    }));
+    expect(mockPrisma.dmLog.update).toHaveBeenLastCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ status: "SENT", errorMessage: null }),
+    }));
+  });
+
+  it("rejects an absent or expired window before sending", async () => {
+    mockHasOpenMessagingWindow.mockResolvedValue(false);
+    await expect(getProcessor()(job)).rejects.toMatchObject({ name: "UnrecoverableError" });
+    expect(mockSendDirectMessage).not.toHaveBeenCalled();
+    expect(mockPrisma.dmLog.update).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ status: "FAILED", errorMessage: expect.stringContaining("24-hour") }),
+    }));
+  });
+
+  it("does not retry a window refusal from Meta", async () => {
+    const { MessagingWindowClosedError } = await import("@/lib/meta/client");
+    mockSendDirectMessage.mockRejectedValueOnce(new MessagingWindowClosedError("outside of allowed window"));
+    await expect(getProcessor()(job)).rejects.toMatchObject({ name: "UnrecoverableError" });
+    expect(mockPrisma.dmLog.update).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ status: "FAILED" }),
+    }));
+  });
+
+  it("retries a rate limit but rechecks eligibility on the next attempt", async () => {
+    const { RateLimitError } = await import("@/lib/meta/client");
+    const error = new RateLimitError("Too many requests");
+    mockSendDirectMessage.mockRejectedValueOnce(error);
+    const process = getProcessor();
+    await expect(process(job)).rejects.toBe(error);
+    mockHasOpenMessagingWindow.mockResolvedValue(false);
+    await expect(process({ ...job, attemptsMade: 1 })).rejects.toMatchObject({ name: "UnrecoverableError" });
+    expect(mockSendDirectMessage).toHaveBeenCalledTimes(1);
+  });
+
+  it("stops on expired tokens and permission failures", async () => {
+    const { TokenExpiredError, PermissionError } = await import("@/lib/meta/client");
+    for (const error of [new TokenExpiredError("Reconnect account"), new PermissionError("Permission denied")]) {
+      mockSendDirectMessage.mockRejectedValueOnce(error);
+      await expect(getProcessor()(job)).rejects.toMatchObject({ name: "UnrecoverableError" });
+      expect(mockPrisma.dmLog.update).toHaveBeenLastCalledWith(expect.objectContaining({
+        data: { status: "FAILED", errorMessage: error.message },
+      }));
+    }
+  });
+
+  it("records invalid encryption instead of silently completing", async () => {
+    mockDecryptToken.mockImplementationOnce(() => { throw new Error("bad key"); });
+    await expect(getProcessor()(job)).rejects.toMatchObject({ name: "UnrecoverableError" });
+    expect(mockSendDirectMessage).not.toHaveBeenCalled();
+    expect(mockPrisma.dmLog.update).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ status: "FAILED", errorMessage: expect.stringContaining("encryption key") }),
+    }));
+  });
 });
 
 describe("DM Worker — Full Pipeline", () => {

@@ -782,7 +782,8 @@ export async function refreshLongLivedToken(
 
 export async function subscribeInstagramAccountToWebhooks(
   instagramAccountId: string,
-  accessToken: string
+  accessToken: string,
+  additionalFields: string[] = []
 ): Promise<{ success: boolean }> {
   const response = await fetch(
     `${instagramGraphBase()}/${instagramAccountId}/subscribed_apps`,
@@ -793,7 +794,9 @@ export async function subscribeInstagramAccountToWebhooks(
         Authorization: `Bearer ${accessToken}`,
       },
       body: JSON.stringify({
-        subscribed_fields: ["comments", "messages"],
+        subscribed_fields: [...new Set([
+          "comments", "messages", "messaging_postbacks", ...additionalFields,
+        ])],
       }),
     }
   );

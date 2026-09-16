@@ -61,6 +61,7 @@ interface WebhookEntry {
     };
   }>;
   messaging?: Array<{
+    timestamp?: number;
     sender?: { id?: string };
     recipient?: { id?: string };
     postback?: { mid?: string; title?: string; payload?: string };
@@ -99,6 +100,25 @@ export interface WebhookReadEvent {
 interface WebhookPayload {
   object: string;
   entry: WebhookEntry[];
+}
+
+/** Only inbound messages and postbacks open a messaging window. Comments,
+ * read receipts, echoes and webhook arrival times are not user responses. */
+export function parseMessagingInteractions(payload: WebhookPayload) {
+  const events: Array<{ instagramAccountId: string; userId: string; timestamp: number }> = [];
+  if (payload.object !== "instagram") return events;
+  for (const entry of payload.entry ?? []) {
+    for (const event of entry.messaging ?? []) {
+      const accountId = entry.id ?? event.recipient?.id;
+      const userId = event.sender?.id;
+      const message = event.message;
+      const inboundMessage = message && !message.is_echo && !message.is_deleted && !message.is_unsupported;
+      if (!accountId || !userId || userId === accountId || typeof event.timestamp !== "number") continue;
+      if (!inboundMessage && !event.postback?.payload) continue;
+      events.push({ instagramAccountId: accountId, userId, timestamp: event.timestamp });
+    }
+  }
+  return events;
 }
 
 export function parseCommentEvents(payload: WebhookPayload): WebhookCommentEvent[] {

@@ -1,4 +1,4 @@
-import { Worker, type Job } from "bullmq";
+import { Worker, UnrecoverableError, type Job } from "bullmq";
 import {
   getDMQueue,
   getRedisConnection,
@@ -14,6 +14,8 @@ import {
 import { prisma } from "@/lib/db/client";
 import {
   MetaApiError,
+  MessagingWindowClosedError,
+  PermissionError,
   RateLimitError,
   TokenExpiredError,
   getUserFollowStatus,
@@ -41,6 +43,7 @@ import {
 import { generateReply } from "@/lib/ai/client";
 import { checkAiBudget, consumeAiBudget } from "@/lib/ai/budget";
 import { getAIModel, isAIEnabled } from "@/lib/env";
+import { hasOpenMessagingWindow } from "@/lib/meta/messaging-window";
 
 const BACKOFF_DELAYS = [5 * 60 * 1000, 15 * 60 * 1000, 45 * 60 * 1000];
 
@@ -995,8 +998,8 @@ async function processPostback(job: Job<ProcessPostbackJob>): Promise<void> {
 
 /**
  * Send the scheduled appreciation follow-up. Runs after its delay elapses.
- * Best-effort: if the message can't be delivered (e.g. the 24-hour messaging
- * window closed because the delay was long), it is logged, not retried forever.
+ * Persist delivery outcomes. Transient errors use BullMQ's bounded retries;
+ * permanent errors remain failed and visible without futile retries.
  */
 async function processFollowUp(job: Job<ProcessFollowUpJob>): Promise<void> {
   const { instagramAccountId, userId, automationId, commenterName } = job.data;
@@ -1010,20 +1013,45 @@ async function processFollowUp(job: Job<ProcessFollowUpJob>): Promise<void> {
     !automation ||
     !automation.followUpEnabled ||
     !automation.followUpMessage?.trim() ||
-    automation.instagramAccount.instagramId !== instagramAccountId ||
-    !automation.instagramAccount.accessToken
+    automation.instagramAccount.instagramId !== instagramAccountId
   ) {
     return;
   }
 
-  let accessToken: string;
-  try {
-    accessToken = decryptToken(automation.instagramAccount.accessToken);
-  } catch {
-    return;
-  }
+  const commentId = `followup:${job.id ?? `${automationId}_${userId}`}`;
+  const where = { automationId_commentId: { automationId, commentId } };
+  const existing = await prisma.dmLog.findUnique({ where });
+  if (existing?.status === "SENT") return;
+
+  await prisma.dmLog.upsert({
+    where,
+    create: {
+      workspaceId: automation.workspaceId,
+      automationId,
+      instagramAccountId: automation.instagramAccountId,
+      commenterId: userId,
+      commenterName,
+      commentText: "(follow-up)",
+      commentId,
+      status: "PENDING",
+      attempts: job.attemptsMade + 1,
+    },
+    update: { status: "PENDING", attempts: job.attemptsMade + 1, errorMessage: null },
+  });
 
   try {
+    if (!automation.instagramAccount.accessToken) {
+      throw new UnrecoverableError("Instagram account has no access token; reconnect the account");
+    }
+    let accessToken: string;
+    try {
+      accessToken = decryptToken(automation.instagramAccount.accessToken);
+    } catch {
+      throw new UnrecoverableError("Failed to decrypt Instagram access token; check the worker encryption key");
+    }
+    if (!(await hasOpenMessagingWindow(instagramAccountId, userId))) {
+      throw new UnrecoverableError("Follow-up not sent: no verified user response within Instagram's 24-hour messaging window");
+    }
     await sendDirectMessage(
       accessToken,
       automation.instagramAccount.instagramId,
@@ -1034,11 +1062,23 @@ async function processFollowUp(job: Job<ProcessFollowUpJob>): Promise<void> {
       })
     );
   } catch (error) {
-    console.log(
-      "[DM Worker] Failed to send follow-up message:",
-      formatError(error)
-    );
+    await prisma.dmLog.update({
+      where,
+      data: { status: "FAILED", errorMessage: formatError(error) },
+    });
+    if (
+      error instanceof MessagingWindowClosedError ||
+      error instanceof TokenExpiredError ||
+      error instanceof PermissionError
+    ) {
+      throw new UnrecoverableError(formatError(error));
+    }
+    throw error;
   }
+  await prisma.dmLog.update({
+    where,
+    data: { status: "SENT", dmSentAt: new Date(), errorMessage: null },
+  });
 }
 
 /**
