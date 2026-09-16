@@ -3,8 +3,7 @@
  *
  * Simplified: single master config per account (AI + fallback), DM-only
  * auto-send. Uses Vercel AI SDK (`ai` + provider) so model/provider are
- * easily swapped via env:
- *   AI_API_KEY (required), AI_PROVIDER=openai|groq, AI_MODEL=gpt-4o-mini
+ * selected explicitly using the workspace's encrypted provider connection.
  *
  * Only one LLM operation now: generateReply grounded by the knowledge
  * textbox. No classify step — that tier was the source of the "Heya for price"
@@ -14,47 +13,60 @@
 import { generateText, APICallError } from "ai";
 import { createGroq } from "@ai-sdk/groq";
 import { createOpenAI } from "@ai-sdk/openai";
-import { getAIApiKey, getAIModel, getAIProvider } from "@/lib/env";
+import { createGoogleGenerativeAI } from "@ai-sdk/google";
+import { createAnthropic } from "@ai-sdk/anthropic";
+import { createDeepSeek } from "@ai-sdk/deepseek";
+import { createOpenRouter } from "@openrouter/ai-sdk-provider";
+import { type AiProvider } from "./providers";
+import { AiReplyError } from "./errors";
 
 const GENERATE_TIMEOUT_MS = 15_000;
 const MAX_REPLY_CHARS = 500;
 
-function getModel() {
-  const apiKey = getAIApiKey();
-  if (!apiKey) throw new Error("AI is not configured (AI_API_KEY missing)");
-  const provider = getAIProvider();
-  const modelName = getAIModel();
-  if (provider === "groq") {
-    return createGroq({ apiKey })(modelName);
+// Provider warning payloads are untrusted and may include request details.
+globalThis.AI_SDK_LOG_WARNINGS = false;
+
+type AiConnection = { provider: AiProvider; model: string; apiKey: string };
+
+export function getModel({ provider, model, apiKey }: AiConnection) {
+  if (!apiKey.trim() || !model.trim()) throw new AiReplyError("AI connection and model are required.");
+  switch (provider) {
+    case "openai": return createOpenAI({ apiKey })(model);
+    case "groq": return createGroq({ apiKey })(model);
+    case "google": return createGoogleGenerativeAI({ apiKey })(model);
+    case "anthropic": return createAnthropic({ apiKey })(model);
+    case "deepseek": return createDeepSeek({ apiKey })(model);
+    case "openrouter": return createOpenRouter({ apiKey })(model);
+    default: throw new AiReplyError("Unsupported AI provider.");
   }
-  return createOpenAI({ apiKey })(modelName);
 }
 
-async function chatComplete(opts: {
+async function chatComplete(opts: AiConnection & {
   system: string;
   user: string;
   maxOutputTokens: number;
   temperature: number;
   timeoutMs: number;
+  signal?: AbortSignal;
 }): Promise<string> {
   try {
     const result = await generateText({
-      model: getModel(),
+      model: getModel(opts),
       system: opts.system,
       prompt: opts.user,
       maxOutputTokens: opts.maxOutputTokens,
       temperature: opts.temperature,
-      abortSignal: AbortSignal.timeout(opts.timeoutMs),
+      abortSignal: AbortSignal.any([AbortSignal.timeout(opts.timeoutMs), ...(opts.signal ? [opts.signal] : [])]),
       maxRetries: 0,
     });
     return result.text.trim();
   } catch (err) {
     if (APICallError.isInstance(err)) {
-      throw new Error(
-        `AI provider error ${err.statusCode ?? "?"}: ${(err.responseBody ?? err.message).slice(0, 300)}`,
+      throw new AiReplyError(
+        `AI provider request failed (HTTP ${err.statusCode ?? "unknown"}). Check the connection and model.`,
       );
     }
-    throw err;
+    throw new AiReplyError("AI reply unavailable. Check the provider connection and model.");
   }
 }
 
@@ -63,7 +75,7 @@ async function chatComplete(opts: {
  * knowledge textbox, injected verbatim as system context (no RAG).
  * `history` is last few thread messages for tone continuity.
  */
-export async function generateReply(opts: {
+export async function generateReply(opts: AiConnection & {
   message: string;
   knowledge: string;
   username: string | null;
@@ -84,6 +96,10 @@ export async function generateReply(opts: {
     `${knowledgeBlock}`;
   const user = `${historyBlock}Sender${opts.username ? ` (@${opts.username})` : ""} wrote: ${opts.message.slice(0, 1000)}`;
   const raw = await chatComplete({
+    provider: opts.provider,
+    model: opts.model,
+    apiKey: opts.apiKey,
+    signal: opts.signal,
     system,
     user,
     maxOutputTokens: 220,
@@ -96,5 +112,6 @@ export async function generateReply(opts: {
     .replace(/#{1,}\S+/g, "")
     .trim()
     .slice(0, MAX_REPLY_CHARS);
-  return { text, model: getAIModel() };
+  if (!text) throw new AiReplyError("AI returned an empty reply.");
+  return { text, model: opts.model };
 }

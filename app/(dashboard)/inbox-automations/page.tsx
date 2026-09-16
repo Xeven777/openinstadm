@@ -27,13 +27,15 @@ import {
   type InboxAutomationItem,
 } from "@/lib/query/api";
 import { canManageAutomations, useWorkspaceContext } from "@/lib/workspace-context";
+import { AiProviderSettings } from "@/components/ai-provider-settings";
+import { AI_PROVIDERS, isAiProvider, type AiProvider } from "@/lib/ai/providers";
 
 const SELECTED_KEY = "inbox-automations:selectedAccount";
 
 export default function InboxAutomationsPage() {
   const queryClient = useQueryClient();
   const canManage = canManageAutomations(useWorkspaceContext());
-  const [selectedAccountId, setSelectedAccountId] = useState(() => {
+  const [requestedAccountId, setSelectedAccountId] = useState(() => {
     if (typeof window === "undefined") return "";
     return window.sessionStorage.getItem(SELECTED_KEY) ?? "";
   });
@@ -45,13 +47,9 @@ export default function InboxAutomationsPage() {
   });
   const accounts: AccountOption[] = accountsQuery.data?.instagramAccounts ?? [];
 
-  useEffect(() => {
-    if (!accounts.length) return;
-    setSelectedAccountId((prev) => {
-      const ok = prev && accounts.some((a) => a.id === prev);
-      return ok ? prev : accountsQuery.data?.selectedInstagramAccountId || accounts[0]?.id || "";
-    });
-  }, [accounts, accountsQuery.data?.selectedInstagramAccountId]);
+  const selectedAccountId = accounts.some((account) => account.id === requestedAccountId)
+    ? requestedAccountId
+    : accountsQuery.data?.selectedInstagramAccountId || accounts[0]?.id || "";
 
   useEffect(() => {
     if (typeof window !== "undefined" && selectedAccountId) {
@@ -75,8 +73,8 @@ export default function InboxAutomationsPage() {
   const [isActive, setIsActive] = useState(true);
   const [aiEnabled, setAiEnabled] = useState(false);
   const [knowledge, setKnowledge] = useState("");
-  const [aiProvider, setAiProvider] = useState("");
-  const [aiModel, setAiModel] = useState("");
+  const [aiProvider, setAiProvider] = useState<AiProvider>("openai");
+  const [aiModel, setAiModel] = useState("gpt-4o-mini");
   const [fallbackKeywords, setFallbackKeywords] = useState("");
   const [fallbackMessage, setFallbackMessage] = useState("");
   const [wholeWordMatch, setWholeWordMatch] = useState(true);
@@ -91,30 +89,23 @@ export default function InboxAutomationsPage() {
     matched?: string;
   } | null>(null);
 
-  useEffect(() => {
-    if (!config) {
-      // reset to defaults when no config or account switch
-      setIsActive(true);
-      setAiEnabled(false);
-      setKnowledge("");
-      setAiProvider("");
-      setAiModel("");
-      setFallbackKeywords("");
-      setFallbackMessage("");
-      setWholeWordMatch(true);
-      setMatchAnyWord(false);
-      return;
-    }
-    setIsActive(config.isActive);
-    setAiEnabled(config.aiEnabled);
-    setKnowledge(config.knowledge ?? "");
-    setAiProvider(config.aiProvider ?? "");
-    setAiModel(config.aiModel ?? "");
-    setFallbackKeywords((config.fallbackKeywords ?? []).join(", "));
-    setFallbackMessage(config.fallbackMessage ?? "");
-    setWholeWordMatch(config.wholeWordMatch);
-    setMatchAnyWord(config.matchAnyWord);
-  }, [config]);
+  const [loadedForm, setLoadedForm] = useState<{ accountId: string; config: InboxAutomationItem | null } | null>(null);
+  // Reset before rendering a newly loaded account/config so edits never flash
+  // under the wrong account. Local edits do not change this snapshot.
+  if (loadedForm?.accountId !== selectedAccountId || loadedForm?.config !== config) {
+    setLoadedForm({ accountId: selectedAccountId, config });
+    setIsActive(config?.isActive ?? true);
+    setAiEnabled(config?.aiEnabled ?? false);
+    setKnowledge(config?.knowledge ?? "");
+    const provider = isAiProvider(config?.aiProvider) ? config.aiProvider : "openai";
+    setAiProvider(provider);
+    setAiModel(config?.aiModel ?? AI_PROVIDERS[provider].models[0].id);
+    setFallbackKeywords((config?.fallbackKeywords ?? []).join(", "));
+    setFallbackMessage(config?.fallbackMessage ?? "");
+    setWholeWordMatch(config?.wholeWordMatch ?? true);
+    setMatchAnyWord(config?.matchAnyWord ?? false);
+    setPlaygroundResult(null);
+  }
 
   function invalidate() {
     queryClient.invalidateQueries({ queryKey: queryKeys.inboxAutomations(selectedAccountId) });
@@ -261,35 +252,18 @@ export default function InboxAutomationsPage() {
                   <span className="text-sm font-medium">
                     <Robot className="mr-1 inline size-4" /> AI Reply
                     <span className="block text-xs font-normal text-muted-foreground">
-                      Plain text, 500 char, no links. Needs AI_API_KEY. When enabled, AI replies first.
+                      Plain text, 500 characters, no links. Connect a provider for this workspace to enable AI replies.
                     </span>
                   </span>
                   <Switch checked={aiEnabled} onCheckedChange={setAiEnabled} disabled={!canManage} />
                 </label>
                 {aiEnabled && (
                   <div className="space-y-3">
-                    <div className="grid gap-3 sm:grid-cols-2">
-                      <div className="space-y-1">
-                        <label className="text-xs font-medium">Provider</label>
-                        <Input
-                          value={aiProvider}
-                          onChange={(e) => setAiProvider(e.target.value)}
-                          placeholder="openai (default) or groq"
-                          maxLength={30}
-                        />
-                        <p className="text-[10px] text-muted-foreground">Env AI_PROVIDER is default; override per account here.</p>
-                      </div>
-                      <div className="space-y-1">
-                        <label className="text-xs font-medium">Model</label>
-                        <Input
-                          value={aiModel}
-                          onChange={(e) => setAiModel(e.target.value)}
-                          placeholder="gpt-4o-mini"
-                          maxLength={60}
-                        />
-                        <p className="text-[10px] text-muted-foreground">Env AI_MODEL is default.</p>
-                      </div>
-                    </div>
+                    <AiProviderSettings key={`${selectedAccountId}:${aiProvider}`} provider={aiProvider} model={aiModel} disabled={!canManage}
+                      onProviderChange={(provider) => {
+                        setAiProvider(provider);
+                        setAiModel(AI_PROVIDERS[provider].models[0].id);
+                      }} onModelChange={setAiModel} />
                     <div className="space-y-1">
                       <label className="text-xs font-medium">Knowledge (system prompt)</label>
                       <Textarea
@@ -360,7 +334,7 @@ export default function InboxAutomationsPage() {
           <Card>
             <CardContent className="space-y-3">
               <h2 className="text-sm font-semibold">Test playground</h2>
-              <p className="text-xs text-muted-foreground">Simulate a DM — AI first, then fallback. No message is sent.</p>
+              <p className="text-xs text-muted-foreground">Test the saved configuration — save changes before testing. AI first, then fallback. No message is sent.</p>
               <div className="flex flex-col gap-2 sm:flex-row">
                 <Input
                   value={playgroundInput}
@@ -371,7 +345,7 @@ export default function InboxAutomationsPage() {
                     if (e.key === "Enter") void runPlayground();
                   }}
                 />
-                <Button onClick={() => void runPlayground()} disabled={playgroundBusy || !playgroundInput.trim()}>
+                <Button onClick={() => void runPlayground()} disabled={!canManage || playgroundBusy || !playgroundInput.trim()}>
                   {playgroundBusy ? "Testing…" : "Test"}
                 </Button>
               </div>
@@ -389,7 +363,10 @@ export default function InboxAutomationsPage() {
                       )}
                     </>
                   ) : (
-                    <p className="text-muted-foreground">No reply would be sent for this message.</p>
+                    <div>
+                      <p className="text-muted-foreground">No reply would be sent for this message.</p>
+                      {playgroundResult.aiError && <p className="mt-1 text-xs text-amber-600">{playgroundResult.aiError}</p>}
+                    </div>
                   )}
                 </div>
               )}

@@ -42,7 +42,8 @@ import {
 } from "@/lib/tracking/message";
 import { generateReply } from "@/lib/ai/client";
 import { checkAiBudget, consumeAiBudget } from "@/lib/ai/budget";
-import { getAIModel, isAIEnabled } from "@/lib/env";
+import { loadAiConnection } from "@/lib/ai/credentials";
+import { safeAiError } from "@/lib/ai/errors";
 import { hasOpenMessagingWindow } from "@/lib/meta/messaging-window";
 
 const BACKOFF_DELAYS = [5 * 60 * 1000, 15 * 60 * 1000, 45 * 60 * 1000];
@@ -1494,7 +1495,7 @@ async function processInboxAutomations(opts: {
 
   // Tier 1: AI reply — tried first when enabled. On success we send and return.
   // On any failure (budget, timeout, empty) we fall through to fallback.
-  if (config.aiEnabled && isAIEnabled()) {
+  if (config.aiEnabled) {
     const budget = await checkAiBudget(account.workspaceId);
     if (budget.allowed) {
       const aiResult = await tryInboxAIReply({
@@ -1553,6 +1554,7 @@ async function tryInboxAIReply(opts: {
   let aiLatencyMs: number | null = null;
   const started = Date.now();
   try {
+    const connection = await loadAiConnection(account.workspaceId, config.aiProvider, config.aiModel);
     await consumeAiBudget(account.workspaceId);
     let history: string[] = [];
     try {
@@ -1567,13 +1569,14 @@ async function tryInboxAIReply(opts: {
       history = [];
     }
     const gen = await generateReply({
+      ...connection,
       message: messageText,
       knowledge: config.knowledge ?? "",
       username: commenterName,
       history,
     });
     replyText = gen.text;
-    aiModel = config.aiModel?.trim() || gen.model || getAIModel();
+    aiModel = gen.model;
     aiLatencyMs = Date.now() - started;
   } catch (error) {
     aiLatencyMs = Date.now() - started;
@@ -1583,7 +1586,7 @@ async function tryInboxAIReply(opts: {
           workspaceId: account.workspaceId,
           source: "AI",
           level: "WARNING",
-          message: `AI reply failed, falling through to fallback: ${formatError(error)}`,
+          message: `AI reply failed, falling through to fallback: ${safeAiError(error)}`,
           payload: { instagramAccountId: account.instagramId },
         },
       })

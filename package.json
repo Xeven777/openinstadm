@@ -15,10 +15,14 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@ai-sdk/anthropic": "^4.0.54",
+    "@ai-sdk/deepseek": "^3.0.45",
+    "@ai-sdk/google": "^4.0.72",
     "@ai-sdk/groq": "^4.0.41",
     "@ai-sdk/openai": "^4.0.66",
     "@auth/prisma-adapter": "^2.11.3",
     "@base-ui/react": "^1.7.0",
+    "@openrouter/ai-sdk-provider": "^3.0.0",
     "@phosphor-icons/react": "^2.1.10",
     "@prisma/adapter-pg": "7.9.1",
     "@prisma/client": "7.9.1",

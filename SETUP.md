@@ -690,6 +690,38 @@ sudo certbot renew --dry-run
 
 ## 🔍 Troubleshooting & Common Errors
 
+### Workspace AI provider connections
+
+Use Node.js 22 or newer for the web app and worker. Install dependencies from both
+the root and worker lockfiles when deploying their respective processes.
+
+Before deploying this version, run `npm run db:migrate` to create
+`AiProviderCredential`, then `npm run db:generate`. Restart both the web app and
+worker with the same existing 64-character hex `ENCRYPTION_KEY`. Preserve this key:
+it encrypts both Instagram tokens and workspace AI credentials.
+
+In **Inbox Automations**, enable AI Reply, choose OpenAI, Groq, Google Gemini,
+Anthropic, DeepSeek, or OpenRouter, and save the provider API key as a workspace
+owner. There is one encrypted key per workspace/provider, shared by that
+workspace's account automations. Owners can replace or remove keys; members with
+automation permissions can select providers/models and run the playground.
+Saved keys are never returned by the API.
+
+Choose a curated model or **Custom model ID**, enter its exact provider model ID,
+and save the automation before using **Test playground**. OpenRouter uses IDs
+such as `openai/gpt-4o-mini`. Model availability depends on the provider account.
+
+`AI_API_KEY`, `AI_PROVIDER`, and `AI_MODEL` are no longer used. Existing installations
+must explicitly connect each workspace's provider and save its model selection;
+global credentials are not copied into workspaces. Until then, AI-enabled inbox
+automations use their configured fallback. Missing keys, decryption errors,
+provider failures, and empty AI replies also use the fallback (subject to its
+keyword matching). `AI_BUDGET_PER_HOUR` still controls the worker's workspace budget.
+
+Provider references: [AI SDK providers](https://ai-sdk.dev/providers/ai-sdk-providers),
+[DeepSeek](https://ai-sdk.dev/providers/ai-sdk-providers/deepseek), and
+[OpenRouter](https://ai-sdk.dev/providers/community-providers/openrouter).
+
 ### 1. "Insufficient Developer Role" when connecting Instagram
 
 - **Cause**: The Instagram account you are trying to connect has not been added as a Tester, or you forgot to accept the invite inside the Instagram app under _Settings_ → _Apps and Websites_ → _Tester Invites_.

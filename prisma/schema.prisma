@@ -68,6 +68,7 @@ model Workspace {
   instagramAccounts InstagramAccount[]
   automations       Automation[]
   inboxAutomations  InboxAutomation[]
+  aiProviderCredentials AiProviderCredential[]
   dmLogs            DmLog[]
   trackedLinks      TrackedLink[]
   linkClicks        LinkClick[]
@@ -76,6 +77,19 @@ model Workspace {
   apiSnapshots      ApiSnapshot[]
 
   @@index([ownerId])
+}
+
+model AiProviderCredential {
+  id              String   @id @default(cuid())
+  workspaceId     String
+  provider        String
+  encryptedApiKey String
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, provider])
 }
 
 model WorkspaceMember {

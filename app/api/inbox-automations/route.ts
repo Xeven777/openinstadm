@@ -7,7 +7,9 @@ import {
   getCurrentWorkspaceId,
 } from "@/lib/workspace-access";
 import { generateReply } from "@/lib/ai/client";
-import { isAIEnabled } from "@/lib/env";
+import { loadAiConnection } from "@/lib/ai/credentials";
+import { safeAiError } from "@/lib/ai/errors";
+import { AI_PROVIDER_IDS } from "@/lib/ai/providers";
 
 // One master config per Instagram account: AI + fallback only.
 const baseFields = {
@@ -15,8 +17,8 @@ const baseFields = {
   isActive: z.boolean().optional().default(true),
   aiEnabled: z.boolean().optional().default(false),
   knowledge: z.string().max(4000).optional().nullable(),
-  aiProvider: z.string().max(30).optional().nullable(),
-  aiModel: z.string().max(60).optional().nullable(),
+  aiProvider: z.enum(AI_PROVIDER_IDS).optional().nullable(),
+  aiModel: z.string().trim().min(1).max(200).optional().nullable(),
   fallbackKeywords: z.array(z.string().min(1).max(50)).max(10).optional().default([]),
   fallbackMessage: z.string().max(1000).optional().default(""),
   wholeWordMatch: z.boolean().optional().default(true),
@@ -29,8 +31,8 @@ const updateSchema = z.object({
   isActive: z.boolean().optional(),
   aiEnabled: z.boolean().optional(),
   knowledge: z.string().max(4000).optional().nullable(),
-  aiProvider: z.string().max(30).optional().nullable(),
-  aiModel: z.string().max(60).optional().nullable(),
+  aiProvider: z.enum(AI_PROVIDER_IDS).optional().nullable(),
+  aiModel: z.string().trim().min(1).max(200).optional().nullable(),
   fallbackKeywords: z.array(z.string().min(1).max(50)).max(10).optional(),
   fallbackMessage: z.string().max(1000).optional(),
   wholeWordMatch: z.boolean().optional(),
@@ -100,6 +102,9 @@ export async function POST(request: NextRequest) {
       { status: 400 }
     );
   }
+  if (parsed.data.aiEnabled && (!parsed.data.aiProvider || !parsed.data.aiModel)) {
+    return NextResponse.json({ success: false, error: "Select an AI provider and model" }, { status: 400 });
+  }
   const account = await assertAccount(context.workspaceId, parsed.data.instagramAccountId);
   if (!account) {
     return NextResponse.json({ success: false, error: "Account not found" }, { status: 404 });
@@ -160,6 +165,10 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json({ success: false, error: "Not found" }, { status: 404 });
   }
   const data = { ...parsed.data } as Record<string, unknown>;
+  const merged = { ...existing, ...parsed.data };
+  if (merged.aiEnabled && (!AI_PROVIDER_IDS.some((provider) => provider === merged.aiProvider) || !merged.aiModel?.trim())) {
+    return NextResponse.json({ success: false, error: "Select an AI provider and model" }, { status: 400 });
+  }
   if (parsed.data.matchAnyWord === true) data.fallbackKeywords = [];
   if (parsed.data.knowledge !== undefined) data.knowledge = (parsed.data.knowledge as string)?.trim() || null;
   if (parsed.data.fallbackMessage !== undefined) data.fallbackMessage = parsed.data.fallbackMessage ?? "";
@@ -199,10 +208,14 @@ const previewSchema = z.object({
 });
 
 export async function PUT(request: NextRequest) {
-  const workspaceId = await getCurrentWorkspaceId();
-  if (!workspaceId) {
+  const context = await getCurrentWorkspaceContext();
+  if (!context) {
     return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
   }
+  if (!canManageAutomations(context)) {
+    return NextResponse.json({ success: false, error: "No permission" }, { status: 403 });
+  }
+  const workspaceId = context.workspaceId;
   const body = await request.json().catch(() => null);
   const parsed = previewSchema.safeParse(body);
   if (!parsed.success) {
@@ -219,9 +232,11 @@ export async function PUT(request: NextRequest) {
   }
 
   // AI first
-  if (config.aiEnabled && isAIEnabled()) {
+  if (config.aiEnabled) {
     try {
+      const connection = await loadAiConnection(workspaceId, config.aiProvider, config.aiModel);
       const gen = await generateReply({
+        ...connection,
         message: parsed.data.messageText,
         knowledge: config.knowledge ?? "",
         username: null,
@@ -232,7 +247,7 @@ export async function PUT(request: NextRequest) {
       });
     } catch (e) {
       // fall through to fallback
-      const aiError = e instanceof Error ? e.message : "AI failed";
+      const aiError = safeAiError(e);
       const fallback = await fallbackPreview(config, parsed.data.messageText);
       if (fallback) {
         return NextResponse.json({

@@ -16,6 +16,7 @@ const {
   mockReserveWorkspaceDMSend,
   mockReleaseWorkspaceDMReservation,
   mockHasOpenMessagingWindow,
+  mockGenerateReply,
 } = vi.hoisted(() => ({
   mockPrisma: {
     $transaction: vi.fn(async (cb: (tx: unknown) => unknown) => {
@@ -61,6 +62,7 @@ const {
     operationalEvent: {
       create: vi.fn(),
     },
+    aiProviderCredential: { findUnique: vi.fn() },
   },
   mockSendPrivateReply: vi.fn(),
   mockSendPrivateReplyWithLinkButton: vi.fn(),
@@ -76,6 +78,7 @@ const {
   mockReserveWorkspaceDMSend: vi.fn(),
   mockReleaseWorkspaceDMReservation: vi.fn(),
   mockHasOpenMessagingWindow: vi.fn(),
+  mockGenerateReply: vi.fn(),
 }));
 
 vi.mock("@/lib/db/client", () => ({
@@ -113,6 +116,8 @@ vi.mock("@/lib/meta/client", () => ({
   PermissionError: class PermissionError extends Error {},
   MessagingWindowClosedError: class MessagingWindowClosedError extends Error {},
 }));
+
+vi.mock("@/lib/ai/client", () => ({ generateReply: mockGenerateReply }));
 
 vi.mock("@/lib/meta/messaging-window", () => ({
   hasOpenMessagingWindow: mockHasOpenMessagingWindow,
@@ -1244,6 +1249,11 @@ describe("DM Worker — DM keyword trigger", () => {
 });
 
 describe("DM Worker — Inbox automations (AI-first → fallback)", () => {
+  const aiConfig = {
+    id: "inbox_ai", workspaceId: "workspace_123", instagramAccountId: "ig_account_row_1",
+    isActive: true, aiEnabled: true, knowledge: "Shop info", aiProvider: "deepseek", aiModel: "custom-model:exact",
+    fallbackKeywords: [], fallbackMessage: "Fallback reply", wholeWordMatch: true, matchAnyWord: false,
+  };
   function createMockMessageJob(data: Record<string, unknown> = {}) {
     return {
       name: "process-message",
@@ -1310,6 +1320,38 @@ describe("DM Worker — Inbox automations (AI-first → fallback)", () => {
         }),
       })
     );
+  });
+
+  it("uses the workspace credential and saved provider/model and audits the actual model", async () => {
+    mockPrisma.inboxAutomation.findUnique.mockResolvedValue(aiConfig);
+    mockPrisma.aiProviderCredential.findUnique.mockResolvedValue({ encryptedApiKey: "encrypted-ai-key" });
+    mockGenerateReply.mockResolvedValue({ text: "AI reply", model: aiConfig.aiModel });
+    await getProcessor()(createMockMessageJob());
+    expect(mockPrisma.aiProviderCredential.findUnique).toHaveBeenCalledWith({
+      where: { workspaceId_provider: { workspaceId: "workspace_123", provider: "deepseek" } },
+      select: { encryptedApiKey: true },
+    });
+    expect(mockGenerateReply).toHaveBeenCalledWith(expect.objectContaining({ provider: "deepseek", model: aiConfig.aiModel, apiKey: "decrypted_token" }));
+    expect(mockSendDirectMessage).toHaveBeenCalledWith("decrypted_token", "ig_456", "commenter_999", "AI reply");
+    expect(mockPrisma.dmLog.create).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ aiUsed: true, aiModel: aiConfig.aiModel }) }));
+  });
+
+  it.each(["missing key", "provider error", "empty reply", "decryption failure"])("uses fallback on %s without leaking secrets", async (failure) => {
+    mockPrisma.inboxAutomation.findUnique.mockResolvedValue(aiConfig);
+    mockPrisma.operationalEvent.create.mockResolvedValue({});
+    mockPrisma.aiProviderCredential.findUnique.mockResolvedValue(failure === "missing key" ? null : { encryptedApiKey: "encrypted-ai-key" });
+    if (failure === "provider error") mockGenerateReply.mockRejectedValue(new Error("secret-key"));
+    else mockGenerateReply.mockResolvedValue({ text: "", model: aiConfig.aiModel });
+    if (failure === "decryption failure") {
+      mockDecryptToken.mockImplementation((ciphertext: string) => {
+        if (ciphertext === "encrypted-ai-key") throw new Error("secret-key");
+        return "decrypted_token";
+      });
+    }
+    await getProcessor()(createMockMessageJob());
+    expect(mockSendDirectMessage).toHaveBeenCalledWith("decrypted_token", "ig_456", "commenter_999", "Fallback reply");
+    expect(JSON.stringify(mockPrisma.operationalEvent.create.mock.calls)).not.toContain("secret-key");
+    if (failure === "missing key" || failure === "decryption failure") expect(mockGenerateReply).not.toHaveBeenCalled();
   });
 
   it("should send fallback only when its keywords match, otherwise nothing", async () => {
