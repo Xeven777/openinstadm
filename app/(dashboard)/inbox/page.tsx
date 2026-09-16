@@ -50,10 +50,13 @@ import {
 } from "@/lib/query/api";
 import { canManageInstagramAccounts, useWorkspaceContext } from "@/lib/workspace-context";
 
-// 60s: each poll hits Postgres, and a tab left open at 20s keeps Neon awake
-// around the clock. Conversations still refresh on open/send; only the
-// background tick is slower.
+// 60s while you're actively using the page. After 10 minutes without any
+// interaction (pointer, keyboard, or the tab regaining focus) background
+// polling stops entirely — every poll hits Postgres, so a forgotten tab at 60s
+// would otherwise keep Neon awake around the clock. Coming back refetches
+// immediately on focus and the tick resumes.
 const POLL_MS = 60_000;
+const IDLE_BACKOFF_MS = 10 * 60_000;
 // The seeded account is remembered in sessionStorage so a revisit can start on
 // the right account before the account list resolves.
 const SELECTED_ACCOUNT_KEY = "inbox:selectedAccount";
@@ -200,6 +203,31 @@ export default function InboxPage() {
     activeIdRef.current = activeId;
   });
 
+  // Idle detection for the poll backoff: any pointer/keyboard activity or the
+  // window regaining focus re-arms a 10-minute timer; when it expires, the
+  // queries below stop their refetchInterval until the next interaction.
+  const [isIdle, setIsIdle] = useState(false);
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const arm = () => {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- intentional: resets on mount and on each interaction
+      setIsIdle(false);
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(() => setIsIdle(true), IDLE_BACKOFF_MS);
+    };
+    arm();
+    const events = ["pointerdown", "keydown", "wheel", "focus"] as const;
+    for (const event of events) {
+      window.addEventListener(event, arm, { passive: true });
+    }
+    return () => {
+      if (timer) clearTimeout(timer);
+      for (const event of events) {
+        window.removeEventListener(event, arm);
+      }
+    };
+  }, []);
+
   // Accounts for the selector; default to the first connected account. Uses the
   // lightweight accounts endpoint (one query) rather than the heavy dashboard
   // stats aggregation, so the inbox isn't gated on analytics before it can load.
@@ -246,7 +274,10 @@ export default function InboxPage() {
     queryFn: () =>
       fetchConversations(selectedAccountId).then((r) => r.conversations),
     enabled: Boolean(selectedAccountId),
-    refetchInterval: POLL_MS,
+    refetchInterval: isIdle ? false : POLL_MS,
+    // Returning to the tab refetches right away, even while idle-paused, so
+    // the backoff never leaves a stale list on the screen.
+    refetchOnWindowFocus: true,
   });
   const conversations = useMemo(
     () => conversationsQuery.data ?? [],
@@ -272,7 +303,8 @@ export default function InboxPage() {
     queryFn: () =>
       fetchThreadMessages(selectedAccountId, activeId!).then((r) => r.messages),
     enabled: Boolean(selectedAccountId && activeId),
-    refetchInterval: POLL_MS,
+    refetchInterval: isIdle ? false : POLL_MS,
+    refetchOnWindowFocus: true,
   });
   const messages = useMemo(
     () => messagesQuery.data ?? [],
