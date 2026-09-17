@@ -13,10 +13,12 @@ const HEARTBEAT_INTERVAL_MS = 30_000;
 // it must fire every few minutes and Vercel's free crons only run once a day.
 //
 // Neon pooled still needs a query-free window to autosuspend (default 5 min).
-// 60 min gives a ~55 min idle window where Neon can actually suspend to 0 CU.
-// Polling covers comments only — DM inbox automations are webhook-only and
-// never need this sweep.
-const POLL_INTERVAL_MS = 60 * 60_000;
+// 90 min halves the fixed sweep cost (~7 → ~5 CU-hours/month at 0.25 CU) while
+// leaving a long idle window where Neon can suspend to 0 CU. Trade-off: a
+// comment Meta's webhooks miss is now picked up up to 90 minutes late instead
+// of 60. Polling covers comments only — DM inbox automations are webhook-only
+// and never need this sweep.
+const POLL_INTERVAL_MS = 90 * 60_000;
 const POLL_DISABLED = false;
 
 console.log(
