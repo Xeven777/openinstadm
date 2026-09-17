@@ -23,7 +23,8 @@ import {
 } from "@/lib/workspace-access";
 
 const permissionSchema = z.enum([
-  "MANAGE_AUTOMATIONS",
+  "MANAGE_CAMPAIGNS",
+  "MANAGE_INBOX_AUTOMATIONS",
   "MANAGE_INSTAGRAM_ACCOUNTS",
   "MANAGE_MEMBERS",
 ]);

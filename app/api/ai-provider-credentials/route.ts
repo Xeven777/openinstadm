@@ -14,6 +14,7 @@ const fail = (error: string, status: number) => NextResponse.json({ success: fal
 export async function GET() {
   const context = await getCurrentWorkspaceContext();
   if (!context) return fail("Unauthorized", 401);
+  if (context.role !== "OWNER") return fail("Only workspace owners can view AI connections", 403);
   try {
     const data = await prisma.aiProviderCredential.findMany({
       where: { workspaceId: context.workspaceId }, select: metadata,

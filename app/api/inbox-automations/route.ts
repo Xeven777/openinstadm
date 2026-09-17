@@ -2,9 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/db/client";
 import {
-  canManageAutomations,
+  canManageInboxAutomations,
   getCurrentWorkspaceContext,
-  getCurrentWorkspaceId,
 } from "@/lib/workspace-access";
 import { generateReply } from "@/lib/ai/client";
 import { loadAiConnection } from "@/lib/ai/credentials";
@@ -39,6 +38,23 @@ const updateSchema = z.object({
   matchAnyWord: z.boolean().optional(),
 });
 
+// Delegated inbox managers can edit reply content and the master config's
+// activation state, but AI provider/model selection remains owner-only.
+const memberUpdateSchema = updateSchema.omit({
+  aiEnabled: true,
+  aiProvider: true,
+  aiModel: true,
+});
+
+function hideAiConfiguration<T extends { aiProvider: unknown; aiModel: unknown }>(
+  automation: T,
+  isOwner: boolean,
+) {
+  if (isOwner) return automation;
+  const { aiProvider: _aiProvider, aiModel: _aiModel, ...safeAutomation } = automation;
+  return safeAutomation;
+}
+
 async function assertAccount(workspaceId: string, instagramAccountId: string) {
   return prisma.instagramAccount.findFirst({
     where: { id: instagramAccountId, workspaceId },
@@ -47,10 +63,12 @@ async function assertAccount(workspaceId: string, instagramAccountId: string) {
 }
 
 export async function GET(request: NextRequest) {
-  const workspaceId = await getCurrentWorkspaceId();
-  if (!workspaceId) {
+  const context = await getCurrentWorkspaceContext();
+  if (!context) {
     return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
   }
+  const { workspaceId } = context;
+  const isOwner = context.role === "OWNER";
   const id = request.nextUrl.searchParams.get("id");
   const instagramAccountId = request.nextUrl.searchParams.get("instagramAccountId");
 
@@ -64,7 +82,13 @@ export async function GET(request: NextRequest) {
     }
     const sent = await prisma.dmLog.count({ where: { inboxAutomationId: id, status: "SENT" } });
     return NextResponse.json(
-      { success: true, data: { ...row, stats: { total: row._count.dmLogs, sent } } },
+      {
+        success: true,
+        data: hideAiConfiguration(
+          { ...row, stats: { total: row._count.dmLogs, sent } },
+          isOwner,
+        ),
+      },
       { headers: { "Cache-Control": "no-store" } }
     );
   }
@@ -81,7 +105,7 @@ export async function GET(request: NextRequest) {
     },
   });
   return NextResponse.json(
-    { success: true, data: rows },
+    { success: true, data: rows.map((row) => hideAiConfiguration(row, isOwner)) },
     { headers: { "Cache-Control": "no-store" } }
   );
 }
@@ -91,8 +115,8 @@ export async function POST(request: NextRequest) {
   if (!context) {
     return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
   }
-  if (!canManageAutomations(context)) {
-    return NextResponse.json({ success: false, error: "No permission" }, { status: 403 });
+  if (context.role !== "OWNER") {
+    return NextResponse.json({ success: false, error: "Only workspace owners can create inbox automations" }, { status: 403 });
   }
   const body = await request.json().catch(() => null);
   const parsed = createSchema.safeParse(body);
@@ -143,7 +167,7 @@ export async function PATCH(request: NextRequest) {
   if (!context) {
     return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
   }
-  if (!canManageAutomations(context)) {
+  if (!canManageInboxAutomations(context)) {
     return NextResponse.json({ success: false, error: "No permission" }, { status: 403 });
   }
   const id = request.nextUrl.searchParams.get("id");
@@ -151,7 +175,19 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json({ success: false, error: "Missing id" }, { status: 400 });
   }
   const body = await request.json().catch(() => null);
-  const parsed = updateSchema.safeParse(body);
+  const isOwner = context.role === "OWNER";
+  const attemptsAiConfigurationChange =
+    !isOwner &&
+    body &&
+    typeof body === "object" &&
+    ("aiEnabled" in body || "aiProvider" in body || "aiModel" in body);
+  if (attemptsAiConfigurationChange) {
+    return NextResponse.json(
+      { success: false, error: "Only workspace owners can change AI provider, model, or enablement" },
+      { status: 403 },
+    );
+  }
+  const parsed = (isOwner ? updateSchema : memberUpdateSchema).safeParse(body);
   if (!parsed.success) {
     return NextResponse.json(
       { success: false, error: "Invalid input", details: parsed.error.flatten() },
@@ -166,14 +202,14 @@ export async function PATCH(request: NextRequest) {
   }
   const data = { ...parsed.data } as Record<string, unknown>;
   const merged = { ...existing, ...parsed.data };
-  if (merged.aiEnabled && (!AI_PROVIDER_IDS.some((provider) => provider === merged.aiProvider) || !merged.aiModel?.trim())) {
+  if (isOwner && merged.aiEnabled && (!AI_PROVIDER_IDS.some((provider) => provider === merged.aiProvider) || !merged.aiModel?.trim())) {
     return NextResponse.json({ success: false, error: "Select an AI provider and model" }, { status: 400 });
   }
   if (parsed.data.matchAnyWord === true) data.fallbackKeywords = [];
   if (parsed.data.knowledge !== undefined) data.knowledge = (parsed.data.knowledge as string)?.trim() || null;
   if (parsed.data.fallbackMessage !== undefined) data.fallbackMessage = parsed.data.fallbackMessage ?? "";
   const updated = await prisma.inboxAutomation.update({ where: { id }, data });
-  return NextResponse.json({ success: true, data: updated });
+  return NextResponse.json({ success: true, data: hideAiConfiguration(updated, isOwner) });
 }
 
 export async function DELETE(request: NextRequest) {
@@ -181,8 +217,8 @@ export async function DELETE(request: NextRequest) {
   if (!context) {
     return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
   }
-  if (!canManageAutomations(context)) {
-    return NextResponse.json({ success: false, error: "No permission" }, { status: 403 });
+  if (context.role !== "OWNER") {
+    return NextResponse.json({ success: false, error: "Only workspace owners can delete inbox automations" }, { status: 403 });
   }
   const id = request.nextUrl.searchParams.get("id");
   if (!id) {
@@ -212,7 +248,7 @@ export async function PUT(request: NextRequest) {
   if (!context) {
     return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
   }
-  if (!canManageAutomations(context)) {
+  if (!canManageInboxAutomations(context)) {
     return NextResponse.json({ success: false, error: "No permission" }, { status: 403 });
   }
   const workspaceId = context.workspaceId;
@@ -243,7 +279,7 @@ export async function PUT(request: NextRequest) {
       });
       return NextResponse.json({
         success: true,
-        data: { matched: { type: "AI", id: config.id }, reply: gen.text, ai: true, model: gen.model },
+        data: { matched: { type: "AI", id: config.id }, reply: gen.text, ai: true },
       });
     } catch (e) {
       // fall through to fallback

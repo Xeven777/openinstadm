@@ -11,12 +11,11 @@ import { Input } from "@/components/ui/input";
 
 const CUSTOM = { id: "", label: "Custom model ID" };
 
-export function AiProviderSettings({ provider, model, onProviderChange, onModelChange, disabled }: {
+export function AiProviderSettings({ provider, model, onProviderChange, onModelChange }: {
   provider: AiProvider;
   model: string;
   onProviderChange: (provider: AiProvider) => void;
   onModelChange: (model: string) => void;
-  disabled: boolean;
 }) {
   const workspace = useWorkspaceContext();
   const options = [...AI_PROVIDERS[provider].models, CUSTOM];
@@ -29,13 +28,13 @@ export function AiProviderSettings({ provider, model, onProviderChange, onModelC
         <div className="space-y-1">
           <label htmlFor="ai-provider" className="text-xs font-medium">Provider</label>
           <select id="ai-provider" className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
-            value={provider} disabled={disabled} onChange={(event) => onProviderChange(event.target.value as AiProvider)}>
+            value={provider} onChange={(event) => onProviderChange(event.target.value as AiProvider)}>
             {AI_PROVIDER_IDS.map((id) => <option key={id} value={id}>{AI_PROVIDERS[id].label}</option>)}
           </select>
         </div>
         <div className="space-y-1">
           <label htmlFor="ai-model" className="text-xs font-medium">Model</label>
-          <Combobox.Root items={options} value={selected} disabled={disabled}
+          <Combobox.Root items={options} value={selected}
             itemToStringLabel={(item) => item.label} isItemEqualToValue={(a, b) => a.id === b.id}
             onValueChange={(item) => {
               if (item) {
@@ -64,7 +63,7 @@ export function AiProviderSettings({ provider, model, onProviderChange, onModelC
             </Combobox.Portal>
           </Combobox.Root>
           {selected === CUSTOM && <Input aria-label="Custom model ID" value={model} maxLength={200}
-            disabled={disabled} placeholder="Enter the exact provider model ID" onChange={(event) => onModelChange(event.target.value)} />}
+            placeholder="Enter the exact provider model ID" onChange={(event) => onModelChange(event.target.value)} />}
           <p className="text-[10px] text-muted-foreground">Model ID: {model || "Enter a custom model ID"}</p>
         </div>
       </div>

@@ -11,7 +11,7 @@ import {
 } from "@/lib/server/automations";
 import { invalidateWorkspaceStats } from "@/lib/server/stats";
 import {
-  canManageAutomations,
+  canManageCampaigns,
   getCurrentWorkspaceContext,
   getCurrentWorkspaceId
 } from "@/lib/workspace-access";
@@ -209,7 +209,7 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  if (!canManageAutomations(context)) {
+  if (!canManageCampaigns(context)) {
     return NextResponse.json(
       { success: false, error: "You do not have permission to create campaigns" },
       { status: 403 }
@@ -382,7 +382,7 @@ export async function PATCH(request: NextRequest) {
     );
   }
 
-  if (!canManageAutomations(context)) {
+  if (!canManageCampaigns(context)) {
     return NextResponse.json(
       { success: false, error: "You do not have permission to update campaigns" },
       { status: 403 }
@@ -547,7 +547,7 @@ export async function DELETE(request: NextRequest) {
     );
   }
 
-  if (!canManageAutomations(context)) {
+  if (!canManageCampaigns(context)) {
     return NextResponse.json(
       { success: false, error: "You do not have permission to delete campaigns" },
       { status: 403 }

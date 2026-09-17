@@ -75,8 +75,9 @@ describe("workspace AI credentials", () => {
     expect(db.deleteMany).toHaveBeenCalledWith({ where: { workspaceId: "workspace-a", provider: "google" } });
   });
 
-  it("rejects members even with automation management permissions", async () => {
-    context.mockResolvedValue({ workspaceId: "workspace-a", role: "MEMBER", permissions: ["MANAGE_AUTOMATIONS", "MANAGE_MEMBERS"] });
+  it("rejects members even with campaign and inbox automation permissions", async () => {
+    context.mockResolvedValue({ workspaceId: "workspace-a", role: "MEMBER", permissions: ["MANAGE_CAMPAIGNS", "MANAGE_INBOX_AUTOMATIONS", "MANAGE_MEMBERS"] });
+    expect((await GET()).status).toBe(403);
     expect((await PUT(request("PUT", { provider: "google", apiKey: "secret" }))).status).toBe(403);
     expect((await DELETE(request("DELETE", { provider: "google" }))).status).toBe(403);
     expect(db.upsert).not.toHaveBeenCalled();

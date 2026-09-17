@@ -211,8 +211,10 @@ export interface InboxAutomationItem {
   isActive: boolean;
   aiEnabled: boolean;
   knowledge: string | null;
-  aiProvider: string | null;
-  aiModel: string | null;
+  // Provider and model are intentionally omitted from the API response for
+  // non-owners, who can manage reply content but not AI configuration.
+  aiProvider?: string | null;
+  aiModel?: string | null;
   fallbackKeywords: string[];
   fallbackMessage: string;
   wholeWordMatch: boolean;

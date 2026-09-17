@@ -13,7 +13,7 @@ import { useRouter } from "next/navigation";
 import AccountSelect, { type AccountOption } from "@/components/account-select";
 import { parseCsv } from "@/lib/utils/csv";
 import { IMPORT_QUEUE_KEY, IMPORT_ACCOUNT_KEY } from "@/lib/import-queue";
-import { canManageAutomations, useWorkspaceContext } from "@/lib/workspace-context";
+import { canManageCampaigns, useWorkspaceContext } from "@/lib/workspace-context";
 
 const SAMPLE = `keywords,dm_message,public_reply,tracked_url,opening_dm,opening_dm_button
 "yc","here it is: {link}","sent. check dms","https://events.ycombinator.com/startup-school-2026","hey! click below for the referral","send link"
@@ -21,7 +21,7 @@ const SAMPLE = `keywords,dm_message,public_reply,tracked_url,opening_dm,opening_
 
 export default function ImportCampaignsPage() {
   const router = useRouter();
-  const canManage = canManageAutomations(useWorkspaceContext());
+  const canManage = canManageCampaigns(useWorkspaceContext());
   const [accounts, setAccounts] = useState<AccountOption[]>([]);
   const [selectedAccountId, setSelectedAccountId] = useState("");
   const [csv, setCsv] = useState("");

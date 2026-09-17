@@ -13,7 +13,8 @@ vi.mock("@/lib/db/client", () => ({ prisma: db }));
 vi.mock("@/lib/workspace-access", () => ({
   getCurrentWorkspaceContext: context,
   getCurrentWorkspaceId: async () => (await context())?.workspaceId,
-  canManageAutomations: (ctx: { role: string }) => ctx.role === "OWNER",
+  canManageInboxAutomations: (ctx: { role: string; permissions?: string[] }) =>
+    ctx.role === "OWNER" || ctx.permissions?.includes("MANAGE_INBOX_AUTOMATIONS"),
 }));
 vi.mock("@/lib/ai/client", () => ({ generateReply: generate }));
 vi.mock("@/lib/meta/oauth", () => ({ decryptToken: (value: string) => `decrypted-${value}` }));
@@ -59,7 +60,9 @@ describe("inbox AI configuration and playground", () => {
 
   it("uses the saved provider/model and decrypted workspace credential", async () => {
     const response = await preview();
-    expect((await response.json()).data).toMatchObject({ reply: "AI reply", ai: true, model: config.aiModel });
+    const data = (await response.json()).data;
+    expect(data).toMatchObject({ reply: "AI reply", ai: true });
+    expect(data.model).toBeUndefined();
     expect(generate).toHaveBeenCalledWith(expect.objectContaining({ provider: "google", model: config.aiModel, apiKey: "decrypted-workspace-key" }));
     expect(db.inboxAutomation.findFirst).toHaveBeenCalledWith({ where: { workspaceId: "workspace-a", instagramAccountId: "account-a", isActive: true } });
   });
@@ -97,7 +100,21 @@ describe("inbox AI configuration and playground", () => {
     expect(generate).not.toHaveBeenCalled();
   });
 
-  it("requires automation management permission to spend a workspace key", async () => {
+  it("allows inbox managers to edit reply content and use the playground, but not AI configuration", async () => {
+    context.mockResolvedValue({ workspaceId: "workspace-a", role: "MEMBER", permissions: ["MANAGE_INBOX_AUTOMATIONS"] });
+    expect((await PATCH(request("PATCH", { knowledge: "Updated shop information" }))).status).toBe(200);
+    expect(db.inboxAutomation.update).toHaveBeenCalledWith({
+      where: { id: "config-a" },
+      data: { knowledge: "Updated shop information" },
+    });
+    expect((await PATCH(request("PATCH", { aiModel: "different-model" }))).status).toBe(403);
+
+    const data = (await (await preview()).json()).data;
+    expect(data).toMatchObject({ reply: "AI reply", ai: true });
+    expect(data.model).toBeUndefined();
+  });
+
+  it("requires inbox automation management permission to use the playground", async () => {
     context.mockResolvedValue({ workspaceId: "workspace-a", role: "MEMBER" });
     expect((await preview()).status).toBe(403);
     expect(generate).not.toHaveBeenCalled();

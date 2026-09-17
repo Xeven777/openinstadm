@@ -9,7 +9,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/db/client";
 import { cn } from "@/lib/utils";
 import { normalizeInvitationEmail } from "@/lib/workspace-invitations";
-const WORKSPACE_PERMISSION_LABELS = { MANAGE_AUTOMATIONS: "Manage automations", MANAGE_INSTAGRAM_ACCOUNTS: "Manage Instagram accounts", MANAGE_MEMBERS: "Manage team" } as const;
+const WORKSPACE_PERMISSION_LABELS = { MANAGE_CAMPAIGNS: "Manage Campaigns", MANAGE_INBOX_AUTOMATIONS: "Manage Inbox Automations", MANAGE_INSTAGRAM_ACCOUNTS: "Manage Instagram accounts", MANAGE_MEMBERS: "Manage team" } as const;
 type WorkspacePermission = keyof typeof WORKSPACE_PERMISSION_LABELS;
 
 type InvitePageProps = {

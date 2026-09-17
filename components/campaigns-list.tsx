@@ -57,7 +57,7 @@ import { cn } from "@/lib/utils";
 import { queryKeys } from "@/lib/query/keys";
 import { fetchPosts } from "@/lib/query/api";
 import type { CampaignListItem as Campaign } from "@/lib/server/automations";
-import { canManageAutomations, useWorkspaceContext } from "@/lib/workspace-context";
+import { canManageCampaigns, useWorkspaceContext } from "@/lib/workspace-context";
 
 interface CampaignsListProps {
   campaigns: Campaign[];
@@ -106,7 +106,7 @@ export default function CampaignsList({
   accounts,
 }: CampaignsListProps) {
   const router = useRouter();
-  const canManage = canManageAutomations(useWorkspaceContext());
+  const canManage = canManageCampaigns(useWorkspaceContext());
   const [selectedAccountId, setSelectedAccountId] = useState("all");
   // Optimistic mutation state, applied as an overlay on top of server data so
   // an in-flight navigation can never revert a toggle/delete.

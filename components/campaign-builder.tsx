@@ -38,7 +38,7 @@ import {
   IMPORT_ACCOUNT_KEY,
   type ImportRow,
 } from "@/lib/import-queue";
-import { canManageAutomations, useWorkspaceContext } from "@/lib/workspace-context";
+import { canManageCampaigns, useWorkspaceContext } from "@/lib/workspace-context";
 
 type TriggerScope = "specific" | "any" | "next";
 type MatchMode = "specific" | "any";
@@ -125,7 +125,7 @@ function Radio({
 
 export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderProps) {
   const router = useRouter();
-  const canManage = canManageAutomations(useWorkspaceContext());
+  const canManage = canManageCampaigns(useWorkspaceContext());
 
   const [loading, setLoading] = useState(mode === "edit");
   const [notFound, setNotFound] = useState(false);

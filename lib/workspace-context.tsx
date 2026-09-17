@@ -20,7 +20,8 @@ export interface WorkspaceContextValue {
 }
 
 export const WORKSPACE_PERMISSION_LABELS = {
-  MANAGE_AUTOMATIONS: "Manage automations",
+  MANAGE_CAMPAIGNS: "Manage Campaigns",
+  MANAGE_INBOX_AUTOMATIONS: "Manage Inbox Automations",
   MANAGE_INSTAGRAM_ACCOUNTS: "Manage Instagram accounts",
   MANAGE_MEMBERS: "Manage team",
 } as const;
@@ -38,8 +39,12 @@ function hasPermission(
   return Boolean(isOwner(context) || context?.permissions.includes(permission));
 }
 
-export function canManageAutomations(context: WorkspaceContextValue | null | undefined) {
-  return hasPermission(context, "MANAGE_AUTOMATIONS");
+export function canManageCampaigns(context: WorkspaceContextValue | null | undefined) {
+  return hasPermission(context, "MANAGE_CAMPAIGNS");
+}
+
+export function canManageInboxAutomations(context: WorkspaceContextValue | null | undefined) {
+  return hasPermission(context, "MANAGE_INBOX_AUTOMATIONS");
 }
 
 export function canManageInstagramAccounts(context: WorkspaceContextValue | null | undefined) {

@@ -26,7 +26,11 @@ import {
   fetchInboxAutomations,
   type InboxAutomationItem,
 } from "@/lib/query/api";
-import { canManageAutomations, useWorkspaceContext } from "@/lib/workspace-context";
+import {
+  canManageInboxAutomations,
+  isOwner,
+  useWorkspaceContext,
+} from "@/lib/workspace-context";
 import { AiProviderSettings } from "@/components/ai-provider-settings";
 import { AI_PROVIDERS, isAiProvider, type AiProvider } from "@/lib/ai/providers";
 
@@ -34,7 +38,9 @@ const SELECTED_KEY = "inbox-automations:selectedAccount";
 
 export default function InboxAutomationsPage() {
   const queryClient = useQueryClient();
-  const canManage = canManageAutomations(useWorkspaceContext());
+  const workspace = useWorkspaceContext();
+  const canManage = canManageInboxAutomations(workspace);
+  const owner = isOwner(workspace);
   const [requestedAccountId, setSelectedAccountId] = useState(() => {
     if (typeof window === "undefined") return "";
     return window.sessionStorage.getItem(SELECTED_KEY) ?? "";
@@ -119,10 +125,7 @@ export default function InboxAutomationsPage() {
       const payload = {
         instagramAccountId: selectedAccountId,
         isActive,
-        aiEnabled,
         knowledge: knowledge.trim() || null,
-        aiProvider: aiProvider.trim() || null,
-        aiModel: aiModel.trim() || null,
         fallbackKeywords: fallbackKeywords
           .split(",")
           .map((k) => k.trim())
@@ -131,6 +134,13 @@ export default function InboxAutomationsPage() {
         fallbackMessage,
         wholeWordMatch,
         matchAnyWord,
+        ...(owner
+          ? {
+              aiEnabled,
+              aiProvider: aiProvider.trim() || null,
+              aiModel: aiModel.trim() || null,
+            }
+          : {}),
       };
       const res = config
         ? await fetch(`/api/inbox-automations?id=${config.id}`, {
@@ -245,38 +255,48 @@ export default function InboxAutomationsPage() {
                   One row per account — editing the single master database entry.
                 </p>
               )}
+              {!config && !owner && (
+                <p className="text-xs text-muted-foreground">
+                  Only the workspace owner can create the first inbox automation for an account.
+                </p>
+              )}
 
               {/* AI Reply */}
               <div className="rounded-lg border border-border p-4 space-y-3">
-                <label className="flex items-center justify-between gap-3">
+                <div className="flex items-center justify-between gap-3">
                   <span className="text-sm font-medium">
                     <Robot className="mr-1 inline size-4" /> AI Reply
                     <span className="block text-xs font-normal text-muted-foreground">
                       Plain text, 500 characters, no links. Connect a provider for this workspace to enable AI replies.
                     </span>
                   </span>
-                  <Switch checked={aiEnabled} onCheckedChange={setAiEnabled} disabled={!canManage} />
-                </label>
-                {aiEnabled && (
-                  <div className="space-y-3">
-                    <AiProviderSettings key={`${selectedAccountId}:${aiProvider}`} provider={aiProvider} model={aiModel} disabled={!canManage}
+                  {owner ? (
+                    <Switch checked={aiEnabled} onCheckedChange={setAiEnabled} />
+                  ) : (
+                    <span className="text-xs text-muted-foreground">
+                      {aiEnabled ? "Enabled" : "Disabled"}
+                    </span>
+                  )}
+                </div>
+                {owner && aiEnabled && (
+                  <AiProviderSettings key={`${selectedAccountId}:${aiProvider}`} provider={aiProvider} model={aiModel}
                       onProviderChange={(provider) => {
                         setAiProvider(provider);
                         setAiModel(AI_PROVIDERS[provider].models[0].id);
                       }} onModelChange={setAiModel} />
-                    <div className="space-y-1">
-                      <label className="text-xs font-medium">Knowledge (system prompt)</label>
-                      <Textarea
-                        value={knowledge}
-                        onChange={(e) => setKnowledge(e.target.value)}
-                        placeholder="What you sell, prices, timings, policies — AI grounds every claim in this."
-                        rows={4}
-                        maxLength={4000}
-                      />
-                      <p className="text-xs text-muted-foreground">{knowledge.length}/4000</p>
-                    </div>
-                  </div>
                 )}
+                <div className="space-y-1">
+                  <label className="text-xs font-medium">Knowledge (system prompt)</label>
+                  <Textarea
+                    value={knowledge}
+                    onChange={(e) => setKnowledge(e.target.value)}
+                    placeholder="What you sell, prices, timings, policies — AI grounds every claim in this."
+                    rows={4}
+                    maxLength={4000}
+                    disabled={!canManage}
+                  />
+                  <p className="text-xs text-muted-foreground">{knowledge.length}/4000</p>
+                </div>
               </div>
 
               {/* Fallback */}
@@ -291,6 +311,7 @@ export default function InboxAutomationsPage() {
                     value={fallbackKeywords}
                     onChange={(e) => setFallbackKeywords(e.target.value)}
                     placeholder="hey, hello, price, cost"
+                    disabled={!canManage}
                   />
                   <div className="flex flex-wrap gap-4">
                     <label className="flex items-center gap-2 text-xs">
@@ -309,6 +330,7 @@ export default function InboxAutomationsPage() {
                     placeholder="Hey {username}! Thanks for reaching out…"
                     rows={3}
                     maxLength={1000}
+                    disabled={!canManage}
                   />
                   <p className="text-xs text-muted-foreground">When AI is enabled this is not used unless AI fails.</p>
                 </div>
@@ -316,14 +338,14 @@ export default function InboxAutomationsPage() {
 
               <div className="flex flex-wrap gap-2 justify-between">
                 <div>
-                  {config && canManage && (
+                  {config && owner && (
                     <Button variant="ghost" onClick={() => void removeConfig()} className="text-destructive">
                       Delete config
                     </Button>
                   )}
                 </div>
                 <div className="flex gap-2">
-                  <Button onClick={() => void save()} disabled={saving || !canManage}>
+                  <Button onClick={() => void save()} disabled={saving || !canManage || (!config && !owner)}>
                     {saving ? "Saving…" : config ? "Save changes" : "Create config"}
                   </Button>
                 </div>

@@ -30,8 +30,12 @@ export function hasWorkspacePermission(
   return access.role === "OWNER" || access.permissions.includes(permission);
 }
 
-export function canManageAutomations(access: WorkspaceAccess) {
-  return hasWorkspacePermission(access, "MANAGE_AUTOMATIONS");
+export function canManageCampaigns(access: WorkspaceAccess) {
+  return hasWorkspacePermission(access, "MANAGE_CAMPAIGNS");
+}
+
+export function canManageInboxAutomations(access: WorkspaceAccess) {
+  return hasWorkspacePermission(access, "MANAGE_INBOX_AUTOMATIONS");
 }
 
 export function canManageInstagramAccounts(access: WorkspaceAccess) {

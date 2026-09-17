@@ -51,7 +51,7 @@ import { cn } from "@/lib/utils";
 import { queryKeys } from "@/lib/query/keys";
 import { fetchProfile, fetchPosts } from "@/lib/query/api";
 import type { CampaignListItem } from "@/lib/server/automations";
-import { canManageAutomations, useWorkspaceContext } from "@/lib/workspace-context";
+import { canManageCampaigns, useWorkspaceContext } from "@/lib/workspace-context";
 
 interface CampaignDetailProps {
   campaign: CampaignListItem;
@@ -86,7 +86,7 @@ function fullDate(iso: string): string {
 
 export default function CampaignDetail({ campaign }: CampaignDetailProps) {
   const router = useRouter();
-  const canManage = canManageAutomations(useWorkspaceContext());
+  const canManage = canManageCampaigns(useWorkspaceContext());
   const [previewTab, setPreviewTab] = useState<PreviewTab>("dm");
   const [copied, setCopied] = useState<string | null>(null);
   // Optimistic toggle, applied on top of the server prop so the badge flips
