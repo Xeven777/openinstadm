@@ -282,13 +282,28 @@ export default function SettingsTeam({
   return (
     <Card>
       <CardContent className="gap-4">
-        <div>
-          <h2 className="text-base font-semibold text-foreground">Team</h2>
-          <p className="text-sm text-muted-foreground">
-            {members.members.length} member{members.members.length === 1 ? "" : "s"}
-            {pendingInvites > 0 &&
-              ` · ${pendingInvites} pending invite${pendingInvites === 1 ? "" : "s"}`}
-          </p>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 className="text-base font-semibold text-foreground">Team</h2>
+            <p className="text-sm text-muted-foreground">
+              {members.members.length} member{members.members.length === 1 ? "" : "s"}
+              {pendingInvites > 0 &&
+                ` · ${pendingInvites} pending invite${pendingInvites === 1 ? "" : "s"}`}
+            </p>
+          </div>
+          {canManageMembers && (
+            <Button
+              type="button"
+              size="sm"
+              onClick={() =>
+                document
+                  .getElementById("team-invite-email")
+                  ?.focus({ preventScroll: false })
+              }
+            >
+              Invite teammate
+            </Button>
+          )}
         </div>
 
         <Separator />
@@ -308,185 +323,197 @@ export default function SettingsTeam({
           </div>
         )}
 
-        {members.currentUserRole !== "OWNER" && <Separator />}
-
-        <div className="space-y-1">
-          {members.members.map((member) => {
-            const isSelf = member.user.id === currentUserId;
-            const isOwner = member.role === "OWNER";
-            const isConfirming = confirmRemoveId === member.id;
-            return (
-              <div
-                key={member.id}
-                className="flex flex-wrap items-center gap-3 rounded-lg px-3 py-2.5 transition-colors hover:bg-muted/50"
-              >
-                <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={
-                      "https://api.dicebear.com/10.x/thumbs/svg?seed=" +
-                      member.user.id
-                    }
-                    alt={member.user.name ?? member.user.email ?? "M"}
-                    width={36}
-                    height={36}
-                    className="rounded-full"
-                  />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium text-foreground">
-                    {member.user.name ?? member.user.email}
-                    {isSelf && (
-                      <span className="text-muted-foreground"> (you)</span>
-                    )}
-                  </p>
-                  <p className="truncate text-sm text-muted-foreground">
-                    {member.user.email}
-                  </p>
-                </div>
-                <Badge variant={isOwner ? "default" : "outline"}>
-                  {member.role}
-                </Badge>
-
-                {!isOwner && canManageMembers && !isSelf && (
-                  <>
-                    {isConfirming ? (
-                      <div className="flex items-center gap-2">
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="destructive"
-                          onClick={() =>
-                            void removeMember(
-                              member.id,
-                              memberName(member.user.name, member.user.email),
-                            )
-                          }
-                          disabled={busy === `member:${member.id}`}
-                        >
-                          Remove
-                        </Button>
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="outline"
-                          onClick={() => setConfirmRemoveId(null)}
-                        >
-                          Cancel
-                        </Button>
-                      </div>
-                    ) : (
-                      <Button
-                        type="button"
-                        size="icon-sm"
-                        variant="ghost"
-                        onClick={() => {
-                          setConfirmRemoveId(member.id);
-                          window.setTimeout(
-                            () =>
-                              setConfirmRemoveId((cur) =>
-                                cur === member.id ? null : cur,
-                              ),
-                            4000,
-                          );
-                        }}
-                        aria-label={`Remove ${member.user.email ?? member.user.name ?? "member"}`}
-                        className="text-muted-foreground hover:text-destructive"
-                      >
-                        <Trash />
-                      </Button>
-                    )}
-                  </>
-                )}
-
-                {!isOwner && canGrantPermissions && (
-                  <div className="w-full space-y-2 border-t border-border/60 pt-3 sm:ml-12">
-                    <p className="text-xs font-medium text-muted-foreground">
-                      Permissions
-                    </p>
-                    <div className="flex flex-wrap gap-x-4 gap-y-2">
-                      {PERMISSIONS.map((permission) => (
-                        <label
-                          key={permission.value}
-                          className="flex items-center gap-2 text-xs text-muted-foreground"
-                        >
-                          <Switch
-                            size="sm"
-                            checked={member.permissions.includes(
-                              permission.value,
-                            )}
-                            onCheckedChange={(checked) =>
-                              void updatePermissions(
-                                member.id,
-                                togglePermission(
-                                  member.permissions,
-                                  permission.value,
-                                  checked,
-                                ),
-                              )
+        <div className="overflow-x-auto rounded-lg border border-border">
+          <table className="w-full min-w-[640px] border-collapse text-left">
+            <thead>
+              <tr className="border-b border-border bg-muted/50 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                <th className="px-3 py-2">Member</th>
+                <th className="px-3 py-2">Role</th>
+                <th className="px-3 py-2">Permissions</th>
+                <th className="px-3 py-2 text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border/60">
+              {members.members.map((member) => {
+                const isSelf = member.user.id === currentUserId;
+                const isOwner = member.role === "OWNER";
+                const isConfirming = confirmRemoveId === member.id;
+                return (
+                  <tr key={member.id} className="align-top transition-colors hover:bg-muted/40">
+                    <td className="px-3 py-2.5">
+                      <div className="flex items-center gap-3">
+                        <div className="size-9 shrink-0 overflow-hidden rounded-full">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src={
+                              "https://api.dicebear.com/10.x/thumbs/svg?seed=" +
+                              member.user.id
                             }
-                            disabled={busy === `permissions:${member.id}`}
-                            aria-label={`${permission.label} for ${member.user.email ?? member.user.name ?? "member"}`}
+                            alt={member.user.name ?? member.user.email ?? "M"}
+                            width={36}
+                            height={36}
+                            className="rounded-full"
                           />
-                          {permission.label}
-                        </label>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {isSelf &&
-                  !isOwner && (
-                    <>
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="outline"
-                        onClick={() => setLeaveDialogOpen(true)}
-                        className="text-muted-foreground hover:text-destructive"
-                      >
-                        <SignOut className="size-4" />
-                      </Button>
-                      <Dialog
-                        open={leaveDialogOpen}
-                        onOpenChange={(open) => {
-                          if (!open && busy !== "leave")
-                            setLeaveDialogOpen(open);
-                        }}
-                      >
-                        <DialogContent showCloseButton={busy !== "leave"}>
-                          <DialogHeader>
-                            <DialogTitle>Leave workspace?</DialogTitle>
-                            <DialogDescription>
-                              You&apos;ll be removed from this workspace. You can
-                              rejoin if you&apos;re invited again.
-                            </DialogDescription>
-                          </DialogHeader>
-                          <DialogFooter>
+                        </div>
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-medium text-foreground">
+                            {member.user.name ?? member.user.email}
+                            {isSelf && (
+                              <span className="text-muted-foreground"> (you)</span>
+                            )}
+                          </p>
+                          <p className="truncate text-sm text-muted-foreground">
+                            {member.user.email}
+                          </p>
+                          {!isOwner && canGrantPermissions && (
+                            <div className="mt-2 flex flex-wrap gap-x-4 gap-y-2">
+                              {PERMISSIONS.map((permission) => (
+                                <label
+                                  key={permission.value}
+                                  className="flex items-center gap-2 text-xs text-muted-foreground"
+                                >
+                                  <Switch
+                                    size="sm"
+                                    checked={member.permissions.includes(
+                                      permission.value,
+                                    )}
+                                    onCheckedChange={(checked) =>
+                                      void updatePermissions(
+                                        member.id,
+                                        togglePermission(
+                                          member.permissions,
+                                          permission.value,
+                                          checked,
+                                        ),
+                                      )
+                                    }
+                                    disabled={busy === `permissions:${member.id}`}
+                                    aria-label={`${permission.label} for ${member.user.email ?? member.user.name ?? "member"}`}
+                                  />
+                                  {permission.label}
+                                </label>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </td>
+                    <td className="whitespace-nowrap px-3 py-2.5">
+                      <Badge variant={isOwner ? "default" : "outline"}>
+                        {member.role}
+                      </Badge>
+                    </td>
+                    <td className="max-w-56 px-3 py-2.5 text-xs text-muted-foreground">
+                      {isOwner
+                        ? "Full access"
+                        : permissionSummary(
+                            member.permissions as MemberPermission[],
+                          )}
+                    </td>
+                    <td className="whitespace-nowrap px-3 py-2.5 text-right">
+                      {!isOwner && canManageMembers && !isSelf ? (
+                        isConfirming ? (
+                          <div className="flex items-center justify-end gap-2">
                             <Button
-                              variant="outline"
-                              onClick={() => setLeaveDialogOpen(false)}
-                              disabled={busy === "leave"}
-                            >
-                              Stay
-                            </Button>
-                            <Button
+                              type="button"
+                              size="sm"
                               variant="destructive"
-                              onClick={() => void leaveWorkspace(member.id)}
-                              disabled={busy === "leave"}
+                              onClick={() =>
+                                void removeMember(
+                                  member.id,
+                                  memberName(member.user.name, member.user.email),
+                                )
+                              }
+                              disabled={busy === `member:${member.id}`}
                             >
-                              {busy === "leave"
-                                ? "Leaving..."
-                                : "Leave"}
+                              Remove
                             </Button>
-                          </DialogFooter>
-                        </DialogContent>
-                      </Dialog>
-                    </>
-                  )}
-              </div>
-            );
-          })}
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              onClick={() => setConfirmRemoveId(null)}
+                            >
+                              Cancel
+                            </Button>
+                          </div>
+                        ) : (
+                          <Button
+                            type="button"
+                            size="icon-sm"
+                            variant="ghost"
+                            onClick={() => {
+                              setConfirmRemoveId(member.id);
+                              window.setTimeout(
+                                () =>
+                                  setConfirmRemoveId((cur) =>
+                                    cur === member.id ? null : cur,
+                                  ),
+                                4000,
+                              );
+                            }}
+                            aria-label={`Remove ${member.user.email ?? member.user.name ?? "member"}`}
+                            className="text-muted-foreground hover:text-destructive"
+                          >
+                            <Trash />
+                          </Button>
+                        )
+                      ) : isSelf && !isOwner ? (
+                        <>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            onClick={() => setLeaveDialogOpen(true)}
+                            className="text-muted-foreground hover:text-destructive"
+                          >
+                            <SignOut className="size-4" />
+                          </Button>
+                          <Dialog
+                            open={leaveDialogOpen}
+                            onOpenChange={(open) => {
+                              if (!open && busy !== "leave")
+                                setLeaveDialogOpen(open);
+                            }}
+                          >
+                            <DialogContent showCloseButton={busy !== "leave"}>
+                              <DialogHeader>
+                                <DialogTitle>Leave workspace?</DialogTitle>
+                                <DialogDescription>
+                                  You&apos;ll be removed from this workspace. You can
+                                  rejoin if you&apos;re invited again.
+                                </DialogDescription>
+                              </DialogHeader>
+                              <DialogFooter>
+                                <Button
+                                  variant="outline"
+                                  onClick={() => setLeaveDialogOpen(false)}
+                                  disabled={busy === "leave"}
+                                >
+                                  Stay
+                                </Button>
+                                <Button
+                                  variant="destructive"
+                                  onClick={() => void leaveWorkspace(member.id)}
+                                  disabled={busy === "leave"}
+                                >
+                                  {busy === "leave"
+                                    ? "Leaving..."
+                                    : "Leave"}
+                                </Button>
+                              </DialogFooter>
+                            </DialogContent>
+                          </Dialog>
+                        </>
+                      ) : (
+                        <span className="text-muted-foreground/60">—</span>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         </div>
 
         {canManageMembers && members.invitations.length > 0 && (
@@ -572,6 +599,7 @@ export default function SettingsTeam({
               className="grid gap-3 sm:grid-cols-5 sm:items-center"
             >
               <Input
+                id="team-invite-email"
                 type="email"
                 value={inviteEmail}
                 onChange={(event) => setInviteEmail(event.target.value)}

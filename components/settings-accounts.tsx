@@ -12,6 +12,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { gooeyToast } from "goey-toast";
+import { ArrowSquareOut } from "@phosphor-icons/react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -138,18 +139,29 @@ export default function SettingsAccounts({
                     </Badge>
                   </div>
                 </div>
-                {canManage && (
-                  <Button
-                    variant="destructive"
-                    size="sm"
-                    onClick={() => setAccountToDisconnect(account)}
-                    disabled={busy === `disconnect:${account.id}`}
+                <div className="flex shrink-0 items-center gap-2">
+                  <a
+                    href={`https://instagram.com/${account.username}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className={cn(buttonVariants({ variant: "outline", size: "sm" }))}
                   >
-                    {busy === `disconnect:${account.id}`
-                      ? "Disconnecting..."
-                      : "Disconnect"}
-                  </Button>
-                )}
+                    View
+                    <ArrowSquareOut />
+                  </a>
+                  {canManage && (
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      onClick={() => setAccountToDisconnect(account)}
+                      disabled={busy === `disconnect:${account.id}`}
+                    >
+                      {busy === `disconnect:${account.id}`
+                        ? "Disconnecting..."
+                        : "Disconnect"}
+                    </Button>
+                  )}
+                </div>
               </div>
             </div>
           ))}
@@ -160,10 +172,7 @@ export default function SettingsAccounts({
         {canManage && (
           <a
             href="/api/instagram/connect"
-            className={cn(
-              buttonVariants({ variant: "default" }),
-              "bg-linear-to-tl w-fit from-fuchsia-500 via-red-600 to-orange-400 text-white ml-auto",
-            )}
+            className={cn(buttonVariants(), "ml-auto w-fit")}
           >
             {accounts.length > 0
               ? "Connect another account"
