@@ -37,6 +37,8 @@ export interface InstagramAccountStat {
   name: string | null;
   tokenExpiresAt: string | null;
   webhookSubscribed: boolean;
+  /** Meta `profile_picture_url` (24h-cached). Null when unavailable. */
+  profilePictureUrl?: string | null;
 }
 
 export interface DashboardRecentLog {

@@ -2,6 +2,16 @@
 
 You only need App Review if you want people who are not testers on your app to connect their own Instagram accounts. If you run OpenInstaDM for your own accounts, skip this. See the "Letting other people use your instance" section of [docs/setup.md](docs/setup.md).
 
+## Multiple Instagram accounts (one app, no extra env vars)
+
+`.env` holds app-level credentials only (`INSTAGRAM_APP_ID`, `INSTAGRAM_APP_SECRET`). Per-account user tokens are minted by the OAuth flow and stored encrypted in the `InstagramAccount.accessToken` DB column — never add a second token to `.env`. To connect a second account, keep the same `.env`, click **Connect Instagram** again, and log in as the other IG user. One Meta app can authorize many Business/Creator accounts; the same IG `user_id` cannot be in two workspaces at once.
+
+## Development vs Live mode
+
+- **Development:** only accounts under `App Roles` / `Instagram Testers` (invite accepted on the phone via `Instagram → Settings → Apps and websites → Tester Invites`) can connect. No review needed. This covers your own first, second, and Nth account.
+- **Live without review:** anyone can attempt OAuth, but API calls for non-testers still fail until the app has **Advanced Access** (review approved + business verification). Flipping to Live alone fixes nothing for external users.
+- Keep **Development** while building or when every connected account is your own. Go **Live** only when serving external users after review.
+
 OpenInstaDM uses the official Instagram API to send a private reply to someone who comments on a connected professional account's post or reel.
 
 ## Permissions to request

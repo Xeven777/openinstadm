@@ -56,6 +56,7 @@ export default function SettingsTeam({
   const [busy, setBusy] = useState<string | null>(null);
   const [confirmRemoveId, setConfirmRemoveId] = useState<string | null>(null);
   const [leaveDialogOpen, setLeaveDialogOpen] = useState(false);
+  const [inviteOpen, setInviteOpen] = useState(false);
   const [inviteEmail, setInviteEmail] = useState("");
   const [invitePermissions, setInvitePermissions] = useState<MemberPermission[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -83,6 +84,7 @@ export default function SettingsTeam({
         const email = inviteEmail.trim().toLowerCase();
         setInviteEmail("");
         setInvitePermissions([]);
+        setInviteOpen(false);
         if (payload.addedExistingMember) {
           gooeyToast.success(`${email} added to the workspace`, {
             description: payload.emailSent
@@ -295,11 +297,10 @@ export default function SettingsTeam({
             <Button
               type="button"
               size="sm"
-              onClick={() =>
-                document
-                  .getElementById("team-invite-email")
-                  ?.focus({ preventScroll: false })
-              }
+              onClick={() => {
+                setError(null);
+                setInviteOpen(true);
+              }}
             >
               Invite teammate
             </Button>
@@ -324,7 +325,7 @@ export default function SettingsTeam({
         )}
 
         <div className="overflow-x-auto rounded-lg border border-border">
-          <table className="w-full min-w-[640px] border-collapse text-left">
+          <table className="w-full min-w-160 border-collapse text-left">
             <thead>
               <tr className="border-b border-border bg-muted/50 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
                 <th className="px-3 py-2">Member</th>
@@ -592,58 +593,75 @@ export default function SettingsTeam({
         )}
 
         {canManageMembers && (
-          <>
-            <Separator />
-            <form
-              onSubmit={inviteMember}
-              className="grid gap-3 sm:grid-cols-5 sm:items-center"
-            >
-              <Input
-                id="team-invite-email"
-                type="email"
-                value={inviteEmail}
-                onChange={(event) => setInviteEmail(event.target.value)}
-                placeholder="teammate@agency.com"
-                required
-                className="sm:col-span-4"
-              />
-              <Button type="submit" disabled={busy === "invite"} className="">
-                {busy === "invite" ? "Inviting..." : "Invite"}
-              </Button>
-              {canGrantPermissions && (
-                <div className="sm:col-span-5">
-                  <p className="mb-2 text-xs text-muted-foreground">
-                    Optional permissions for this member
-                  </p>
-                  <div className="flex flex-wrap gap-x-4 gap-y-2">
-                    {PERMISSIONS.map((permission) => (
-                      <label
-                        key={permission.value}
-                        className="flex items-center gap-2 text-xs text-muted-foreground"
-                      >
-                        <Switch
-                          size="sm"
-                          checked={invitePermissions.includes(permission.value)}
-                          onCheckedChange={(checked) =>
-                            setInvitePermissions((current) =>
-                              togglePermission(current, permission.value, checked)
-                            )
-                          }
-                          disabled={busy === "invite"}
-                        />
-                        {permission.label}
-                      </label>
-                    ))}
+          <Dialog
+            open={inviteOpen}
+            onOpenChange={(open) => {
+              if (!open && busy !== "invite") setInviteOpen(open);
+            }}
+          >
+            <DialogContent showCloseButton={busy !== "invite"}>
+              <DialogHeader>
+                <DialogTitle>Invite teammate</DialogTitle>
+                <DialogDescription>
+                  They&apos;ll get an email with a link to join this workspace.
+                </DialogDescription>
+              </DialogHeader>
+              <form onSubmit={inviteMember} className="grid gap-4">
+                <Input
+                  type="email"
+                  value={inviteEmail}
+                  onChange={(event) => setInviteEmail(event.target.value)}
+                  placeholder="teammate@agency.com"
+                  required
+                  autoFocus
+                  disabled={busy === "invite"}
+                />
+                {canGrantPermissions && (
+                  <div>
+                    <p className="mb-2 text-xs text-muted-foreground">
+                      Optional permissions for this member
+                    </p>
+                    <div className="flex flex-wrap gap-x-4 gap-y-2">
+                      {PERMISSIONS.map((permission) => (
+                        <label
+                          key={permission.value}
+                          className="flex items-center gap-2 text-xs text-muted-foreground"
+                        >
+                          <Switch
+                            size="sm"
+                            checked={invitePermissions.includes(permission.value)}
+                            onCheckedChange={(checked) =>
+                              setInvitePermissions((current) =>
+                                togglePermission(current, permission.value, checked)
+                              )
+                            }
+                            disabled={busy === "invite"}
+                          />
+                          {permission.label}
+                        </label>
+                      ))}
+                    </div>
                   </div>
-                </div>
-              )}
-              {error && (
-                <p className="sm:col-span-5 text-sm text-destructive">
-                  {error}
-                </p>
-              )}
-            </form>
-          </>
+                )}
+                {error && (
+                  <p className="text-sm text-destructive">{error}</p>
+                )}
+                <DialogFooter>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setInviteOpen(false)}
+                    disabled={busy === "invite"}
+                  >
+                    Cancel
+                  </Button>
+                  <Button type="submit" disabled={busy === "invite"}>
+                    {busy === "invite" ? "Inviting..." : "Send invite"}
+                  </Button>
+                </DialogFooter>
+              </form>
+            </DialogContent>
+          </Dialog>
         )}
       </CardContent>
     </Card>

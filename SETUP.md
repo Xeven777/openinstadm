@@ -724,7 +724,24 @@ Provider references: [AI SDK providers](https://ai-sdk.dev/providers/ai-sdk-prov
 
 ### 1. "Insufficient Developer Role" when connecting Instagram
 
-- **Cause**: The Instagram account you are trying to connect has not been added as a Tester, or you forgot to accept the invite inside the Instagram app under _Settings_ → _Apps and Websites_ → _Tester Invites_.
+- **Cause**: The Instagram account you are trying to connect has not been added as a Tester, or you forgot to accept the invite inside the Instagram app under _Settings_ → _Apps and Websites_ → _Tester Invites_. This applies to **every** account you connect, including your own second account.
+
+### 1b. Connecting a second Instagram account (multiple accounts, one app)
+
+- **You do NOT add a second token to `.env`.** `.env` holds app-level credentials only (`INSTAGRAM_APP_ID`, `INSTAGRAM_APP_SECRET`, `FACEBOOK_APP_SECRET`). Per-account user tokens are created automatically by the OAuth flow and stored encrypted in the `InstagramAccount.accessToken` database column.
+- **Meta allows it:** one Meta app (use case _Manage messaging and content on Instagram_) can authorize many Business/Creator Instagram accounts. To connect account #2, keep the same `.env` and click **Connect Instagram** again, then log in as the other IG user. Each connection becomes a separate `InstagramAccount` row in the same workspace.
+- **Each IG needs its own tester invite in Development mode:** `App Roles` → `Roles` → `Instagram Testers` → Add → accept on that account's phone before connecting. The same IG `user_id` cannot live in two workspaces at once — disconnect it from the first workspace before connecting it elsewhere.
+
+### 1c. Development vs Live mode — which to keep?
+
+- **Development:** only accounts listed under `App Roles` / `Instagram Testers` can connect. No App Review needed. Use this while building or when all connected accounts are your own.
+- **Live:** anyone can _attempt_ OAuth, but calls only _succeed_ for non-testers if the app has **Advanced Access** (App Review approved + business verification). Going Live without review grants nothing extra — external accounts still fail.
+- **Recommendation:** if your first account works and you only connect your own accounts, staying in either mode is fine. Prefer **Development** while tunnel URLs change frequently; go **Live** only when you are ready for external users (after App Review). See `META_APP_REVIEW.md`.
+
+### 1d. "Instagram connection failed: Unsupported request - method type: get"
+
+- **Cause**: Meta accepted the login (issued a `code`) but rejected the server-side `GET` to `/access_token` or `/me` during `app/api/instagram/callback`. Almost always one of: (a) using the Facebook App ID instead of the Instagram App ID from **Instagram → API Setup with Instagram Login**, (b) `redirect_uri` mismatch (`NEXTAUTH_URL/api/instagram/callback` must exactly match the URI whitelisted under **Business login settings**, including `https` and no trailing slash — tunnel restarts change it), or (c) the IG account is not an accepted tester / missing scopes.
+- **Fix**: verify the Instagram (not Facebook) App ID/Secret pair, re-sync `NEXTAUTH_URL` with Meta after every tunnel restart, confirm the tester invite was accepted on the phone, then check the full reason in the `?reason=` URL param, the `[Instagram Callback] Error` server log, or the `OperationalEvent` row with `message='Instagram connection failed'`.
 
 ### 2. Webhook Verification Fails
 

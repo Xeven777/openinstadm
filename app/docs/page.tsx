@@ -1314,8 +1314,27 @@ REDIS_URL=redis://default:xxx@redis.proxy.rlwy.net:1234`}
                   title:
                     "Insufficient Developer Role when connecting Instagram",
                   cause:
-                    "Account not added as Tester, or invite not accepted on the phone.",
+                    "Account not added as Tester, or invite not accepted on the phone. Applies to every account, including your own second one.",
                   fix: "Re-send tester invite in App Roles → Roles → Instagram Testers. On phone: Instagram → Settings → Apps and websites → Tester Invites → Accept. Then reconnect.",
+                },
+                {
+                  title: "Connecting a second Instagram account",
+                  cause:
+                    ".env holds app credentials only — no per-account token goes there. Tokens are minted by OAuth and stored encrypted in the DB.",
+                  fix: "Keep the same INSTAGRAM_APP_ID/SECRET, click Connect Instagram again, log in as the other IG user. Each IG needs its own Tester invite accepted first. Same IG user_id can't be in two workspaces.",
+                },
+                {
+                  title: "Development vs Live mode",
+                  cause:
+                    "Dev = testers only, no review needed. Live without review still fails for non-testers — review + business verification grant Advanced Access.",
+                  fix: "For your own accounts stay in Dev (or Live, both work for testers). Go Live only when serving external users after App Review. See META_APP_REVIEW.md.",
+                },
+                {
+                  title:
+                    "Instagram connection failed: Unsupported request - method type: get",
+                  cause:
+                    "Meta issued a code but rejected the server GET to /access_token or /me: wrong App ID (Facebook vs Instagram), redirect_uri mismatch, or account not an accepted tester.",
+                  fix: "Use the Instagram App ID from Instagram → API Setup (not App Settings → Basic). Ensure NEXTAUTH_URL/api/instagram/callback exactly matches Business login settings. Full reason is in ?reason=, server log [Instagram Callback] Error, or OperationalEvent.",
                 },
                 {
                   title: "Webhook verification fails",

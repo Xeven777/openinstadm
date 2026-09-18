@@ -1,5 +1,6 @@
 import { cacheLife, cacheTag, revalidateTag } from "next/cache";
 import { prisma } from "@/lib/db/client";
+import { loadProfileData } from "@/lib/server/instagram-media";
 import type { InstagramAccountStat } from "@/lib/server/stats";
 
 /**
@@ -87,7 +88,7 @@ export async function getSettingsData(
   cacheLife({ stale: 300, revalidate: 300, expire: 3600 });
   cacheTag(`settings:${workspaceId}`);
 
-  const [workspace, instagramAccounts] = await Promise.all([
+  const [workspace, rawAccounts] = await Promise.all([
     prisma.workspace.findUnique({
       where: { id: workspaceId },
       select: {
@@ -103,17 +104,41 @@ export async function getSettingsData(
         username: true,
         instagramId: true,
         name: true,
+        accessToken: true,
         tokenExpiresAt: true,
         webhookSubscribed: true,
       },
     }),
   ]);
 
+  // Avatar via the existing Meta token: `loadProfileData` reads
+  // `profile_picture_url` through the 24h ApiSnapshot cache, so this adds no
+  // Meta call per render. Failures (expired token, revoked perms) fall back
+  // to null and the UI renders an initial-letter avatar instead.
+  // The encrypted access token is only used server-side — never returned.
+  const instagramAccounts: InstagramAccountStat[] = await Promise.all(
+    rawAccounts.map(async (account) => {
+      const { accessToken: _token, ...rest } = account;
+      let profilePictureUrl: string | null = null;
+      try {
+        const profile = await loadProfileData({
+          workspaceId,
+          account: { id: account.id, accessToken: _token },
+        });
+        profilePictureUrl = profile.data.profilePictureUrl;
+      } catch {
+        profilePictureUrl = null;
+      }
+      return {
+        ...rest,
+        tokenExpiresAt: account.tokenExpiresAt?.toISOString() ?? null,
+        profilePictureUrl,
+      };
+    }),
+  );
+
   return {
     workspace,
-    instagramAccounts: instagramAccounts.map((account) => ({
-      ...account,
-      tokenExpiresAt: account.tokenExpiresAt?.toISOString() ?? null,
-    })),
+    instagramAccounts,
   };
 }

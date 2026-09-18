@@ -108,10 +108,29 @@ export default function SettingsAccounts({
               className="rounded-lg border border-border bg-muted/50 p-4 space-y-3"
             >
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <div className="min-w-0">
-                  <p className="font-medium text-foreground">
-                    @{account.username}
-                  </p>
+                <div className="flex min-w-0 items-center gap-3">
+                  {account.profilePictureUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={account.profilePictureUrl}
+                      alt={`@${account.username}`}
+                      width={40}
+                      height={40}
+                      referrerPolicy="no-referrer"
+                      className="size-10 shrink-0 rounded-full object-cover"
+                    />
+                  ) : (
+                    <span
+                      aria-hidden="true"
+                      className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary/15 text-sm font-bold text-primary"
+                    >
+                      {(account.username?.[0] ?? "?").toUpperCase()}
+                    </span>
+                  )}
+                  <div className="min-w-0">
+                    <p className="font-medium text-foreground">
+                      @{account.username}
+                    </p>
                   <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
                     <span>
                       Expires{" "}
@@ -137,6 +156,7 @@ export default function SettingsAccounts({
                         ? "Webhook ready"
                         : "Webhook pending"}
                     </Badge>
+                  </div>
                   </div>
                 </div>
                 <div className="flex shrink-0 items-center gap-2">

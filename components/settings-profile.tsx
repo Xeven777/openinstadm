@@ -74,7 +74,7 @@ export default function SettingsProfile({
   const avatarSeed = (userEmail?.trim().toLowerCase() || savedName || "user");
 
   return (
-    <Card>
+    <Card className="h-full">
       <CardContent className="gap-4">
         <div className="flex items-center gap-3">
           {/* eslint-disable-next-line @next/next/no-img-element */}

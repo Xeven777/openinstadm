@@ -103,12 +103,12 @@ async function SettingsContent() {
   return (
     <>
       <div className="grid items-start gap-4 lg:grid-cols-2">
+        <SettingsAccounts accounts={settings.instagramAccounts} />
         <SettingsProfile
           userName={user?.name ?? null}
           userEmail={user?.email ?? null}
           userRole={context.role}
         />
-        <SettingsAccounts accounts={settings.instagramAccounts} />
       </div>
 
       <SettingsTeam members={members} currentUserId={context.userId} />
@@ -151,14 +151,21 @@ async function SettingsContent() {
             </div>
             <Separator />
             <div className="flex flex-wrap gap-2">
-              <a href="/docs" className={cn(buttonVariants({ variant: "outline", size: "sm" }))}>
+              <a
+                href="/docs"
+                className={cn(
+                  buttonVariants({ variant: "outline", size: "sm" }),
+                )}
+              >
                 View documentation
               </a>
               <a
                 href="https://github.com/Xeven777/openinstadm/issues"
                 target="_blank"
                 rel="noreferrer"
-                className={cn(buttonVariants({ variant: "outline", size: "sm" }))}
+                className={cn(
+                  buttonVariants({ variant: "outline", size: "sm" }),
+                )}
               >
                 Report a bug
               </a>
