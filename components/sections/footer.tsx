@@ -1,6 +1,10 @@
 import Link from "next/link";
 import Image from "next/image";
-import { GithubLogoIcon, HeartIcon } from "@phosphor-icons/react/dist/ssr";
+import {
+  GithubLogoIcon,
+  HeartIcon,
+  InstagramLogoIcon,
+} from "@phosphor-icons/react/dist/ssr";
 
 const GITHUB_URL = "https://github.com/xeven777/OpenInstaDM";
 
@@ -15,6 +19,18 @@ const footerLinks = {
     { label: "Setup guide", href: "/docs#setup" },
     { label: "Meta review", href: "/meta-review" },
     { label: "Diagnostics", href: "/docs#diagnostics" },
+    {
+      label: "Dev.to Article",
+      href: "https://dev.to/xeven777/a-free-manychat-alternative-for-instagram-creators-we-built-it-open-source-free-5dlm/",
+    },
+    {
+      label: "AuraDevs Blog",
+      href: "https://auradevs.co/blog/openinstadm/",
+    },
+    {
+      label: "Instagram Post",
+      href: "https://www.instagram.com/p/DdEdblhIW5c/",
+    },
   ],
   Legal: [
     { label: "Privacy policy", href: "/privacy" },
@@ -84,11 +100,21 @@ export default function Footer() {
                 href={GITHUB_URL}
                 target="_blank"
                 rel="noreferrer"
-                className="inline-flex items-center gap-2 rounded-lg border border-border bg-background px-3 py-1.5 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground hover:bg-muted"
+                className="inline-flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm font-medium bg-linear-to-b from-gray-900 via-purple-900 to-violet-600 text-white"
                 aria-label="View on GitHub"
               >
                 <GithubLogoIcon weight="fill" className="h-4 w-4" />
                 GitHub
+              </a>
+              <a
+                href={"https://www.instagram.com/openinstadm/"}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-2 rounded-lg bg-linear-to-bl from-pink-600 via-red-500 to-yellow-400 px-3 py-1.5 text-sm font-semibold tracking-tight text-white"
+                aria-label="View on Instagram"
+              >
+                <InstagramLogoIcon weight="fill" className="h-4 w-4" />
+                Instagram
               </a>
             </div>
           </div>

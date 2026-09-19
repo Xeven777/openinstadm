@@ -30,8 +30,8 @@ const Navbar = async () => {
   const stars = await getGitHubStars();
 
   return (
-    <header className="fixed w-11/12 top-2 z-40 border-b border-border/50 bg-background/60 backdrop-blur-xl rounded-full -translate-x-1/2 left-1/2">
-      <div className="mx-auto flex h-15 w-full max-w-8xl items-center justify-between px-5 sm:px-6 lg:px-8 rounded-full">
+    <header className="fixed w-full md:w-11/12 top-0 md:top-2 z-40 border-b border-border/50 bg-background/60 backdrop-blur-xl md:rounded-full -translate-x-1/2 left-1/2">
+      <div className="mx-auto flex h-15 w-full max-w-8xl items-center justify-between px-2 sm:px-6 lg:px-8 rounded-full">
         <Link
           href="/"
           className="flex items-center gap-2"
@@ -43,25 +43,25 @@ const Navbar = async () => {
             width={32}
             height={32}
             unoptimized
-            className="size-8 transition-all duration-300 dark:invert-0 invert shimmer"
+            className="size-5 sm:size-8 transition-all duration-300 dark:invert-0 invert shimmer"
           />
-          <span className="text-lg font-bold tracking-tight text-foreground hidden md:block">
+          <span className="text-sm md:text-lg font-bold tracking-tight text-foreground">
             OpenInstaDM
           </span>
         </Link>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-1 md:gap-3">
           <ModeToggle />
           <a
             href={GITHUB_URL}
             target="_blank"
             rel="noreferrer"
-            className="inline-flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            className="inline-flex items-center gap-2 rounded-lg px-3 py-1.5 text-xs sm:text-sm font-medium text-foreground transition-colors hover:bg-muted"
             aria-label="View OpenInstaDM on GitHub"
           >
             <GithubLogoIcon
               weight="fill"
-              className="h-4 w-4"
+              className="size-3 sm:size-4"
               aria-hidden="true"
             />
             {stars !== null && <span>{formatStars(stars)}</span>}
