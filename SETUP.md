@@ -487,10 +487,11 @@ Create `redis/users.acl`. The password after `>` must exactly match `REDIS_PASSW
 
 ```text
 user default off
-user openinstadm on >replace-with-a-long-random-hex-password ~* &* +@all -@dangerous +info
+user openinstadm on >replace-with-a-long-random-hex-password ~* &* +@all -@dangerous
 ```
 
-`+info` is intentional: ioredis uses Redis's `INFO` command for its readiness check. Without it, the worker repeatedly logs a `NOPERM ... info` error.
+`+info` is optional. OpenInstaDM disables Redis ready checks, so providers that deny
+`INFO` no longer need an ACL exception for that command.
 
 The official Redis image drops privileges to its `redis` user. Give that user read access to the mounted ACL file without making the file broadly readable:
 
