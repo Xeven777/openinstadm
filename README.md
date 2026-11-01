@@ -182,14 +182,8 @@ For the complete stack — application libraries, the two runtime processes, and
 
 ---
 ## Star History
+![chart](https://shieldcn.dev/chart/github/stars/xeven777/openinstadm.svg?theme=rose&bg=transparent&logo=false&icon=instagram&yScale=log)
 
-<a href="https://www.star-history.com/?repos=xeven777%2Fopeninstadm&type=timeline&legend=bottom-right">
- <picture>
-   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=xeven777/openinstadm&type=timeline&theme=dark&legend=top-left" />
-   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=xeven777/openinstadm&type=timeline&legend=top-left" />
-   <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=xeven777/openinstadm&type=timeline&legend=top-left" />
- </picture>
-</a>
 ---
 ## Contributing
 
@@ -209,6 +203,8 @@ Built and maintained by **Anish Biswas** & **Sounodip Ghosh**.
 - Instagram: [@anish_biswas_7_](https://instagram.com/anish_biswas_7_)
 
 OpenInstaDM is a fork of [instagram-comment-to-dm](https://github.com/im-anishraj/instagram-comment-to-dm) by [Anish Raj](https://github.com/im-anishraj), also MIT licensed. The billing layer and plan caps were removed, and the setup was documented from scratch.
+
+[![xeven777/openinstadm contributors](https://shieldcn.dev/contributors/xeven777/openinstadm.svg?preset=gradient&size=80&names=true&align=left&mode=dark&font=geist)](https://github.com/xeven777/openinstadm/graphs/contributors)
 
 ---
 
