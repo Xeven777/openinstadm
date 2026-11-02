@@ -19,6 +19,7 @@ export function getRedisConnection(): Redis {
   if (!connection) {
     connection = new Redis(process.env.REDIS_URL!, {
       maxRetriesPerRequest: null, // Required by BullMQ
+      enableReadyCheck: false,
     });
   }
   return connection;
@@ -39,6 +40,7 @@ export async function withDiagnosticsRedisConnection<T>(
     connectTimeout: DIAGNOSTIC_REDIS_TIMEOUT_MS,
     commandTimeout: DIAGNOSTIC_REDIS_TIMEOUT_MS,
     maxRetriesPerRequest: 1,
+    enableReadyCheck: false,
     enableOfflineQueue: false,
     retryStrategy: () => null,
   });

@@ -27,6 +27,7 @@ function getRedis(): Redis {
   if (!redis) {
     redis = new Redis(process.env.REDIS_URL!, {
       maxRetriesPerRequest: null, // required by BullMQ
+      enableReadyCheck: false,
     });
   }
   return redis;

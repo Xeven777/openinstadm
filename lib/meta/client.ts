@@ -115,6 +115,26 @@ interface TokenResponse {
   expires_in?: number;
 }
 
+function isUnsupportedMethodError(error: unknown, method: "get" | "post"): boolean {
+  if (!(error instanceof Error)) return false;
+  return new RegExp(`method type:\\s*${method}`, "i").test(error.message);
+}
+
+async function requestInstagramToken(url: URL): Promise<TokenResponse> {
+  const postResponse = await fetch(url.toString(), { method: "POST" });
+
+  try {
+    return await handleResponse<TokenResponse>(postResponse);
+  } catch (error) {
+    // Older endpoints still expect querystring GET; retry there if the POST
+    // endpoint explicitly rejects the method.
+    if (!isUnsupportedMethodError(error, "post")) throw error;
+  }
+
+  const getResponse = await fetch(url.toString());
+  return handleResponse<TokenResponse>(getResponse);
+}
+
 async function handleResponse<T>(response: Response): Promise<T> {
   const data = await response.json();
 
@@ -755,8 +775,7 @@ export async function getLongLivedToken(
   url.searchParams.set("client_secret", requireEnv("INSTAGRAM_APP_SECRET"));
   url.searchParams.set("access_token", shortLivedToken);
 
-  const response = await fetch(url.toString());
-  const data = await handleResponse<TokenResponse>(response);
+  const data = await requestInstagramToken(url);
 
   return {
     accessToken: data.access_token,
@@ -771,8 +790,7 @@ export async function refreshLongLivedToken(
   url.searchParams.set("grant_type", "ig_refresh_token");
   url.searchParams.set("access_token", longLivedToken);
 
-  const response = await fetch(url.toString());
-  const data = await handleResponse<TokenResponse>(response);
+  const data = await requestInstagramToken(url);
 
   return {
     accessToken: data.access_token,
